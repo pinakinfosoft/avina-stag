@@ -1,6 +1,7 @@
 
 const { Client } = require('pg');
-require("dotenv").config({ path: ".env" });
+require("dotenv").config({ path: "/home/ubuntu/app/avina-stag/.env" });
+
 
 
 async function createDatabase() {

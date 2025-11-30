@@ -1,5 +1,5 @@
 //require("dotenv").config({ path: "environment/env." + process.env.NODE_ENV });
-require("dotenv").config({ path: ".env" });
+require("dotenv").config({ path: "/home/ubuntu/app/avina-stag/.env" });
 export const PROCESS_ENVIRONMENT =
   process.env.PROCESS_ENVIRONMENT 
 export const PORT = process.env.PORT ;
@@ -18,7 +18,7 @@ export const DB_PASSWORD = process.env.DB_PASSWORD ;
 export const DB_HOST = process.env.DB_HOST ;
 // export const DB_HOST = process.env.DB_HOST .cabbcwc2w7zj.us-west-1.rds.amazonaws.com
 export const DB_PORT = process.env.DB_PORT ;
-export const SEQUELIZE_DIALECT = process.env.SEQUELIZE_DIALECT ;
+export const SEQUELIZE_DIALECT = process.env.SEQUELIZE_DIALECT || "postgres";
 export const SSL_UNAUTHORIZED = process.env.SSL_UNAUTHORIZED || "false" ;
 // AWS S3
 export const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME ;
