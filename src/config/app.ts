@@ -49,7 +49,7 @@ console.log("-------------------", numCPUs)
     cluster.fork();
   });
   } else {
-   let port = PORT.toString();
+   let port = PORT ? PORT.toString() : "3000";
   app.set("port", port);
   let server = http.createServer(app);
   server.listen(port);

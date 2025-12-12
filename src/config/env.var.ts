@@ -1,8 +1,8 @@
 //require("dotenv").config({ path: "environment/env." + process.env.NODE_ENV });
-require("dotenv").config({ path: "/home/ubuntu/app/avina-stag/.env" });
+require("dotenv").config({ path: ".env" });
 export const PROCESS_ENVIRONMENT =
   process.env.PROCESS_ENVIRONMENT 
-export const PORT = process.env.PORT ;
+export const PORT = process.env.PORT || "3000";
 export const SECURE_COMMUNICATION = process.env.SECURE_COMMUNICATION ;
 export const PUBLIC_AUTHORIZATION_TOKEN =
   process.env.PUBLIC_AUTHORIZATION_TOKEN 
