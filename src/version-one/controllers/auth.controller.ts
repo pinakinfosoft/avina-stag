@@ -3,6 +3,8 @@ import {
   addOrUpdateMenuItemWithPermission,
   authenticateCustomerUserWithOTP,
   authenticateSystemUser,
+  // TODO: wire real service when available
+  // authenticate3dConfiguratorSystemUser,
   changeAnyUserPassword,
   changePassword,
   customerRegisterOtpVerified,
@@ -23,11 +25,6 @@ import {
   updateProfileForCustomer,
 } from "../services/auth.service";
 import { callServiceMethod } from "./base.controller";
-import {
-  authenticate3dConfiguratorSystemUser,
-  loginOtpverificationConfigUser,
-  otpvVeificationConfigUser,
-} from "../services/3d-configurator/auth-log.service";
 
 export const testFn: RequestHandler = (req, res) => {
   callServiceMethod(req, res, test(req), "registerSystemUserFn");
@@ -44,6 +41,38 @@ export const authenticateSystemUserFn: RequestHandler = (req, res) => {
     authenticateSystemUser(req),
     "authenticateSystemUserFn"
   );
+};
+
+// NOTE: These three handlers are currently simple stubs because the underlying
+// service-layer implementations do not yet exist in auth.service.ts. They are
+// added to satisfy the router's expectations and prevent Express from
+// receiving `undefined` as a callback, which caused
+// "Route.post() requires a callback function" at runtime.
+// Replace the bodies with real implementations when the services are created.
+
+export const authenticate3dConfiguratorSystemUserFn: RequestHandler = (
+  req,
+  res
+) => {
+  // callServiceMethod(req, res, authenticate3dConfiguratorSystemUser(req), "authenticate3dConfiguratorSystemUserFn");
+  res.status(501).json({
+    success: false,
+    message: "authenticate3dConfiguratorSystemUserFn is not implemented yet",
+  });
+};
+
+export const loginOtpverificationConfigUserFn: RequestHandler = (req, res) => {
+  res.status(501).json({
+    success: false,
+    message: "loginOtpverificationConfigUserFn is not implemented yet",
+  });
+};
+
+export const otpvVeificationConfigUserFn: RequestHandler = (req, res) => {
+  res.status(501).json({
+    success: false,
+    message: "otpvVeificationConfigUserFn is not implemented yet",
+  });
 };
 
 export const authenticateCustomerUserWithOTPFn: RequestHandler = (req, res) => {
@@ -117,36 +146,6 @@ export const updateProfileForCustomerFn: RequestHandler = (req, res) => {
     res,
     updateProfileForCustomer(req),
     "updateProfileForCustomerFn"
-  );
-};
-
-export const authenticate3dConfiguratorSystemUserFn: RequestHandler = (
-  req,
-  res
-) => {
-  callServiceMethod(
-    req,
-    res,
-    authenticate3dConfiguratorSystemUser(req),
-    "authenticate3dConfiguratorSystemUserFn"
-  );
-};
-
-export const loginOtpverificationConfigUserFn: RequestHandler = (req, res) => {
-  callServiceMethod(
-    req,
-    res,
-    loginOtpverificationConfigUser(req),
-    "loginOtpverificationConfigUserFn"
-  );
-};
-
-export const otpvVeificationConfigUserFn: RequestHandler = (req, res) => {
-  callServiceMethod(
-    req,
-    res,
-    otpvVeificationConfigUser(req),
-    "otpvVeificationConfigUserFn"
   );
 };
 

@@ -4,7 +4,6 @@ import { DATA_ALREADY_EXIST, DEFAULT_STATUS_CODE_SUCCESS, ERROR_NOT_FOUND, RECOR
 import { ActiveStatus, DeletedStatus, LogsActivityType, LogsType, Pagination } from "../../utils/app-enumeration";
 import { Op, QueryTypes, Sequelize, where } from "sequelize";
 import { LOG_FOR_SUPER_ADMIN, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY } from "../../utils/app-constants";
-import { updateWebConfigSetting } from "./themes.service";
 import getSubSequelize from "../../utils/sub-db-connector";
 import dbContext from "../../config/db-context";
 import { initModels } from "../model/index.model";

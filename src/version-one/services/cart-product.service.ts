@@ -38,8 +38,6 @@ import {
 } from "../../utils/app-constants";
 import { initModels } from "../model/index.model";
 import { moveFileToS3ByType } from "../../helpers/file.helper";
-import { applyOffer } from "./apply-offer.service";
-import { applyOfferWithBuyOneGetOne } from "./apply-offer-buy.service";
 import { applyOfferWithBuyNewOneGetOne } from "./apply-offer-buy-with-new.service";
 const crypto = require("crypto");
 

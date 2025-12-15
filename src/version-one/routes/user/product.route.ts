@@ -15,8 +15,6 @@ import {
   searchProductGloballyFn,
   cartProductListgustCheckOutFn,
   configProductPriceFindFn,
-  getAllGiftSetProductsUserSideFn,
-  getByIDGiftSetProductsUsersFn,
   addToCartConfigProductAPIFn,
   cartConfigProductListByUSerIdFn,
   addConfigProductsOneCombinationFromCSVFileFn,
@@ -56,11 +54,6 @@ import {
   addProductReviewFn,
   getProductReviewByProductIDFn,
 } from "../../controllers/product-review.controller";
-import {
-  birthstoneProductGetByIdUserSideFn,
-  birthstoneProductListUserSideFn,
-  birthstoneProductPriceFindFn,
-} from "../../controllers/birth-stone-product.controller";
 import { currencyMiddleware } from "../../../middlewares/currency-rate-change";
 
 export default (app: Router) => {
@@ -140,24 +133,6 @@ export default (app: Router) => {
   );
 
   // app.post("/config/product/cart/list", cartConfigProductListByUSerIdFn);
-
-  ///////////------Gift set Product---------///////////////////
-
-
-  app.get("/gift-set/products/list", getAllGiftSetProductsUserSideFn);
-
-  app.post("/gift-set/products", getByIDGiftSetProductsUsersFn);
-
-  ////////////////////---------- Birth stone product ------------- ///////////////////////
-
-  app.get("/product/birth-stone/list",[currencyMiddleware], birthstoneProductListUserSideFn);
-
-  app.post(
-    "/product/birth-stone/details", [currencyMiddleware,birthstoneProductDetailValidator],
-    birthstoneProductGetByIdUserSideFn
-  );
-
-  app.post("/product/birth-stone/price", birthstoneProductPriceFindFn);
 
   /* new diamond master base One combination config product */
 

@@ -35,15 +35,6 @@ import {
   addConfigProductBulkFn,
   cartProductListgustCheckOutFn,
   configProductPriceFindFn,
-  addGiftSetProductAPIFn,
-  getAllGiftSetProductsFn,
-  getByIDGiftSetProductsFn,
-  editGiftSetProductApiFn,
-  statusUpdateGiftSetProductFn,
-  deleteGiftSetProductFn,
-  deleteGiftSetProductImageFn,
-  getAllGiftSetProductsUserSideFn,
-  getByIDGiftSetProductsUsersFn,
   configProductListInAdminFn,
   addToCartConfigProductAPIFn,
   cartConfigProductListByUSerIdFn,
@@ -115,22 +106,6 @@ import {
   getProductReviewListDataFn,
   statusUpdateforProductReviewFn,
 } from "../../controllers/product-review.controller";
-import {
-  activeInactiveBirthstoneProductFn,
-  addBirthStoneProductAPIFn,
-  addBirthStoneProductImageFn,
-  addBirthStoneProductWithPriceAPIFn,
-  addBirthstoneProductsFromCSVFileFn,
-  birthstoneProductGetByIdUserSideFn,
-  birthstoneProductListUserSideFn,
-  birthstoneProductPriceFindFn,
-  deleteBirthstoneProductFn,
-  editBirthstoneproductApiFn,
-  featuredBirthstoneProductStatusUpdateFn,
-  getAllBirthstoneProductFn,
-  getBirthstoneProductByIdFn,
-  trendingBirthstoneProductStatusUpdateFn,
-} from "../../controllers/birth-stone-product.controller";
 import { currencyMiddleware } from "../../../middlewares/currency-rate-change";
 import { addProductDropdownFn } from "../../controllers/masters/master.controller";
 
@@ -255,117 +230,6 @@ export default (app: Router) => {
     "/three-stone/product/list",
     [authorization],
     threeStoneConfigProductlistInAdminFn
-  );
-
-  ///////////------Gift set Product---------///////////////////
-
-  app.post(
-    "/gift-set/product/add",
-    [
-      authorization,
-      reqArrayImageParser(["thumb_images", "featured_images", "video"]),
-    ],
-    addGiftSetProductAPIFn
-  );
-
-  app.get("/gift-set/products/list", [authorization], getAllGiftSetProductsFn);
-
-  app.post("/gift-set/products", [authorization], getByIDGiftSetProductsFn);
-
-  app.post(
-    "/gift-set/product/edit",
-    [
-      authorization,
-      reqArrayImageParser(["thumb_images", "featured_images", "video"]),
-    ],
-    editGiftSetProductApiFn
-  );
-
-  app.post(
-    "/gift-set/products/status",
-    [authorization],
-    statusUpdateGiftSetProductFn
-  );
-
-  app.post(
-    "/gift-set/products/delete",
-    [authorization],
-    deleteGiftSetProductFn
-  );
-
-  app.post(
-    "/gift-set/products/image/delete",
-    [authorization],
-    deleteGiftSetProductImageFn
-  );
-
-  ////////////////////---------- Birth stone product ------------- ///////////////////////
-  app.post(
-    "/product/birth-stone/add",
-    [authorization, saveProductBasicDetailsValidator],
-    addBirthStoneProductAPIFn
-  );
-
-  app.get(
-    "/product/birth-stone/list",
-    [authorization],
-    getAllBirthstoneProductFn
-  );
-
-  app.get(
-    "/product/birth-stone/:id",
-    [authorization],
-    getBirthstoneProductByIdFn
-  );
-
-  app.put(
-    "/product/birth-stone/status",
-    [authorization, activeInactiveProductValidator],
-    activeInactiveBirthstoneProductFn
-  );
-
-  app.post(
-    "/product/birth-stone/add/price-add",
-    [authorization, saveProductBasicDetailsValidator],
-    addBirthStoneProductWithPriceAPIFn
-  );
-
-  app.put(
-    "/product/birth-stone/featured/status",
-    [authorization, featuredProductValidator],
-    featuredBirthstoneProductStatusUpdateFn
-  );
-  app.put(
-    "/product/birth-stone/trending/status",
-    [authorization, trendingProductValidator],
-    trendingBirthstoneProductStatusUpdateFn
-  );
-
-  app.put(
-    "/product/birth-stone/delete",
-    [authorization, deleteProductValidator],
-    deleteBirthstoneProductFn
-  );
-
-  app.put(
-    "/product/birth-stone/edit",
-    [authorization, saveProductBasicDetailsValidator],
-    editBirthstoneproductApiFn
-  );
-
-  app.post(
-    "/product/birth-stone/image/add",
-    [authorization, reqSingleImageParser("image")],
-    addBirthStoneProductImageFn
-  );
-
-
-  /* Birthstone product add with price base on metal and metal tone */
-
-  app.post(
-    "/product/birth-stone/bulk/add",
-    [authorization, reqProductBulkUploadFileParser("config_csv")],
-    addBirthstoneProductsFromCSVFileFn
   );
 
 
