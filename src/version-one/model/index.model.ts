@@ -141,18 +141,31 @@ import { ThemeAttributes } from "./theme/theme-attributes.model";
 import { Themes } from "./theme/themes.model";
 import { WebConfigSetting } from "./theme/web-config-setting.model";
 
-let modelCache = {};
+// In the original design this file supported multi-tenant databases by
+// building a separate Sequelize model graph per company key. The current
+// system only needs a single tenant, so we simplify this to build the model
+// graph once against the default dbContext and cache it in-process.
+//
+// We keep the same initModels signature so existing service code continues to
+// work unchanged. Any request or connection object passed in is ignored for
+// tenant selection; all callers receive the same shared models object.
 
-export const initModels = (req: any, deleted?: boolean) => {
-    const companyKey = (req?.body?.session_res?.client_key || req?.query?.company_key || req?.params?.company_key || req.body.company_key as string)
-    const sequelize = req.body.db_connection ? req.body.db_connection : dbContext;
+let cachedModels: any | null = null;
 
-    if (modelCache[companyKey] && deleted && deleted == true) {
-        delete modelCache[companyKey];
-        return ''
+export const initModels = (source: any, deleted?: boolean) => {
+    // Allow callers that previously passed req or a custom object; we always
+    // resolve to the single global Sequelize instance.
+    const sequelize =
+        source?.body?.db_connection ||
+        source?.db_connection ||
+        dbContext;
+
+    if (cachedModels && deleted) {
+        cachedModels = null;
+        return "";
     }
-    if (modelCache[companyKey]) {
-        return modelCache[companyKey];
+    if (cachedModels) {
+        return cachedModels;
     }
 
     const configuratorLogs = ConfiguratorLogs(sequelize);
@@ -1945,7 +1958,7 @@ export const initModels = (req: any, deleted?: boolean) => {
         foreignKey: "id_sub_sub_category",
         as: "sub_sub_category",
     });
-    modelCache[companyKey] = {
+    cachedModels = {
         ConfiguratorLogs: configuratorLogs,
         BirthstoneProductCategory: birthstoneProductCategory,
         BirthStoneProductDiamondOption: birthStoneProductDiamondOption,
@@ -2089,5 +2102,5 @@ export const initModels = (req: any, deleted?: boolean) => {
         PriceCorrection: priceCorrection
     };
 
-    return modelCache[companyKey];
+    return cachedModels;
 }
