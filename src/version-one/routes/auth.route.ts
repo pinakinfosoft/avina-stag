@@ -56,7 +56,7 @@ export default (app: Router) => {
 
   app.post("/login", [vFourloginValidator], authenticateSystemUserFn);
   app.post(
-    "/customer/login",
+    "/customer-login",
     [customerLoginValidator],
     authenticateCustomerUserWithOTPFn
   );
@@ -76,29 +76,29 @@ export default (app: Router) => {
   );
 
   app.post(
-    "/registration/customer",
+    "/registration-customer",
     [registerCustomerValidator],
     registerCustomerUserFn
   );
-  app.post("/optVerified/customer", customerRegisterOtpVerifiedFn);
-  app.post("/reSend/Opt",[resendOtpValidator] ,resendOtpVerificationFn);
+  app.post("/optVerified-customer", customerRegisterOtpVerifiedFn);
+  app.post("/reSend-Opt",[resendOtpValidator] ,resendOtpVerificationFn);
 
   app.put(
-    "/customer/profile/edit",
+    "/customer-profile-edit",
     [customerAuthorization, reqSingleImageParser("image")],
     updateProfileForCustomerFn
   );
-  app.get("/user-detail/:id", getProfileForCustomerFn);
-  app.post("/config/user/auth", authenticate3dConfiguratorSystemUserFn);
+  app.get("/user-detail-:id", getProfileForCustomerFn);
+  app.post("/config-user-auth", authenticate3dConfiguratorSystemUserFn);
 
-  app.post("/optVerified/config/user/auth", loginOtpverificationConfigUserFn);
+  app.post("/optVerified-config-user-auth", loginOtpverificationConfigUserFn);
 
-  app.post("/optVerified/config", otpvVeificationConfigUserFn);
+  app.post("/optVerified-config", otpvVeificationConfigUserFn);
 
   /* sing up with third party */
 
   app.post(
-    "/customer/signup-third-party",
+    "/customer-signup-third-party",
     [registerCustomerWithThirdPartyValidator],
     registrationCustomerUserWithThirdPartyFn
   );
@@ -117,7 +117,7 @@ export default (app: Router) => {
   );
 
   app.get(
-    "/menu-item-with-permission/:id",
+    "/menu-item-with-permission-:id",
     [authorization],
     getMenuItemWithPermissionsFn
   );
@@ -129,20 +129,20 @@ export default (app: Router) => {
   );
 
   app.delete(
-    "/menu-item-with-permission/:id",
+    "/menu-item-with-permission-:id",
     [authorization],
     deleteMenuItemFn
   );
 
   app.patch(
-    "/menu-item-with-permission/:id",
+    "/menu-item-with-permission-:id",
     [authorization],
     statusUpdateForMenuItemFn
   );
 
-  app.post("/otp-verified/admin/:id", superAdminOtpVerifiedFn)
+  app.post("/otp-verified-admin-:id", superAdminOtpVerifiedFn)
   // End Admin Panel Menu Access & Permission API Management
 
-    app.get("/user-access-menu-items", [], getUserAccessMenuItemsFn);
+  app.get("/user-access-menu-items", [], getUserAccessMenuItemsFn);
   
 };

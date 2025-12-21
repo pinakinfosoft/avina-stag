@@ -6,8 +6,9 @@ import {
 
 export default (app: Router) => {
  
-  app.get("/blogs/list", getBlogsDataUserFn);
-  
-  app.post("/blogs/details", bolgDetailAPIFn);
+  app.get("/blogs", getBlogsDataUserFn);
+
+  // details endpoint expects body with identifier; keep POST but normalize path
+  app.post("/blogs/detail", bolgDetailAPIFn);
 
 };

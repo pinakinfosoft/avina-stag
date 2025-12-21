@@ -4,5 +4,5 @@ import {
 } from "../../controllers/info-section.controller";
 
 export default (app: Router) => {
-  app.get("/info-section", infoSectionListForUserFn);
+  app.get("/info-sections", infoSectionListForUserFn);
 };

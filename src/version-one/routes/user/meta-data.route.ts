@@ -4,5 +4,5 @@ import {
 } from "../../controllers/meta-data.controller";
 
 export default (app: Router) => {
-  app.get("/meta-data", getMetaDataListForUserFn);
+  app.get("/meta-data/list", getMetaDataListForUserFn);
 };

@@ -6,5 +6,5 @@ import {
 export default (app: Router) => {
   /* user side */
 
-  app.get("/mega-menu", getMegaMenuForUserFn)
+  app.get("/mega-menus", getMegaMenuForUserFn)
 };

@@ -4,7 +4,7 @@ import { addEnquiriesFn, addProductEnquiriesFn } from "../../../controllers/Fron
 
 export default (app: Router) => {
 
-    app.post("/general/enquiries",[addEnquirieValidator], addEnquiriesFn);
-    app.post("/product/enquiries",[addProductEnquiriesValidator], addProductEnquiriesFn);
+    app.post("/enquiries", [addEnquirieValidator], addEnquiriesFn);
+    app.post("/enquiries/product", [addProductEnquiriesValidator], addProductEnquiriesFn);
 
 }

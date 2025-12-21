@@ -4,5 +4,5 @@ import {
 } from "../../controllers/faq-question-answer.controller";
 
 export default (app: Router) => {
-  app.get("/faq", getAllFAQSectionForUserFn);
+  app.get("/faqs", getAllFAQSectionForUserFn);
 };

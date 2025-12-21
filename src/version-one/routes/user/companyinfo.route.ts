@@ -6,8 +6,8 @@ import {
 } from "../../controllers/companyinfo.controller";
 
 export default (app: Router) => {
-  app.get("/companyinfo", getCompanyInfoCustomerFn);
-  app.get("/companyinfo/admin", getCompanyInfoForAdminFn);
+  app.get("/company-info", getCompanyInfoCustomerFn);
+  app.get("/company-info/admin", getCompanyInfoForAdminFn);
 
   // app.put("/web-restrict-url/:key", updateWebRestrictURLFn);
 };

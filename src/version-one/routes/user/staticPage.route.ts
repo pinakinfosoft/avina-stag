@@ -3,6 +3,6 @@ import { getByslugStaticPageUserFn } from "../../controllers/staticPage.controll
 
 export default (app: Router) => {
 
-  app.post("/staticPage", getByslugStaticPageUserFn);
+  app.post("/static-page", getByslugStaticPageUserFn);
 
   };

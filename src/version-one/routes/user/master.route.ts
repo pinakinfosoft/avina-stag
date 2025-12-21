@@ -14,8 +14,8 @@ export default (app: Router) => {
 
   ///////----- config select DropDown Data --------/////////////////
 
-  app.get("/add-product/dropDown/list", addProductDropdownFn);
-  app.get("/config-select/dropDown/list", configuratorDropDownDataFn);
+  app.get("/products/dropdown", addProductDropdownFn);
+  app.get("/config-select/dropdown", configuratorDropDownDataFn);
   // app.get(
   //   "/public/config-select/dropDown/list",
   //   publicConfiguratorDropDownDataFn

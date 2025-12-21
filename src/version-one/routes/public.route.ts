@@ -10,8 +10,8 @@ export default (app: Router) => {
     );
       /* get product images using s3 & add image in db */
     
-  app.post("/product/get-image-s3-add-db", getProductImagesUsingS3AndAddInDBFn);
-  app.get("/public/sample-file/:type", bulkUploadSampleFileColumnsFn)
+  app.post("/public/product-images/s3-add", getProductImagesUsingS3AndAddInDBFn);
+  app.get("/public/sample-files/:type", bulkUploadSampleFileColumnsFn)
   app.put("/public/ring-configurator/head-number", updateRingConfiguratorProductHeadNumberFn)
 
 }

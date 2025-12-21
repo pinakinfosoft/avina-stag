@@ -6,6 +6,6 @@ import {
 
 export default (app: Router) => {
  
-  app.get("/homeAndAbout/section", getAllHomeAndAboutSectionFn);
+  app.get("/home-about/sections", getAllHomeAndAboutSectionFn);
   
 };

@@ -53,54 +53,54 @@ import { currencyMiddleware } from "../../../middlewares/currency-rate-change";
 
 export default (app: Router) => {
  
-  app.get("/product/list", [currencyMiddleware], productListUserSideFn);
-  app.get("/product/featured/list",[currencyMiddleware], featuredProductListUserSideFn);
-  app.get("/product/trending/list",[currencyMiddleware], trendingProductListUserSideFn);
+  app.get("/products-list", [currencyMiddleware], productListUserSideFn);
+  app.get("/products-featured-list",[currencyMiddleware], featuredProductListUserSideFn);
+  app.get("/products-trending-list",[currencyMiddleware], trendingProductListUserSideFn);
   app.post(
-    "/product/details",
+    "/products-details",
     [currencyMiddleware],
     productGetByIdUserSideFn
   );
   app.post(
-    "/product/wishlist/add",
+    "/products-wishlist-add",
     [customerAuthorization, addProductWishListValidator],
     addProductWishListFn
   );
   app.post(
-    "/product/wishlist/list",
+    "/products-wishlist-list",
     [customerAuthorization],
     getProductWishListByUserIdFn
   );
   app.post(
-    "/product/wishlist/delete",
+    "/products-wishlist-delete",
     [customerAuthorization, addProductWishListValidator],
     deleteProductWishListFn
   );
 
   app.post(
-    "/product/cart/add",
+    "/products-cart-add",
     [customerAuthorization, addProductCartListValidator],
     addToCartProductAPIFn
   );
   app.post(
-    "/product/cart/list",
+    "/products-cart-list",
     [customerAuthorization],
     cartProductListByUSerIdFn
   );
   app.post(
-    "/product/cart/delete",
+    "/products-cart-delete",
     [customerAuthorization, deleteCartProductValidator],
     deleteCartProductFn
   );
   
   app.post(
-    "/product/cart/list/gust",
+    "/products-cart-list-gust",
     [currencyMiddleware],
     cartProductListgustCheckOutFn
   );
 
   app.post(
-    "/product/review/add",
+    "/products-review-add",
     [
       customerAuthorization,
       reqArrayImageParser(["images"]),
@@ -108,11 +108,11 @@ export default (app: Router) => {
     ],
     addProductReviewFn
   );
-  app.post("/product/review/list", getProductReviewByProductIDFn);
+  app.post("/products-review-list", getProductReviewByProductIDFn);
 
-  app.post("/product/wish/cart/count", wishlistCartListCountFn);
+  app.post("/products-wish-cart-count", wishlistCartListCountFn);
   app.get(
-    "/product/serach/list",
+    "/products-serach-list",
     [currencyMiddleware],
     searchProductGloballyFn
   );
@@ -131,50 +131,50 @@ export default (app: Router) => {
   /* ------------------- variant product wish list CRUD ----------------------- */
 
   app.post(
-    "/product/variant/wishlist",
+    "/products-variant-wishlist",
     [reqSingleImageParser("image")],
     [customerAuthorization, addProductWishListValidator],
     addVariantProductIntoWishListFn
   );
   app.get(
-    "/product/variant/wishlist/:user_id",
+    "/products-variant-wishlist-:user_id",
     [customerAuthorization, currencyMiddleware],
     getVariantProductWishlistByUserIdFn
   );
 
   app.get(
-    "/product-wishlist/:user_id",
+    "/products-wishlist-:user_id",
     getWishListProductsForProductListAndDetailFn
   );
   app.delete(
-    "/product/variant/wishlist/:user_id/:whishlist_id",
+    "/products-variant-wishlist-:user_id-:whishlist_id",
     [customerAuthorization],
     deleteVariantProductWishListFn
   );
   app.patch(
-    "/product/variant/wishlist-delete",
+    "/products-variant-wishlist-delete",
     [customerAuthorization],
     deleteVariantProductWishListWithProductFn
   );
 
-  app.get("/product-slug", getAllProductSlugFn);
+  app.get("/products-slug", getAllProductSlugFn);
 
-  app.get("/similar-product/:slug", [currencyMiddleware], similarProductListFn);
+  app.get("/similar-products-:slug", [currencyMiddleware], similarProductListFn);
 
   // app.get("/export/without-variant-products", withoutVariantProductExportFn);
 
 
 
-  app.post("/product-search", addProductSearchValueFn);
-  app.get("/product-search", productSearchListForUserFn);
-  app.delete("/product-search/:ids", deleteProductSearchValueForUserFn);
+  app.post("/products-search", addProductSearchValueFn);
+  app.get("/products-search", productSearchListForUserFn);
+  app.delete("/products-search-:ids", deleteProductSearchValueForUserFn);
 
   
   app.post(
-    "/product/wishlist/:cart_id",
+    "/products-wishlist-:cart_id",
     [customerAuthorization],
     moveProductCartToWishlistFn
   );
 
-  app.post("/choose-setting-product/detail",[currencyMiddleware], getProductsBasedOnTheSettingStyleFn)
+  app.post("/choose-setting-product-detail",[currencyMiddleware], getProductsBasedOnTheSettingStyleFn)
 };

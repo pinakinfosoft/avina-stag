@@ -13,14 +13,14 @@ import {
 export default (app: Router) => {
   
 
-  app.get("/attribute/metal-rate/logs", getActivityLogsForMetalRateFn);
+  app.get("/attributes/metal-rate/logs", getActivityLogsForMetalRateFn);
   /////////////------metal dropDown data ----///////////////
 
   // app.get("/attribute/gold-karats/:metal_id", goldKaratActiveListFn);
   // app.get("/attribute/metal-tones/:metal_id", metalToneActiveListFn);
-  app.get("/attribute/brand-list", getBrandListFn);
+  app.get("/attributes/brands", getBrandListFn);
 
   //////////////------ collection --------///////////////
-  app.get("/attribute/collection-list", getCollectionListFn);
+  app.get("/attributes/collections", getCollectionListFn);
 
 };

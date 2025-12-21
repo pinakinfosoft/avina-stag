@@ -4,9 +4,9 @@ import { reqSingleImageParser } from "../../../../middlewares/multipart-file-par
 
 export default (app: Router) => {
 
-    app.get("/filter/list/diamond", diamondFilterListAPIFn);
-    app.get("/filter/list/metal", metalFilterListAPIFn);
-    app.get("/filter/list/category", categoryFilterListFn);
+    app.get("/filters/diamond", diamondFilterListAPIFn);
+    app.get("/filters/metal", metalFilterListAPIFn);
+    app.get("/filters/category", categoryFilterListFn);
     // app.get("/config/master/drop-down", configMasterDropDownFn)
 
     // app.post("/convert/image/demo", reqSingleImageParser("image"), convertImageToWebpAPIFn )

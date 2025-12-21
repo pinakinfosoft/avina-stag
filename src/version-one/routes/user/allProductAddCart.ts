@@ -17,22 +17,22 @@ import {
 
 export default (app: Router) => {
   app.post(
-    "/all/product/cart/add",
+    "/cart/products/add",
     [reqSingleImageParser("image")],
     addToCartAllProductAPIFn
   );
   // app.post("/all/product/cart/list", cartAllProductListByUSerIdFn);
-  app.post("/all/product/add/order", addAllTypeProductWithPaypalOrderFn);
+  app.post("/orders/add", addAllTypeProductWithPaypalOrderFn);
   // app.post(
   //   "/all/product/add/payment/paypal",
   //   allTypeProductPaymentTransactionWithPaypalFn
   // );
   app.post(
-    "/all/product/add/payment/affirm",
+    "/orders/payment/affirm",
     allTypeProductPaymentTransactionWithAffirmFn
   );
   app.post(
-    "/all/retail/product/cart/list",
+    "/cart/retail/list",
     [currencyMiddleware],
     cartAllWithBirthstoneProductRetailListByUSerIdFn
   );
@@ -46,7 +46,7 @@ export default (app: Router) => {
   /* ------------------------ merge cart API (without login add to cart product then user can login then add product in cart ) */
 
   app.post(
-    "/all/product/cart/merge",
+    "/cart/merge",
     [customerAuthorization],
     mergeCartAddProductAPIFn
   );

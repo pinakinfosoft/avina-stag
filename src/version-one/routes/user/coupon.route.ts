@@ -5,6 +5,6 @@ import {
 } from "../../controllers/coupon.controller";
 
 export default (app: Router) => {
-  app.post("/coupon", applyCouponFn);
-  app.delete("/coupon", removeCouponFn);
+  app.post("/coupons/apply", applyCouponFn);
+  app.delete("/coupons/remove", removeCouponFn);
 };

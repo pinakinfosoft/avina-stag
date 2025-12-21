@@ -3,10 +3,10 @@ import { PaymentTransactionFn, PaymentTransactionWithPaypalFn , invoivesDetailsA
 
 export default (app: Router) => {
 
-    app.post("/paymet/add",  PaymentTransactionFn)
+    app.post("/payment",  PaymentTransactionFn)
 
     /* paypal method */
 
-    app.post("/paymet/paypal/add",  PaymentTransactionWithPaypalFn)
+    app.post("/payment-add",  PaymentTransactionWithPaypalFn)
 
 }

@@ -5,16 +5,16 @@ import { customerAuthorization } from "../../../../middlewares/authenticate";
 import { addSubscriptionsValidator } from "../../../../validators/enquirie/enquirie.validator";
 
 export default (app: Router) => {
-    app.get("/country/list", countryListCustomerSideFn)
-    app.post("/state/list", stateListCustomerSideFn)
-    app.post("/city/list", cityListCustomerSideFn)
+    app.get("/countries", countryListCustomerSideFn)
+    app.post("/states", stateListCustomerSideFn)
+    app.post("/cities", cityListCustomerSideFn)
     // app.get("/category/list", mainCategoryListFn)
     // app.get("/currency/list", currencyListCustomerSideFn)
 
 
-    app.post("/addres/add", [customerAuthorization, addressValidator], addUserAddressFn )
-    app.post("/address/get", [customerAuthorization], getUserAddressFn)
-    app.put("/address/edit", [customerAuthorization, addressValidator], updateUserAddressFn)
-    app.post("/address/delete", [customerAuthorization], deleteUserAddressFn);
+    app.post("/addresses/add", [customerAuthorization, addressValidator], addUserAddressFn )
+    app.post("/addresses/get", [customerAuthorization], getUserAddressFn)
+    app.put("/addresses/edit", [customerAuthorization, addressValidator], updateUserAddressFn)
+    app.post("/addresses/delete", [customerAuthorization], deleteUserAddressFn);
 
 }

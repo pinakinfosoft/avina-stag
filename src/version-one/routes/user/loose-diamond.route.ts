@@ -12,7 +12,7 @@ import {
 
 export default (app: Router) => {
   
-  app.get("/loose-diamond", getLooseDiamondsFn);
-  app.get("/loose-diamond/:product_id", getLooseDiamondDetailFn);
+  app.get("/loose-diamonds", getLooseDiamondsFn);
+  app.get("/loose-diamonds/:product_id", getLooseDiamondDetailFn);
 
 };

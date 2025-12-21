@@ -1,7 +1,7 @@
 import { Router } from "express"
-import { filterMasterListFn, getFilterForUserFn } from "../../controllers/filters.controller"
+import { getFilterForUserFn } from "../../controllers/filters.controller"
 
 
 export default (app: Router) => {
-    app.get("/filter", getFilterForUserFn)
+    app.get("/filters", getFilterForUserFn)
 }
