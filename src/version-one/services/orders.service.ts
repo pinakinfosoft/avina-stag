@@ -42,8 +42,30 @@ import { ORDER_STATUS_ID_FROM_LABEL } from "../../utils/app-constants";
 import {
   PROCESS_ENVIRONMENT,
 } from "../../config/env.var";
-import { initModels } from "../model/index.model";
+import { AppUser } from "../model/app-user.model";
+import { TaxMaster } from "../model/master/tax.model";
+import { CityData } from "../model/master/city.model";
+import { UserAddress } from "../model/address.model";
+import { Orders } from "../model/order.model";
+import { OrdersDetails } from "../model/order-details.model";
+import { Product } from "../model/product.model";
+import { CouponData } from "../model/coupon.model";
+import { CurrencyData } from "../model/master/currency.model";
+import { StoreAddress } from "../model/store-address.model";
+import { StoneData } from "../model/master/attributes/gemstones.model";
+import { CutsData } from "../model/master/attributes/cuts.model";
+import { MMSizeData } from "../model/master/attributes/mmSize.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { OrderTransaction } from "../model/order-transaction.model";
+import { ConfigOrdersDetails } from "../model/config-order-details.model";
+import { GiftSetProduct } from "../model/gift-set-product/gift_set_product.model";
+import { GiftSetProductOrder } from "../model/gift-set-product/gift_set_product_order.model";
+import { GiftSetOrdersDetails } from "../model/gift-set-product/git_set_product_order_details.model";
+import { GiftSetProductImages } from "../model/gift-set-product/gift_set_product_image.model";
+import { Invoices } from "../model/invoices.model";
+import { CustomerUser } from "../model/customer-user.model";
 import { mailSendForOrderStatusUpdate } from "./mail.service";
+import dbContext from "../../config/db-context";
 const crypto = require("crypto");
 const paypal = require("@paypal/checkout-server-sdk");
 
@@ -73,14 +95,10 @@ export const addProductOrder = async (req: Request) => {
       discount,
       total_tax,
     } = req.body;
-    const {AppUser,TaxMaster, CityData,UserAddress, Orders, OrdersDetails, Product} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     if (user_id) {
       const users = await AppUser.findOne({
-        where: { id: user_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+        where: { id: user_id, is_deleted: DeletedStatus.No },
       });
       if (!(users && users.dataValues)) {
         return resNotFound({ message: USER_NOT_FOUND });
@@ -88,7 +106,7 @@ export const addProductOrder = async (req: Request) => {
     }
 
     const taxValues = await TaxMaster.findAll({
-      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
     });
 
     let productTaxAmount: any;
@@ -120,7 +138,7 @@ export const addProductOrder = async (req: Request) => {
       return resBadRequest({ message: TOTAL_AMOUNT_WRONG });
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     const order_number = crypto.randomInt(1000000000, 9999999999);
 
     try {
@@ -128,7 +146,7 @@ export const addProductOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_billing_address.city_id),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
+          
         ],
       });
 
@@ -147,11 +165,11 @@ export const addProductOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_billing_address_city_id: created?.dataValues?.id, data: {
@@ -167,7 +185,7 @@ export const addProductOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_shipping_address.city_id),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
+          
         ],
       });
 
@@ -186,12 +204,12 @@ export const addProductOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data
+            
           },
           { transaction: trn }
         );
 
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_shipping_address_city_id: created?.dataValues?.id, data: {
@@ -223,11 +241,11 @@ export const addProductOrder = async (req: Request) => {
               default_addres: 0,
               is_deleted: 0,
               created_date: getLocalDate(),
-              company_info_id:company_info_id?.data,
+              
             };
 
             const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-            await addActivityLogs(req,company_info_id?.data,[{
+            await addActivityLogs([{
               old_data: null,
               new_data: {
                 order_user_billing_address_id: UserAddressData?.dataValues?.id, data: {
@@ -237,7 +255,7 @@ export const addProductOrder = async (req: Request) => {
             }], UserAddressData?.dataValues?.id, LogsActivityType.Add, LogsType.OrderUserBillingAddress, req?.body?.session_res?.id_app_user,trn)
           } else {
             const addressId = await UserAddress.findOne({
-              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No },
             });
             if (!(addressId && addressId.dataValues)) {
               await trn.rollback();
@@ -259,7 +277,7 @@ export const addProductOrder = async (req: Request) => {
               },
 
               {
-                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No },
                 transaction: trn,
               }
             );
@@ -267,7 +285,7 @@ export const addProductOrder = async (req: Request) => {
               where: { id: order_billing_address.id, is_deleted: DeletedStatus.No },
             });
 
-            await addActivityLogs(req,company_info_id?.data,[{
+            await addActivityLogs([{
               old_data: { order_user_billing_address_id: addressId?.dataValues?.id, data: {...addressId?.dataValues}},
               new_data: {
                 order_user_billing_address_id: afterUpdateFindMegaMenu?.dataValues?.id, data: { ...afterUpdateFindMegaMenu?.dataValues }
@@ -294,11 +312,11 @@ export const addProductOrder = async (req: Request) => {
                 default_addres: 0,
                 is_deleted: 0,
                 created_date: getLocalDate(),
-                company_info_id:company_info_id?.data,
+                
               };
 
               const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: null,
                 new_data: {
                   order_user_shipping_address_id: UserAddressData?.dataValues?.id, data: {
@@ -309,7 +327,7 @@ export const addProductOrder = async (req: Request) => {
             
             } else {
               const addressId = await UserAddress.findOne({
-                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No },
               });
               if (!(addressId && addressId.dataValues)) {
                 await trn.rollback();
@@ -330,7 +348,7 @@ export const addProductOrder = async (req: Request) => {
                   modified_date: getLocalDate(),
                 },
                 {
-                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No },
                   transaction: trn,
                 }
               );
@@ -338,7 +356,7 @@ export const addProductOrder = async (req: Request) => {
                 where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No },
               });
   
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: { order_user_shipping_address_id: addressId?.dataValues?.id, data: {...addressId?.dataValues}},
                 new_data: {
                   order_user_shipping_address_id: afterUpdateFindMegaMenu?.dataValues?.id, data: {...afterUpdateFindMegaMenu?.dataValues }
@@ -349,7 +367,7 @@ export const addProductOrder = async (req: Request) => {
           }
         }
       }
-      const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data);
+      const configData = await getWebSettingData();
       const ordersPayload = {
         order_number: `${configData.order_invoice_number_identity}-${order_number}`,
         user_id: user_id,
@@ -379,7 +397,7 @@ export const addProductOrder = async (req: Request) => {
         },
         order_taxs: JSON.stringify(taxRateData),
         created_by: req.body.session_res.id_app_user,
-        company_info_id:company_info_id?.data,
+        
         created_date: getLocalDate(),
       };
 
@@ -391,20 +409,20 @@ export const addProductOrder = async (req: Request) => {
           return resBadRequest({ message: INVALID_ID });
         }
         const products = await Product.findOne({
-          where: { id: product.product_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+          where: { id: product.product_id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
         if (!(products && products.dataValues)) {
           await trn.rollback();
           return resNotFound({ message: PRODUCT_NOT_FOUND });
         }
-        let diamondRate = await req.body.db_connection.query(
-          `SELECT sum(diamond_group_masters.rate) FROM product_diamond_options LEFT OUTER JOIN diamond_group_masters ON diamond_group_masters.id = product_diamond_options.id_diamond_group WHERE product_diamond_options.id_product = ${product.product_id} AND product_diamond_options.company_info_id= ${company_info_id?.data}`,
+        let diamondRate = await dbContext.query(
+          `SELECT sum(diamond_group_masters.rate) FROM product_diamond_options LEFT OUTER JOIN diamond_group_masters ON diamond_group_masters.id = product_diamond_options.id_diamond_group WHERE product_diamond_options.id_product = ${product.product_id} `,
           { type: QueryTypes.SELECT }
         );
-        const metalRates = await req.body.db_connection.query(
+        const metalRates = await dbContext.query(
           `SELECT CASE WHEN PMO.id_karat IS NULL THEN (metal.metal_rate*PMO.metal_weight) ELSE (metal.metal_rate/metal.calculate_rate*gold_kts.calculate_rate*PMO.metal_weight) END FROM products LEFT OUTER JOIN product_metal_options AS PMO ON PMO.id_product = products.id LEFT OUTER JOIN metal_masters AS metal ON PMO.id_metal = metal.id LEFT OUTER JOIN gold_kts ON PMO.id_karat = gold_kts.id WHERE 
-          CASE WHEN PMO.id_karat IS NULL THEN products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} ELSE products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} AND PMO.id_karat = ${product.order_details_json.karat_id} END AND products.company_info_id= ${company_info_id?.data}`,
+          CASE WHEN PMO.id_karat IS NULL THEN products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} ELSE products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} AND PMO.id_karat = ${product.order_details_json.karat_id} END`,
           { type: QueryTypes.SELECT }
         );
 
@@ -426,14 +444,14 @@ export const addProductOrder = async (req: Request) => {
             delivery_status: DeliverStatus.Pendding,
             payment_status: PaymentStatus.InPaid,
             order_details_json: product.order_details_json,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
         ordersDetailsData.push({...ordersDetails.dataValues})
       }  
 
-      await addActivityLogs(req,company_info_id?.data,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           order_id: orders?.dataValues?.id, 
@@ -458,12 +476,8 @@ export const addProductOrder = async (req: Request) => {
 
 export const getAllOrdersUser = async (req: Request) => {
   try {
-    const {AppUser} = initModels(req);
     const { start_date, end_date, order_status } = req.query;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     const user_id = req.query.user_id;
     const startDateFilter: any =
       start_date != undefined ? start_date : new Date().getFullYear();
@@ -473,7 +487,7 @@ export const getAllOrdersUser = async (req: Request) => {
     endDate.setDate(endDate.getDate() + 1);
     if (!user_id) return resBadRequest({ message: INVALID_ID });
     const users = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
     if (!(users && users.dataValues)) {
       return resNotFound({ message: USER_NOT_FOUND });
@@ -484,7 +498,7 @@ export const getAllOrdersUser = async (req: Request) => {
     };
     let noPagination = req.query.no_pagination === "1";
 
-    const result = await req.body.db_connection.query(
+    const result: any = await dbContext.query(
       `SELECT 
       COUNT(orders.id) OVER() AS totalItems,
 orders.id,
@@ -615,7 +629,7 @@ COALESCE(jsonb_agg(DISTINCT CASE WHEN OD.id IS NOT NULL THEN  jsonb_build_object
 ) as order
 FROM orders 
 LEFT JOIN customer_users AS CS ON CS.id_app_user = user_id
-LEFT JOIN store_address ON store_address.id = orders.pickup_store_id AND store_address.company_info_id = ${company_info_id.data}
+LEFT JOIN store_address ON store_address.id = orders.pickup_store_id 
 LEFT JOIN contries as sp_country ON sp_country.id = CASE WHEN order_shipping_address ->> 'country_id' = '' THEN NULL ELSE CAST(order_shipping_address ->> 'country_id' as INTEGER) END
 LEFT JOIN states as sp_state ON sp_state.id = CASE WHEN order_shipping_address ->> 'state_id' = '' THEN NULL ELSE CAST(order_shipping_address ->> 'state_id' as INTEGER) END
 LEFT JOIN cities as sp_city ON sp_city.id = CASE WHEN order_shipping_address ->> 'city_id' = '' THEN NULL ELSE CAST(order_shipping_address ->> 'city_id' as INTEGER) END
@@ -673,7 +687,7 @@ LEFT JOIN product_categories ON product_categories.id_product = OD.product_id AN
 LEFT JOIN categories ON categories.id = product_categories.id_category
 LEFT JOIN birthstone_product_categories ON birthstone_product_categories.id_product = OD.product_id
 LEFT JOIN categories as b_category ON b_category.id = birthstone_product_categories.id_category
-WHERE orders.company_info_id=${company_info_id?.data} AND orders.user_id = ${user_id} AND order_date BETWEEN '${new Date(startDateFilter).toISOString().split("T")[0]
+WHERE orders.user_id = ${user_id} AND order_date BETWEEN '${new Date(startDateFilter).toISOString().split("T")[0]
       }' AND '${new Date(endDate).toISOString().split("T")[0]}' 
         ${order_status && order_status != OrderStatus.All.toString()
         ? `AND orders.order_status = '${order_status}'`
@@ -735,7 +749,6 @@ OFFSET
 
 export const getAllOrdersListAdmin = async (req: Request) => {
   try {
-    const { Orders, AppUser, CouponData,CurrencyData,StoreAddress } = initModels(req);
     const { start_date, end_date, order_status, search_text } = req.query;
 
     const startDateFilter =
@@ -769,12 +782,12 @@ export const getAllOrdersListAdmin = async (req: Request) => {
             ),
           ],
         }
-        : {},
+        : 
       {
         [Op.or]: [{ order_date: { [Op.between]: [startDateFilter, endDate] } }],
       },
       order_status ? { order_status: { [Op.eq]: order_status } } : {order_status: {[Op.ne]: OrderStatus.Archived}},
-      {company_info_id :req?.body?.session_res?.client_id},
+      
     ];
     let searchConditions = "";
     if (search_text && search_text != "" && search_text != undefined) {
@@ -800,7 +813,7 @@ export const getAllOrdersListAdmin = async (req: Request) => {
 
 
 
-    const countData = await Orders.findOne({
+    const countData: any = await Orders.findOne({
       attributes: [
          [
         Sequelize.literal(`SUM(CASE WHEN ${orderStatusCondition} THEN 1 ELSE 0 END)`),
@@ -817,7 +830,6 @@ export const getAllOrdersListAdmin = async (req: Request) => {
         [Sequelize.fn("SUM", Sequelize.literal(`CASE WHEN order_status = '${OrderStatus.Failed}' THEN 1 ELSE 0 END`)), "total_fail_order"],
       ],
       where: {
-        company_info_id: req.body.session_res.client_id,
         [Op.or]: [{ order_date: { [Op.between]: [startDateFilter, endDate] } }],
       },
       raw: true
@@ -890,7 +902,7 @@ export const getAllOrdersListAdmin = async (req: Request) => {
           model: CouponData,
           as: "coupon",
           attributes: [],
-          where:{company_info_id :req?.body?.session_res?.client_id},
+        
         },
         {
           required: false,
@@ -902,7 +914,6 @@ export const getAllOrdersListAdmin = async (req: Request) => {
           required:false,
           model: StoreAddress,
           as: "store_address",
-          where:{company_info_id:req?.body?.session_res?.client_id},
           attributes: [],
         }
       ],
@@ -938,7 +949,6 @@ export const getAllOrdersListAdmin = async (req: Request) => {
 };
 
 export const orderDetailsAPI = async (req: Request) => {
-  const {Orders, OrdersDetails, StoreAddress, CurrencyData, StoneData, CutsData, MMSizeData, DiamondShape,CouponData} = initModels(req);
   const { order_number } = req.body;
 
   if (!order_number) {
@@ -948,23 +958,12 @@ export const orderDetailsAPI = async (req: Request) => {
       ]),
     });
   }
-  let company_info_id: any = {};
 
-  if (req?.body?.session_res?.client_id) {
-    company_info_id.data = req.body.session_res.client_id;
-  } else {
-    const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-    if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return decrypted;
-    }
-
-    company_info_id = decrypted;
-  }
+ 
 
   try {
-    const orderDetails = await Orders.findOne({
-      where: { order_number: order_number,company_info_id:company_info_id?.data },
+    const orderDetails: any = await Orders.findOne({
+      where: { order_number: order_number },
       attributes: [
         "id",
         "order_number",
@@ -1032,7 +1031,6 @@ export const orderDetailsAPI = async (req: Request) => {
           required:false,
           model: CouponData,
           as: "coupon",
-          where:{company_info_id:company_info_id?.data},
           attributes: [
             "id",
             "coupon_code",
@@ -1047,7 +1045,6 @@ export const orderDetailsAPI = async (req: Request) => {
           required:false,
           model: StoreAddress,
           as: "store_address",
-          where:{company_info_id:company_info_id?.data},
           attributes: [
             "id",
             "address",
@@ -1059,7 +1056,6 @@ export const orderDetailsAPI = async (req: Request) => {
           required:false,
           model: CurrencyData,
           as: "currency",
-          where:{company_info_id:company_info_id?.data},
           attributes: [
             "id",
             "code",
@@ -1071,7 +1067,6 @@ export const orderDetailsAPI = async (req: Request) => {
         {
           model: OrdersDetails,
           as: "order",
-          where:{company_info_id:company_info_id?.data},
           attributes: [
             "quantity",
             "finding_charge",
@@ -1279,15 +1274,15 @@ export const orderDetailsAPI = async (req: Request) => {
         for (let j = 0; j < element.order_details_json.gemstone.length; j++) {
           const gemstone = element.order_details_json.gemstone[j];
           const stone = await StoneData.findOne({
-            where: { id: gemstone.stone,company_info_id:company_info_id?.data },
+            where: { id: gemstone.stone },
           });
           element.order_details_json.gemstone[j].stone_value =
             stone?.dataValues.name;
-          const cuts = await CutsData.findOne({ where: { id: gemstone.cut,company_info_id:company_info_id?.data } });
+          const cuts = await CutsData.findOne({ where: { id: gemstone.cut } });
           element.order_details_json.gemstone[j].cut_value =
             cuts?.dataValues.value;
           const mm_size = await MMSizeData.findOne({
-            where: { id: gemstone.mm_size,company_info_id:company_info_id?.data },
+            where: { id: gemstone.mm_size },
           });
           element.order_details_json.gemstone[j].mm_size_value =
             mm_size?.dataValues.value;
@@ -1299,7 +1294,7 @@ export const orderDetailsAPI = async (req: Request) => {
                   gemstone.shape != "undefined"
                   ? gemstone.shape
                   : null,
-              company_info_id:company_info_id?.data
+              
             },
           });
           element.order_details_json.gemstone[j].shape_value =
@@ -1315,7 +1310,6 @@ export const orderDetailsAPI = async (req: Request) => {
 
 export const orderDetailsAPIAdmin = async (req: Request) => {
   const { order_number } = req.body;
-  const {Orders, Invoices, CouponData,CurrencyData,StoreAddress, OrdersDetails, StoneData, CutsData, MMSizeData, DiamondShape} = initModels(req);
   if (!order_number) {
     return resUnknownError({
       message: prepareMessageFromParams(REQUIRED_ERROR_MESSAGE, [
@@ -1325,9 +1319,9 @@ export const orderDetailsAPIAdmin = async (req: Request) => {
   }
 
   try {
-    const configData = await getWebSettingData(req.body.db_connection,req?.body?.session_res?.client_id);
+    const configData = await getWebSettingData();
     const orderDetails = await Orders.findOne({
-      where: { order_number: order_number,company_info_id :req?.body?.session_res?.client_id },
+      where: { order_number: order_number, },
       attributes: [
         "id",
         "order_number",
@@ -1420,13 +1414,11 @@ export const orderDetailsAPIAdmin = async (req: Request) => {
           model:Invoices,
           as:"invoice",
           attributes:["invoice_pdf_path"],
-          where:{company_info_id :req?.body?.session_res?.client_id},
         },
         {
           required: false,
           model: CouponData,
           as: "coupon",
-          where:{company_info_id :req?.body?.session_res?.client_id},
           attributes: [
             "id",
             "coupon_code",
@@ -1447,7 +1439,6 @@ export const orderDetailsAPIAdmin = async (req: Request) => {
           required:false,
           model: StoreAddress,
           as: "store_address",
-          where:{company_info_id:req?.body?.session_res?.client_id},
           attributes: [
             "id",
             "address",
@@ -1458,7 +1449,6 @@ export const orderDetailsAPIAdmin = async (req: Request) => {
         {
           model: OrdersDetails,
           as: "order",
-          where:{company_info_id :req?.body?.session_res?.client_id},
           attributes: [
             "quantity",
             "finding_charge",
@@ -1636,13 +1626,13 @@ export const orderDetailsAPIAdmin = async (req: Request) => {
         for (let j = 0; j < element.order_details_json.gemstone.length; j++) {
           const gemstone = element.order_details_json.gemstone[j];
           const stone = await StoneData.findOne({
-            where: { id: gemstone.stone,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: gemstone.stone, },
           });
           element.order_details_json.gemstone[j].stone = stone?.dataValues.name;
           const cuts = await CutsData.findOne({ where: { id: gemstone.cut } });
           element.order_details_json.gemstone[j].cut = cuts?.dataValues.value;
           const mm_size = await MMSizeData.findOne({
-            where: { id: gemstone.mm_size,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: gemstone.mm_size, },
           });
           element.order_details_json.gemstone[j].mm_size =
             mm_size?.dataValues.value;
@@ -1654,7 +1644,7 @@ export const orderDetailsAPIAdmin = async (req: Request) => {
                   gemstone.shape != "undefined"
                   ? gemstone.shape
                   : null,
-              company_info_id :req?.body?.session_res?.client_id
+              
             },
           });
           element.order_details_json.gemstone[j].shape = shape?.dataValues.name;
@@ -1671,9 +1661,8 @@ export const orderDetailsAPIAdmin = async (req: Request) => {
 
 export const orderStatusUpdate = async (req: Request) => {
   try {
-    const {Orders,CustomerUser} = initModels(req);
-    const orderData = await Orders.findOne({ where: { id: req.body.id,company_info_id:req?.body?.session_res?.client_id} });
-    const userDeatil = await CustomerUser.findOne({ where: { id_app_user: orderData.dataValues.user_id,company_info_id:req?.body?.session_res?.client_id } });
+    const orderData = await Orders.findOne({ where: { id: req.body.id} });
+    const userDeatil = await CustomerUser.findOne({ where: { id_app_user: orderData.dataValues.user_id } });
     if (!(orderData && orderData.dataValues)) {
       return resNotFound({ message: ORDER_NOT_FOUND });
     }
@@ -1684,7 +1673,7 @@ export const orderStatusUpdate = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: orderData.dataValues.id,company_info_id:req?.body?.session_res?.client_id } }
+      { where: { id: orderData.dataValues.id } }
     );
 
     const mailNewOrderPayload = {
@@ -1697,7 +1686,7 @@ export const orderStatusUpdate = async (req: Request) => {
       },
     }
     if (orderStatus) {
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { order_id: orderData?.dataValues?.id, data: {...orderData?.dataValues}},
         new_data: {
           order_id: orderData?.dataValues?.id, data: {
@@ -1708,7 +1697,7 @@ export const orderStatusUpdate = async (req: Request) => {
         }
       }], orderData?.dataValues?.id, LogsActivityType.OrderStatus, LogsType.Order, req?.body?.session_res?.id_app_user)
       
-      await mailSendForOrderStatusUpdate(mailNewOrderPayload,req?.body?.session_res?.client_id, req);
+      await mailSendForOrderStatusUpdate(mailNewOrderPayload);
       return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
     }
   } catch (error) {
@@ -1718,9 +1707,8 @@ export const orderStatusUpdate = async (req: Request) => {
 
 export const deliveryStatusUpdate = async (req: Request) => {
   try {
-    const {OrdersDetails} = initModels(req);
     const orderData = await OrdersDetails.findOne({
-      where: { order_id: req.body.order_id,company_info_id:req?.body?.session_res?.client_id },
+      where: { order_id: req.body.order_id },
     });
 
     if (!(orderData && orderData.dataValues)) {
@@ -1731,10 +1719,10 @@ export const deliveryStatusUpdate = async (req: Request) => {
       {
         delivery_status: req.body.delivery_status,
       },
-      { where: { order_id: orderData.dataValues.order_id,company_info_id:req?.body?.session_res?.client_id } }
+      { where: { order_id: orderData.dataValues.order_id } }
     );
     if (orderStatus) {
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { order_id: orderData?.dataValues?.id, data: {...orderData?.dataValues}},
         new_data: {
           order_id: orderData?.dataValues?.id, data: {
@@ -1754,7 +1742,6 @@ export const deliveryStatusUpdate = async (req: Request) => {
 
 export const orderTransactionList = async (req: Request) => {
   try {
-    const {OrderTransaction} = initModels(req);
 
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -1787,8 +1774,8 @@ export const orderTransactionList = async (req: Request) => {
             ),
           ],
         }
-        : {},
-        {company_info_id:req?.body?.session_res?.client_id},
+        : 
+        {},
     ];
 
     if (!noPagination) {
@@ -1851,7 +1838,6 @@ export const orderTransactionList = async (req: Request) => {
 
 export const addGiftSetProductOrder = async (req: Request) => {
   try {
-    const {GiftSetProduct, GiftSetProductOrder, GiftSetOrdersDetails, AppUser, TaxMaster, CityData, UserAddress} = initModels(req);
 
     const {
       user_id,
@@ -1874,13 +1860,10 @@ export const addGiftSetProductOrder = async (req: Request) => {
       total_tax,
     } = req.body;
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+
     if (user_id) {
       const users = await AppUser.findOne({
-        where: { id: user_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data  },
+        where: { id: user_id, is_deleted: DeletedStatus.No  },
       });
       if (!(users && users.dataValues)) {
         return resNotFound({ message: USER_NOT_FOUND });
@@ -1888,7 +1871,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
     }
 
     const taxValues = await TaxMaster.findAll({
-      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data  },
+      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No  },
     });
     let ordersDetailsData:any = [];
     let productTaxAmount: any;
@@ -1918,7 +1901,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
     //   return resBadRequest({ message: TOTAL_AMOUNT_WRONG });
     // }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     const order_number = crypto.randomInt(1000000000, 9999999999);
 
     try {
@@ -1926,7 +1909,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_billing_address.city_id),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
+          
         ],
       });
 
@@ -1945,11 +1928,11 @@ export const addGiftSetProductOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,company_info_id?.data ,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             gift_set_order_billing_address_city_id: created?.dataValues?.id, data: {
@@ -1965,7 +1948,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_shipping_address.city_id),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
+          
         ],
       });
 
@@ -1984,11 +1967,11 @@ export const addGiftSetProductOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             gift_set_order_shipping_address_city_id: created?.dataValues?.id, data: {
@@ -2020,11 +2003,11 @@ export const addGiftSetProductOrder = async (req: Request) => {
               default_addres: 0,
               is_deleted: 0,
               created_date: getLocalDate(),
-              company_info_id:company_info_id?.data,
+              
             };
 
             const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-            await addActivityLogs(req,company_info_id?.data,[{
+            await addActivityLogs([{
               old_data: null,
               new_data: {
                 gift_set_order_user_billing_address_id: UserAddressData?.dataValues?.id, data: {
@@ -2034,7 +2017,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
             }], UserAddressData?.dataValues?.id, LogsActivityType.Add, LogsType.GiftSetOrderUserBillingAddress, req?.body?.session_res?.id_app_user,trn)
           } else {
             const addressId = await UserAddress.findOne({
-              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No, },
             });
             if (!(addressId && addressId.dataValues)) {
               await trn.rollback();
@@ -2056,7 +2039,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
               },
 
               {
-                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No, },
                 transaction: trn,
               }
             );
@@ -2064,7 +2047,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
               where: { id: order_billing_address.id, is_deleted: DeletedStatus.No },
             });
 
-            await addActivityLogs(req,company_info_id?.data ,[{
+            await addActivityLogs([{
               old_data: { gift_set_order_user_billing_address_id: addressId?.dataValues?.id, data: addressId?.dataValues},
               new_data: {
                 gift_set_order_user_billing_address_id: addressId?.dataValues?.id, data: { ...addressId?.dataValues, ...afterUpdateFinduseraddress?.dataValues }
@@ -2091,11 +2074,11 @@ export const addGiftSetProductOrder = async (req: Request) => {
                 default_addres: 0,
                 is_deleted: 0,
                 created_date: getLocalDate(),
-                company_info_id:company_info_id?.data,
+                
               };
 
               const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: null,
                 new_data: {
                   gift_set_order_user_shipping_address_id: UserAddressData?.dataValues?.id, data: {
@@ -2105,7 +2088,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
               }], UserAddressData?.dataValues?.id, LogsActivityType.Add, LogsType.GiftSetOrderUserShippingAddress, req?.body?.session_res?.id_app_user,trn)
             } else {
               const addressId = await UserAddress.findOne({
-                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No, },
               });
               if (!(addressId && addressId.dataValues)) {
                 await trn.rollback();
@@ -2126,7 +2109,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
                   modified_date: getLocalDate(),
                 },
                 {
-                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No, },
                   transaction: trn,
                 }
               );
@@ -2134,7 +2117,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
                 where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No },
               });
   
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: { gift_set_order_user_shipping_address_id: addressId?.dataValues?.id, data: addressId?.dataValues},
                 new_data: {
                   gift_set_order_user_shipping_address_id: addressId?.dataValues?.id, data: { ...addressId?.dataValues, ...afterUpdateFindUseraddress?.dataValues }
@@ -2145,7 +2128,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
           }
         }
       }
-      const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data);
+      const configData = await getWebSettingData();
       const ordersPayload = {
         order_number: `${configData.order_invoice_number_identity}-${order_number}`,
         user_id: user_id,
@@ -2175,7 +2158,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
         },
         order_taxs: JSON.stringify(taxRateData),
         created_by: req.body.session_res.id_app_user,
-        company_info_id:company_info_id?.data,
+        
         created_date: getLocalDate(),
       };
 
@@ -2189,7 +2172,7 @@ export const addGiftSetProductOrder = async (req: Request) => {
           return resBadRequest({ message: INVALID_ID });
         }
         const products = await GiftSetProduct.findOne({
-          where: { id: product.product_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+          where: { id: product.product_id, is_deleted: DeletedStatus.No, },
           transaction: trn,
         });
         if (!(products && products.dataValues)) {
@@ -2209,14 +2192,14 @@ export const addGiftSetProductOrder = async (req: Request) => {
             shipping_method_id: shipping_method,
             delivery_status: DeliverStatus.Pendding,
             payment_status: PaymentStatus.InPaid,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
         ordersDetailsData.push({...ordersDetails.dataValues});
       }
 
-      await addActivityLogs(req,company_info_id?.data,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           gift_set_product_order_id: orders?.dataValues?.id, 
@@ -2241,13 +2224,9 @@ export const addGiftSetProductOrder = async (req: Request) => {
 
 export const getAllGiftSetProductOrdersUser = async (req: Request) => {
   try {
-    const { GiftSetProductOrder, AppUser} = initModels(req);
 
     const { user_id, start_date, end_date, order_status } = req.query;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+   
     const startDateFilter =
       start_date != undefined ? start_date : new Date().getFullYear();
 
@@ -2258,7 +2237,7 @@ export const getAllGiftSetProductOrdersUser = async (req: Request) => {
 
     if (!user_id) return resBadRequest({ message: INVALID_ID });
     const users = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+      where: { id: user_id, is_deleted: DeletedStatus.No, },
     });
     if (!(users && users.dataValues)) {
       return resNotFound({ message: USER_NOT_FOUND });
@@ -2271,14 +2250,14 @@ export const getAllGiftSetProductOrdersUser = async (req: Request) => {
 
     let where = [
       { user_id: user_id },
-      {company_info_id:company_info_id?.data},
+      
       {
         [Op.or]: [{ order_date: { [Op.between]: [startDateFilter, endDate] } }],
       },
       order_status && order_status != OrderStatus.All.toString()
 
         ? { order_status: { [Op.eq]: order_status } }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -2338,11 +2317,7 @@ export const getAllGiftSetProductOrdersUser = async (req: Request) => {
 
 export const giftSetOrderDetailsAPI = async (req: Request) => {
   const { order_number } = req.body;
-  const {GiftSetProductOrder,GiftSetOrdersDetails} = initModels(req);
-  const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-  if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-    return company_info_id;
-  }
+ 
   if (!order_number) {
     return resUnknownError({
       message: prepareMessageFromParams(REQUIRED_ERROR_MESSAGE, [
@@ -2353,7 +2328,7 @@ export const giftSetOrderDetailsAPI = async (req: Request) => {
 
   try {
     const orderDetails = await GiftSetProductOrder.findOne({
-      where: { order_number: order_number ,company_info_id:company_info_id?.data},
+      where: { order_number: order_number },
       attributes: [
         "id",
         "order_number",
@@ -2384,7 +2359,6 @@ export const giftSetOrderDetailsAPI = async (req: Request) => {
       include: [
         {
           model: GiftSetOrdersDetails,
-          where:{company_info_id:company_info_id?.data},
           as: "gift_order",
           attributes: [
             "quantity",
@@ -2414,44 +2388,43 @@ export const giftSetOrderDetailsAPI = async (req: Request) => {
 export const getAllGiftSetOrdersListAdmin = async (req: Request) => {
   try {
     const { start_date, end_date, order_status } = req.query;
-    const {GiftSetProductOrder} = initModels(req);
     const startDateFilter =
       start_date != undefined ? start_date : new Date().getFullYear();
 
     const endDateFilter: any = end_date != undefined ? end_date : new Date();
 
     const total_pendding_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.Pendding ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.Pendding ,},
     });
 
     const total_confirm_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.Confirmed ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.Confirmed ,},
     });
 
     const total_in_process_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.Processing ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.Processing ,},
     });
 
     const total_out_of_delivery_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.OutOfDeliver ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.OutOfDeliver ,},
     });
 
     const total_delivery_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.Delivered ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.Delivered ,},
     });
 
     const total_cancel_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.Canceled ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.Canceled ,},
     });
 
     const total_fail_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.Failed ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.Failed ,},
     });
 
     const total_returned_order = await GiftSetProductOrder.count({
-      where: { order_status: OrderStatus.Returned ,company_info_id :req?.body?.session_res?.client_id},
+      where: { order_status: OrderStatus.Returned ,},
     });
-    const all_order = await GiftSetProductOrder.count({where:{company_info_id :req?.body?.session_res?.client_id}});
+    const all_order = await GiftSetProductOrder.count({where:{}});
 
     const endDate = new Date(endDateFilter);
     endDate.setDate(endDate.getDate() + 1);
@@ -2476,8 +2449,8 @@ export const getAllGiftSetOrdersListAdmin = async (req: Request) => {
       {
         [Op.or]: [{ order_date: { [Op.between]: [startDateFilter, endDate] } }],
       },
-      {company_info_id :req?.body?.session_res?.client_id},
-      order_status ? { order_status: { [Op.eq]: order_status } } : {},
+      
+      order_status ? { order_status: { [Op.eq]: order_status } } : {}
     ];
     if (!noPagination) {
       const totalItems = await GiftSetProductOrder.count({
@@ -2542,7 +2515,6 @@ export const getAllGiftSetOrdersListAdmin = async (req: Request) => {
 
 export const giftSetOrderDetailsAPIAdmin = async (req: Request) => {
   const { order_number } = req.body;
-  const {GiftSetOrdersDetails,GiftSetProductOrder,GiftSetProduct,GiftSetProductImages} = initModels(req);
   if (!order_number) {
     return resUnknownError({
       message: prepareMessageFromParams(REQUIRED_ERROR_MESSAGE, [
@@ -2553,7 +2525,7 @@ export const giftSetOrderDetailsAPIAdmin = async (req: Request) => {
 
   try {
     const orderDetails = await GiftSetProductOrder.findOne({
-      where: { order_number: order_number,company_info_id :req?.body?.session_res?.client_id },
+      where: { order_number: order_number, },
       attributes: [
         "id",
         "order_number",
@@ -2638,7 +2610,6 @@ export const giftSetOrderDetailsAPIAdmin = async (req: Request) => {
         {
           model: GiftSetOrdersDetails,
           as: "gift_order",
-          where:{company_info_id :req?.body?.session_res?.client_id},
           attributes: [
             "quantity",
             "sub_total",
@@ -2665,7 +2636,6 @@ export const giftSetOrderDetailsAPIAdmin = async (req: Request) => {
             {
               required: false,
               model: GiftSetProduct,
-              where:{company_info_id :req?.body?.session_res?.client_id},
               as: "product",
               include: [
                 {
@@ -2673,7 +2643,7 @@ export const giftSetOrderDetailsAPIAdmin = async (req: Request) => {
                   model: GiftSetProductImages,
                   as: "gift_product_images",
                   attributes: ["id", "image_path", "image_type"],
-                  where: [{ is_deleted: DeletedStatus.No },{company_info_id :req?.body?.session_res?.client_id}],
+                  where: [{ is_deleted: DeletedStatus.No },{}],
                 },
               ],
             },
@@ -2694,9 +2664,8 @@ export const giftSetOrderDetailsAPIAdmin = async (req: Request) => {
 
 export const giftSetOrderStatusUpdate = async (req: Request) => {
   try {
-    const {GiftSetProductOrder} = initModels(req);
     const orderData = await GiftSetProductOrder.findOne({
-      where: { id: req.body.id,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.body.id, },
     });
 
     if (!(orderData && orderData.dataValues)) {
@@ -2709,10 +2678,10 @@ export const giftSetOrderStatusUpdate = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: orderData.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: orderData.dataValues.id, } }
     );
     if (orderStatus) {
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { order_id: orderData?.dataValues?.id, data: {...orderData?.dataValues}},
         new_data: {
           order_id: orderData?.dataValues?.id, data: {
@@ -2732,9 +2701,8 @@ export const giftSetOrderStatusUpdate = async (req: Request) => {
 
 export const giftSetDeliveryStatusUpdate = async (req: Request) => {
   try {
-    const {GiftSetOrdersDetails} = initModels(req);
     const orderData = await GiftSetOrdersDetails.findOne({
-      where: { order_id: req.body.order_id,company_info_id :req?.body?.session_res?.client_id },
+      where: { order_id: req.body.order_id, },
     });
 
     if (!(orderData && orderData.dataValues)) {
@@ -2745,10 +2713,10 @@ export const giftSetDeliveryStatusUpdate = async (req: Request) => {
       {
         delivery_status: req.body.delivery_status,
       },
-      { where: { order_id: orderData.dataValues.order_id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { order_id: orderData.dataValues.order_id, } }
     );
     if (orderStatus) {
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { order_id: orderData?.dataValues?.id, data: {...orderData?.dataValues}},
         new_data: {
           order_id: orderData?.dataValues?.id, data: {
@@ -2787,14 +2755,10 @@ export const addConfigProductOrder = async (req: Request) => {
       discount,
       total_tax,
     } = req.body;
-    const {AppUser,TaxMaster, CityData, UserAddress, Orders, OrdersDetails,Product, OrderTransaction, ConfigOrdersDetails} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+  
     if (user_id) {
       const users = await AppUser.findOne({
-        where: { id: user_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+        where: { id: user_id, is_deleted: DeletedStatus.No },
       });
       if (!(users && users.dataValues)) {
         return resNotFound({ message: USER_NOT_FOUND });
@@ -2802,7 +2766,7 @@ export const addConfigProductOrder = async (req: Request) => {
     }
 
     const taxValues = await TaxMaster.findAll({
-      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
     });
     let OrderDetailsData:any = [];
     let OrderDetailsConfigData:any = [];
@@ -2835,7 +2799,7 @@ export const addConfigProductOrder = async (req: Request) => {
       return resBadRequest({ message: TOTAL_AMOUNT_WRONG });
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     const order_number = crypto.randomInt(1000000000, 9999999999);
 
     try {
@@ -2843,7 +2807,7 @@ export const addConfigProductOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_billing_address.city_id),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
+          
         ],
       });
 
@@ -2862,11 +2826,11 @@ export const addConfigProductOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             config_product_order_billing_address_city_id: created?.dataValues?.id, data: {
@@ -2881,7 +2845,7 @@ export const addConfigProductOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_shipping_address.city_id),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
+          
         ],
       });
 
@@ -2900,12 +2864,12 @@ export const addConfigProductOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
 
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             config_product_order_shipping_address_city_id: created?.dataValues?.id, data: {
@@ -2937,11 +2901,11 @@ export const addConfigProductOrder = async (req: Request) => {
               default_addres: 0,
               is_deleted: 0,
               created_date: getLocalDate(),
-              company_info_id:company_info_id?.data,
+              
             };
 
             const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-            await addActivityLogs(req,company_info_id?.data,[{
+            await addActivityLogs([{
               old_data: null,
               new_data: {
                 config_product_order_user_billing_address_id: UserAddressData?.dataValues?.id, data: {
@@ -2950,7 +2914,7 @@ export const addConfigProductOrder = async (req: Request) => {
               }
             }], UserAddressData?.dataValues?.id, LogsActivityType.Add, LogsType.ConfigProductOrderUserBillingAddress, req?.body?.session_res?.id_app_user,trn)          } else {
             const addressId = await UserAddress.findOne({
-              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No, },
             });
             if (!(addressId && addressId.dataValues)) {
               await trn.rollback();
@@ -2972,7 +2936,7 @@ export const addConfigProductOrder = async (req: Request) => {
               },
 
               {
-                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No, },
                 transaction: trn,
               }
             );
@@ -2980,7 +2944,7 @@ export const addConfigProductOrder = async (req: Request) => {
               where: { id: order_billing_address.id, is_deleted: DeletedStatus.No },
             });
 
-            await addActivityLogs(req,company_info_id?.data,[{
+            await addActivityLogs([{
               old_data: { config_product_order_user_billing_address_id: addressId?.dataValues?.id, data: {...addressId?.dataValues}},
               new_data: {
                 config_product_order_user_billing_address_id: afterUpdateFindMegaMenu?.dataValues?.id, data: { ...afterUpdateFindMegaMenu?.dataValues }
@@ -3007,11 +2971,11 @@ export const addConfigProductOrder = async (req: Request) => {
                 default_addres: 0,
                 is_deleted: 0,
                 created_date: getLocalDate(),
-                company_info_id:company_info_id?.data,
+                
               };
 
               const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: null,
                 new_data: {
                   config_product_order_user_shipping_address_id: UserAddressData?.dataValues?.id, data: {
@@ -3020,7 +2984,7 @@ export const addConfigProductOrder = async (req: Request) => {
                 }
               }], UserAddressData?.dataValues?.id, LogsActivityType.Add, LogsType.ConfigProductOrderUserShippingAddress, req?.body?.session_res?.id_app_user,trn)            } else {
               const addressId = await UserAddress.findOne({
-                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No },
               });
               if (!(addressId && addressId.dataValues)) {
                 await trn.rollback();
@@ -3041,7 +3005,7 @@ export const addConfigProductOrder = async (req: Request) => {
                   modified_date: getLocalDate(),
                 },
                 {
-                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No },
                   transaction: trn,
                 }
               );
@@ -3049,7 +3013,7 @@ export const addConfigProductOrder = async (req: Request) => {
                 where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No },
               });
   
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: { config_product_order_user_shipping_address_id: addressId?.dataValues?.id, data: addressId?.dataValues},
                 new_data: {
                   config_product_order_user_shipping_address_id: afterUpdateFindMegaMenu?.dataValues?.id, data: { ...afterUpdateFindMegaMenu?.dataValues }
@@ -3060,7 +3024,7 @@ export const addConfigProductOrder = async (req: Request) => {
           }
         }
       }
-      const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data);
+      const configData = await getWebSettingData();
 
       const ordersPayload = {
         order_number: `${configData.order_invoice_number_identity}-${order_number}`,
@@ -3090,7 +3054,7 @@ export const addConfigProductOrder = async (req: Request) => {
         },
         order_taxs: JSON.stringify(taxRateData),
         created_by: req.body.session_res.id_app_user,
-        company_info_id:company_info_id?.data,
+        
         created_date: getLocalDate(),
       };
 
@@ -3104,7 +3068,7 @@ export const addConfigProductOrder = async (req: Request) => {
 
         if (product.is_config == 0) {
           const products = await Product.findOne({
-            where: { id: product.product_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+            where: { id: product.product_id, is_deleted: DeletedStatus.No },
             transaction: trn,
           });
           if (!(products && products.dataValues)) {
@@ -3112,12 +3076,12 @@ export const addConfigProductOrder = async (req: Request) => {
             return resNotFound({ message: PRODUCT_NOT_FOUND });
           }
 
-          let diamondRate = await req.body.db_connection.query(
-            `SELECT sum(diamond_group_masters.rate*product_diamond_options.weight*product_diamond_options.count) FROM product_diamond_options LEFT OUTER JOIN diamond_group_masters ON diamond_group_masters.id = product_diamond_options.id_diamond_group WHERE product_diamond_options.id_product = ${product.product_id} AND product_diamond_options.company_info_id=${company_info_id?.data}`,
+          let diamondRate = await dbContext.query(
+            `SELECT sum(diamond_group_masters.rate*product_diamond_options.weight*product_diamond_options.count) FROM product_diamond_options LEFT OUTER JOIN diamond_group_masters ON diamond_group_masters.id = product_diamond_options.id_diamond_group WHERE product_diamond_options.id_product = ${product.product_id} `,
             { type: QueryTypes.SELECT }
           );
-          const metalRates = await req.body.db_connection.query(
-            `SELECT CASE WHEN PMO.id_karat IS NULL THEN (metal.metal_rate*PMO.metal_weight) ELSE (metal.metal_rate/metal.calculate_rate*gold_kts.calculate_rate*PMO.metal_weight) END FROM products LEFT OUTER JOIN product_metal_options AS PMO ON PMO.id_product = products.id LEFT OUTER JOIN metal_masters AS metal ON PMO.id_metal = metal.id LEFT OUTER JOIN gold_kts ON PMO.id_karat = gold_kts.id WHERE products.company_info_id=${company_info_id?.data} AND CASE WHEN PMO.id_karat IS NULL THEN products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} ELSE products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} AND PMO.id_karat = ${product.order_details_json.karat_id} END`,
+          const metalRates = await dbContext.query(
+            `SELECT CASE WHEN PMO.id_karat IS NULL THEN (metal.metal_rate*PMO.metal_weight) ELSE (metal.metal_rate/metal.calculate_rate*gold_kts.calculate_rate*PMO.metal_weight) END FROM products LEFT OUTER JOIN product_metal_options AS PMO ON PMO.id_product = products.id LEFT OUTER JOIN metal_masters AS metal ON PMO.id_metal = metal.id LEFT OUTER JOIN gold_kts ON PMO.id_karat = gold_kts.id WHERE CASE WHEN PMO.id_karat IS NULL THEN products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} ELSE products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} AND PMO.id_karat = ${product.order_details_json.karat_id} END`,
             { type: QueryTypes.SELECT }
           );
           const ordersDetails = await OrdersDetails.create(
@@ -3138,7 +3102,7 @@ export const addConfigProductOrder = async (req: Request) => {
               delivery_status: DeliverStatus.Pendding,
               payment_status: PaymentStatus.InPaid,
               order_details_json: product.order_details_json,
-              company_info_id:company_info_id?.data
+              
             },
             { transaction: trn }
           );
@@ -3146,23 +3110,23 @@ export const addConfigProductOrder = async (req: Request) => {
         } else {
           if (product.is_config == 1) {
             const products = await OrderTransaction.findOne({
-              where: { id: product.product_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+              where: { id: product.product_id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
             if (!(products && products.dataValues)) {
               await trn.rollback();
               return resNotFound({ message: PRODUCT_NOT_FOUND });
             }
-            let diamondRate: any = await req.body.db_connection.query(
-              `SELECT sum(PDGM.rate*CPDO.dia_count) FROM config_product_diamonds AS CPDO  LEFT OUTER JOIN diamond_group_masters AS PDGM ON CPDO.id_diamond_group = PDGM.id WHERE CPDO.company_info_id=${company_info_id?.data} AND CPDO.config_product_id = ${product.product_id} AND CASE WHEN ${product.order_details_json.is_band} = 1 THEN  CPDO.product_type <> '' ELSE CPDO.product_type <> 'band' END`,
+            let diamondRate: any = await dbContext.query(
+              `SELECT sum(PDGM.rate*CPDO.dia_count) FROM config_product_diamonds AS CPDO  LEFT OUTER JOIN diamond_group_masters AS PDGM ON CPDO.id_diamond_group = PDGM.id WHERE CPDO.config_product_id = ${product.product_id} AND CASE WHEN ${product.order_details_json.is_band} = 1 THEN  CPDO.product_type <> '' ELSE CPDO.product_type <> 'band' END`,
               { type: QueryTypes.SELECT }
             );
-            const metalRates: any = await req.body.db_connection.query(
-              `SELECT CASE WHEN CPMO.karat_id IS NULL THEN (SUM(metal_wt*(metal_master.metal_rate))+COALESCE(sum(CPMO.labor_charge), 0)) ELSE  (SUM(metal_wt*(metal_master.metal_rate/metal_master.calculate_rate*gold_kts.calculate_rate))+COALESCE(sum(CPMO.labor_charge), 0))  END  AS metal_rate FROM config_product_metals AS CPMO LEFT OUTER JOIN metal_masters AS metal_master ON metal_master.id = CPMO.metal_id LEFT OUTER JOIN gold_kts ON gold_kts.id = CPMO.karat_id WHERE CPMO.company_info_id=${company_info_id?.data} AND CPMO.config_product_id =  ${product.product_id} AND CASE WHEN 0 = 1 THEN  CPMO.head_shank_band <> '' ELSE CPMO.head_shank_band <> 'band' END GROUP BY config_product_id, CPMO.karat_id, CPMO.metal_id `,
+            const metalRates: any = await dbContext.query(
+              `SELECT CASE WHEN CPMO.karat_id IS NULL THEN (SUM(metal_wt*(metal_master.metal_rate))+COALESCE(sum(CPMO.labor_charge), 0)) ELSE  (SUM(metal_wt*(metal_master.metal_rate/metal_master.calculate_rate*gold_kts.calculate_rate))+COALESCE(sum(CPMO.labor_charge), 0))  END  AS metal_rate FROM config_product_metals AS CPMO LEFT OUTER JOIN metal_masters AS metal_master ON metal_master.id = CPMO.metal_id LEFT OUTER JOIN gold_kts ON gold_kts.id = CPMO.karat_id WHERE  CPMO.config_product_id =  ${product.product_id} AND CASE WHEN 0 = 1 THEN  CPMO.head_shank_band <> '' ELSE CPMO.head_shank_band <> 'band' END GROUP BY config_product_id, CPMO.karat_id, CPMO.metal_id `,
               { type: QueryTypes.SELECT }
             );
-            let diamondCount: any = await req.body.db_connection.query(
-              `SELECT sum(CPDO.dia_count) FROM config_product_diamonds AS CPDO  LEFT OUTER JOIN diamond_group_masters AS PDGM ON CPDO.id_diamond_group = PDGM.id WHERE CPDO.company_info_id=${company_info_id?.data} AND CPDO.config_product_id = ${product.product_id} AND CASE WHEN ${product.order_details_json.is_band} = 1 THEN  CPDO.product_type <> '' ELSE CPDO.product_type <> 'band' END`,
+            let diamondCount: any = await dbContext.query(
+              `SELECT sum(CPDO.dia_count) FROM config_product_diamonds AS CPDO  LEFT OUTER JOIN diamond_group_masters AS PDGM ON CPDO.id_diamond_group = PDGM.id WHERE AND CPDO.config_product_id = ${product.product_id} AND CASE WHEN ${product.order_details_json.is_band} = 1 THEN  CPDO.product_type <> '' ELSE CPDO.product_type <> 'band' END`,
               { type: QueryTypes.SELECT }
             );
             const ordersDetails = await ConfigOrdersDetails.create(
@@ -3182,7 +3146,7 @@ export const addConfigProductOrder = async (req: Request) => {
                 delivery_status: DeliverStatus.Pendding,
                 payment_status: PaymentStatus.InPaid,
                 order_details_json: product.order_details_json,
-                company_info_id:company_info_id?.data,
+                
               },
               { transaction: trn }
             );
@@ -3190,7 +3154,7 @@ export const addConfigProductOrder = async (req: Request) => {
           }
         }
       }
-      await addActivityLogs(req,company_info_id?.data,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           consfir_product_order_id: orders?.dataValues?.id, 
@@ -3217,11 +3181,7 @@ export const addConfigProductOrder = async (req: Request) => {
 export const getAllConfigOrdersUser = async (req: Request) => {
   try {
     const { user_id, start_date, end_date, order_status } = req.query;
-    const {AppUser,Orders} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+ 
     const startDateFilter =
       start_date != undefined ? start_date : new Date().getFullYear();
 
@@ -3229,7 +3189,7 @@ export const getAllConfigOrdersUser = async (req: Request) => {
 
     if (!user_id) return resBadRequest({ message: INVALID_ID });
     const users = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
     if (!(users && users.dataValues)) {
       return resNotFound({ message: USER_NOT_FOUND });
@@ -3242,7 +3202,7 @@ export const getAllConfigOrdersUser = async (req: Request) => {
 
     let where = [
       { user_id: user_id },
-      {company_info_id:company_info_id?.data},
+      
       {
         [Op.or]: [
           { order_date: { [Op.between]: [startDateFilter, endDateFilter] } },
@@ -3250,7 +3210,7 @@ export const getAllConfigOrdersUser = async (req: Request) => {
       },
       order_status && order_status != OrderStatus.All.toString()
         ? { order_status: { [Op.eq]: order_status } }
-        : {},
+        : {}
     ];
     if (!noPagination) {
       const totalItems = await Orders.count({
@@ -3308,11 +3268,7 @@ export const getAllConfigOrdersUser = async (req: Request) => {
 
 export const configOrderDetailsAPI = async (req: Request) => {
   const { order_number } = req.body;
-  const {Orders} = initModels(req);
-  const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-  if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-    return company_info_id;
-  }
+ 
   if (!order_number) {
     return resUnknownError({
       message: prepareMessageFromParams(REQUIRED_ERROR_MESSAGE, [
@@ -3322,7 +3278,7 @@ export const configOrderDetailsAPI = async (req: Request) => {
   }
   try {
     const orderDetails = await Orders.findOne({
-      where: { order_number: order_number,company_info_id:company_info_id?.data },
+      where: { order_number: order_number },
       attributes: [
         "id",
         "order_number",
@@ -3382,14 +3338,10 @@ export const addProductWithPaypalOrder = async (req: Request) => {
       discount,
       total_tax,
     } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    const {AppUser,TaxMaster,CityData, UserAddress, Orders, OrdersDetails, Product, CurrencyData} = initModels(req);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     if (user_id) {
       const users = await AppUser.findOne({
-        where: { id: user_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+        where: { id: user_id, is_deleted: DeletedStatus.No },
       });
       if (!(users && users.dataValues)) {
         return resNotFound({ message: USER_NOT_FOUND });
@@ -3397,7 +3349,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
     }
 
     const taxValues = await TaxMaster.findAll({
-      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No , company_info_id:company_info_id?.data },
+      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No ,  },
     });
     let productTaxAmount: any;
     let productTax: any;
@@ -3428,7 +3380,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
       return resBadRequest({ message: TOTAL_AMOUNT_WRONG });
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     const order_number = crypto.randomInt(1000000000, 9999999999);
 
     try {
@@ -3436,7 +3388,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_billing_address.city_id),
           { is_deleted: DeletedStatus.No },
-          { company_info_id:company_info_id?.data },
+          {  },
         ],
       });
 
@@ -3455,11 +3407,11 @@ export const addProductWithPaypalOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_with_paypal_billing_address_city_id: created?.dataValues?.id, data: {
@@ -3475,7 +3427,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
         where: [
           columnValueLowerCase("city_name", order_shipping_address.city_id),
           { is_deleted: DeletedStatus.No },
-          { company_info_id:company_info_id?.data },
+          {  },
         ],
       });
 
@@ -3494,11 +3446,11 @@ export const addProductWithPaypalOrder = async (req: Request) => {
             created_date: getLocalDate(),
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_with_paypal_shipping_address_city_id: created?.dataValues?.id, data: {
@@ -3530,11 +3482,11 @@ export const addProductWithPaypalOrder = async (req: Request) => {
               default_addres: 0,
               is_deleted: 0,
               created_date: getLocalDate(),
-              company_info_id:company_info_id?.data,
+              
             };
 
             const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-            await addActivityLogs(req,company_info_id?.data,[{
+            await addActivityLogs([{
               old_data: null,
               new_data: {
                 order_with_paypal_user_billing_address_id: UserAddressData?.dataValues?.id, data: {
@@ -3544,7 +3496,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
             }], UserAddressData?.dataValues?.id, LogsActivityType.Add, LogsType.OrderUserBillingAddressWithPaypal, req?.body?.session_res?.id_app_user,trn)          
           } else {
             const addressId = await UserAddress.findOne({
-              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+              where: { id: order_billing_address.id, is_deleted: DeletedStatus.No },
             });
             if (!(addressId && addressId.dataValues)) {
               await trn.rollback();
@@ -3563,11 +3515,11 @@ export const addProductWithPaypalOrder = async (req: Request) => {
                 address_type: 2,
                 default_addres: 0,
                 modified_date: getLocalDate(),
-                company_info_id:company_info_id?.data,
+                
               },
 
               {
-                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No },
                 transaction: trn,
               }
             );
@@ -3575,7 +3527,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
               where: { id: order_billing_address.id, is_deleted: DeletedStatus.No },
             });
 
-            await addActivityLogs(req,company_info_id?.data,[{
+            await addActivityLogs([{
               old_data: { order_with_paypal_user_billing_address_id: addressId?.dataValues?.id, data: addressId?.dataValues},
               new_data: {
                 order_with_paypal_user_billing_address_id: afterUpdateUseraddress?.dataValues?.id, data: { ...afterUpdateUseraddress?.dataValues }
@@ -3602,11 +3554,11 @@ export const addProductWithPaypalOrder = async (req: Request) => {
                 default_addres: 0,
                 is_deleted: 0,
                 created_date: getLocalDate(),
-                company_info_id:company_info_id?.data,
+                
               };
 
               const UserAddressData = await UserAddress.create(payload, { transaction: trn });
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: null,
                 new_data: {
                   order_with_paypal_user_shipping_address_id: UserAddressData?.dataValues?.id, data: {
@@ -3615,7 +3567,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
                 }
               }], UserAddressData?.dataValues?.id, LogsActivityType.Add, LogsType.OrderUserShippingAddressWithPaypal, req?.body?.session_res?.id_app_user,trn)            } else {
               const addressId = await UserAddress.findOne({
-                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No },
               });
               if (!(addressId && addressId.dataValues)) {
                 await trn.rollback();
@@ -3636,7 +3588,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
                   modified_date: getLocalDate(),
                 },
                 {
-                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+                  where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No },
                   transaction: trn,
                 }
               );
@@ -3644,7 +3596,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
                 where: { id: order_shipping_address.id, is_deleted: DeletedStatus.No },
               });
   
-              await addActivityLogs(req,company_info_id?.data,[{
+              await addActivityLogs([{
                 old_data: { order_with_paypal_user_shipping_address_id: addressId?.dataValues?.id, data: addressId?.dataValues},
                 new_data: {
                   order_with_paypal_user_shipping_address_id: afterUpdateFindUseraddress?.dataValues?.id, data: { ...afterUpdateFindUseraddress?.dataValues }
@@ -3655,7 +3607,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
           }
         }
       }
-      const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data)
+      const configData = await getWebSettingData()
 
       const ordersPayload = {
         order_number: `${configData.order_invoice_number_identity}-${order_number}`,
@@ -3686,7 +3638,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
         },
         order_taxs: JSON.stringify(taxRateData),
         created_by: req.body.session_res.id_app_user,
-        company_info_id:company_info_id?.data,
+        
         created_date: getLocalDate(),
       };
 
@@ -3698,19 +3650,19 @@ export const addProductWithPaypalOrder = async (req: Request) => {
           return resBadRequest({ message: INVALID_ID });
         }
         const products = await Product.findOne({
-          where: { id: product.product_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+          where: { id: product.product_id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
         if (!(products && products.dataValues)) {
           await trn.rollback();
           return resNotFound({ message: PRODUCT_NOT_FOUND });
         }
-        let diamondRate = await req.body.db_connection.query(
-          `SELECT sum(diamond_group_masters.rate) FROM product_diamond_options LEFT OUTER JOIN diamond_group_masters ON diamond_group_masters.id = product_diamond_options.id_diamond_group WHERE product_diamond_options.id_product = ${product.product_id} AND product_diamond_options.company_info_id=${company_info_id?.data}`,
+        let diamondRate = await dbContext.query(
+          `SELECT sum(diamond_group_masters.rate) FROM product_diamond_options LEFT OUTER JOIN diamond_group_masters ON diamond_group_masters.id = product_diamond_options.id_diamond_group WHERE product_diamond_options.id_product = ${product.product_id} `,
           { type: QueryTypes.SELECT }
         );
-        const metalRates = await req.body.db_connection.query(
-          `SELECT CASE WHEN PMO.id_karat IS NULL THEN (metal.metal_rate*PMO.metal_weight) ELSE (metal.metal_rate/metal.calculate_rate*gold_kts.calculate_rate*PMO.metal_weight) END FROM products LEFT OUTER JOIN product_metal_options AS PMO ON PMO.id_product = products.id LEFT OUTER JOIN metal_masters AS metal ON PMO.id_metal = metal.id LEFT OUTER JOIN gold_kts ON PMO.id_karat = gold_kts.id WHERE products.company_info_id = ${company_info_id?.data} AND CASE WHEN PMO.id_karat IS NULL THEN products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} ELSE products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} AND PMO.id_karat = ${product.order_details_json.karat_id} END`,
+        const metalRates = await dbContext.query(
+          `SELECT CASE WHEN PMO.id_karat IS NULL THEN (metal.metal_rate*PMO.metal_weight) ELSE (metal.metal_rate/metal.calculate_rate*gold_kts.calculate_rate*PMO.metal_weight) END FROM products LEFT OUTER JOIN product_metal_options AS PMO ON PMO.id_product = products.id LEFT OUTER JOIN metal_masters AS metal ON PMO.id_metal = metal.id LEFT OUTER JOIN gold_kts ON PMO.id_karat = gold_kts.id WHERE CASE WHEN PMO.id_karat IS NULL THEN products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} ELSE products.id = ${product.product_id} AND PMO.id_metal = ${product.order_details_json.metal_id} AND PMO.id_karat = ${product.order_details_json.karat_id} END`,
           { type: QueryTypes.SELECT }
         );
         const ordersDetails = await OrdersDetails.create(
@@ -3731,13 +3683,13 @@ export const addProductWithPaypalOrder = async (req: Request) => {
             delivery_status: DeliverStatus.Pendding,
             payment_status: PaymentStatus.InPaid,
             order_details_json: product.order_details_json,
-            company_info_id:company_info_id?.data,
+            
           },
           { transaction: trn }
         );
         ordersDetailsData.push({...ordersDetails?.dataValues})
       }
-      const currency = await CurrencyData.findOne({where: {id: currency_id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data }})
+      const currency = await CurrencyData.findOne({where: {id: currency_id, is_deleted: DeletedStatus.No }})
 
       const paayPalPamentData = await paymentPalVerification(
         order_number,
@@ -3750,7 +3702,7 @@ export const addProductWithPaypalOrder = async (req: Request) => {
         return paayPalPamentData;
       }
 
-      await addActivityLogs(req,company_info_id?.data,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           order_id: orders?.dataValues?.id, 
@@ -3819,7 +3771,6 @@ const paypalClient = new paypal.core.PayPalHttpClient(
 
 export const moveOrderToArchive = async (req: any) => {
   try {
-    const {Orders} = initModels(req);
     const { ids } = req.params;
     const errors = [];
     const oldOrder = [];
@@ -3860,7 +3811,7 @@ export const moveOrderToArchive = async (req: any) => {
     }
 
     await Orders.bulkCreate(updateOrder, { updateOnDuplicate: ["order_status"] });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
           old_data: oldOrder,
           new_data: updateOrder
         }], null, LogsActivityType.OrderStatus, LogsType.Order, req?.body?.session_res?.id_app_user)

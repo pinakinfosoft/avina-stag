@@ -3637,12 +3637,9 @@ CREATE TABLE IF NOT EXISTS public.email_templates
     is_active bit(1),
     is_deleted bit(1),
     message_type integer[],
-    company_info_id integer DEFAULT 1,
+    
     CONSTRAINT email_templates_pkey PRIMARY KEY (id),
-    CONSTRAINT fk_company_info FOREIGN KEY (company_info_id)
-        REFERENCES public.company_infoes (id) MATCH SIMPLE
-        ON UPDATE CASCADE
-        ON DELETE CASCADE
+    
 )
  
 TABLESPACE pg_default;
@@ -4067,29 +4064,6 @@ ALTER TABLE IF EXISTS public.company_infoes
 ALTER TABLE IF EXISTS public.company_infoes
     ADD COLUMN share_image integer;
 
-/* 31-02-2025 */
-
-DO $$ 
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN 
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'public'  -- Or the schema you're using
-        AND table_type = 'BASE TABLE'
-        AND table_name != 'company_infoes'  -- Exclude the company_infoes table
-    LOOP
-        -- Add the company_info_id column to each table with a default value of 1
-        EXECUTE format('ALTER TABLE %I ADD COLUMN company_info_id INT DEFAULT 1;', r.table_name);
-        
-        -- Add the foreign key constraint
-        EXECUTE format('ALTER TABLE %I ADD CONSTRAINT fk_company_info FOREIGN KEY (company_info_id) REFERENCES company_infoes(id) ON DELETE CASCADE ON UPDATE CASCADE;', r.table_name);
-    END LOOP;
-END $$;
-
-/* 01-04-2025  filter API*/
-
 
 CREATE TYPE public.filter_select_type AS ENUM
     ('single', 'multiple', 'range');
@@ -4111,13 +4085,7 @@ CREATE TABLE IF NOT EXISTS public.filters
     is_active bit(1) NOT NULL DEFAULT '1'::"bit",
     modified_date timestamp with time zone,
     modified_by integer,
-    company_info_id integer NOT NULL DEFAULT 1,
     CONSTRAINT filters_pkey PRIMARY KEY (id),
-    CONSTRAINT client_id FOREIGN KEY (company_info_id)
-        REFERENCES public.company_infoes (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
     CONSTRAINT created_user_id FOREIGN KEY (created_by)
         REFERENCES public.app_users (id) MATCH SIMPLE
         ON UPDATE NO ACTION
@@ -4172,15 +4140,9 @@ ALTER TABLE IF EXISTS public.web_config_setting
 ALTER TABLE IF EXISTS public.mega_menues
     RENAME TO mega_menu_attributes;
 
-ALTER TABLE IF EXISTS public.mega_menu_attributes
-    ADD COLUMN company_info_id integer;
 
-ALTER TABLE IF EXISTS public.mega_menu_attributes
-    ADD CONSTRAINT fk_company_info_id FOREIGN KEY (company_info_id)
-    REFERENCES public.company_infoes (id) MATCH SIMPLE
-    ON UPDATE NO ACTION
-    ON DELETE NO ACTION
-    NOT VALID;
+
+
 
 CREATE TYPE public.menu_type AS ENUM
     ('header', 'footer');
@@ -4199,13 +4161,8 @@ CREATE TABLE IF NOT EXISTS public.mega_menus
     created_by integer,
     modified_date timestamp with time zone,
     modified_by integer,
-    company_info_id integer NOT NULL DEFAULT 1,
     CONSTRAINT mega_menus_pkey PRIMARY KEY (id),
-    CONSTRAINT fk_company_id FOREIGN KEY (company_info_id)
-        REFERENCES public.company_infoes (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
+   
     CONSTRAINT fk_created_user FOREIGN KEY (created_by)
         REFERENCES public.app_users (id) MATCH SIMPLE
         ON UPDATE NO ACTION
@@ -4342,13 +4299,8 @@ CREATE TABLE IF NOT EXISTS public.store_address
     is_deleted bit(1) DEFAULT '0'::"bit",
     modified_by integer,
     modified_date timestamp with time zone,
-    company_info_id integer,
+    
     CONSTRAINT store_address_pkey PRIMARY KEY (id),
-    CONSTRAINT fk_client_id FOREIGN KEY (company_info_id)
-        REFERENCES public.company_infoes (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
     CONSTRAINT fk_created_user_id FOREIGN KEY (created_by)
         REFERENCES public.app_users (id) MATCH SIMPLE
         ON UPDATE NO ACTION
@@ -4437,8 +4389,7 @@ AS
             pmo.id_m_tone,
             pmo.center_diamond_price,
             karats.name,
-            karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
+            karats.calculate_rate AS karat_calculate_rate
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat
           WHERE pmo.is_deleted = '0'::"bit"
@@ -4474,7 +4425,6 @@ AS
     products.is_trending,
     products.parent_id,
     products.is_customization,
-    products.company_info_id,
 	products.meta_title,
 	products.meta_description,
 	products.meta_tag,
@@ -4544,12 +4494,6 @@ ALTER TABLE IF EXISTS public.web_config_setting
 ALTER TYPE public.theme_section_type
     ADD VALUE 'configurator_detail' AFTER 'verified_otp';
 
-/* ------------------- 15-04-2025 ----------------------------*/
-
-ALTER TABLE IF EXISTS public.themes DROP COLUMN IF EXISTS company_info_id;
-ALTER TABLE IF EXISTS public.theme_attributes DROP COLUMN IF EXISTS company_info_id;
-ALTER TABLE IF EXISTS public.theme_attribute_customers DROP COLUMN IF EXISTS company_info_id;
-
 /* ---------------------- 16-04-2025 --------------------------- */
 
 ALTER TYPE public.log_activity_type
@@ -4587,9 +4531,6 @@ ALTER TABLE IF EXISTS public.mega_menu_attributes
     ON UPDATE NO ACTION
     ON DELETE NO ACTION
     NOT VALID;
-
-ALTER TABLE IF EXISTS public.configurator_setting DROP COLUMN IF EXISTS company_info_id;
-ALTER TABLE IF EXISTS public.configurator_setting_file DROP COLUMN IF EXISTS company_info_id;
 
 /*----------------23-04-2025------------------------*/
 ALTER TYPE public.log_type
@@ -4658,8 +4599,7 @@ AS
             pmo.id_m_tone,
             pmo.center_diamond_price,
             karats.name,
-            karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
+            karats.calculate_rate AS karat_calculate_rate
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat
           WHERE pmo.is_deleted = '0'::"bit"
@@ -4702,7 +4642,6 @@ AS
     products.is_trending,
     products.parent_id,
     products.is_customization,
-    products.company_info_id,
     products.meta_title,
     products.meta_description,
     products.meta_tag,
@@ -4916,7 +4855,7 @@ CREATE TABLE IF NOT EXISTS public.stud_config_products
     deleted_at timestamp with time zone,
     deleted_by bigint,
     product_style stud_product_type DEFAULT 'stud'::stud_product_type,
-    company_info_id integer,
+    
     name character varying COLLATE pg_catalog."default" NOT NULL,
     sku character varying COLLATE pg_catalog."default" NOT NULL,
     slug character varying COLLATE pg_catalog."default" NOT NULL,
@@ -4967,7 +4906,6 @@ CREATE TABLE IF NOT EXISTS public.stud_diamonds
     dia_weight double precision NOT NULL,
     dia_mm_size bigint,
     dia_count bigint NOT NULL,
-    company_info_id integer NOT NULL,
     side_dia_prod_type stud_side_dia_prod_type DEFAULT 'halo'::stud_side_dia_prod_type,
     CONSTRAINT stud_diamonds_pkey PRIMARY KEY (id),
     CONSTRAINT fk_dia_mm_size FOREIGN KEY (dia_mm_size)
@@ -4996,7 +4934,7 @@ CREATE TABLE IF NOT EXISTS public.stud_metals
     metal_id bigint NOT NULL,
     metal_wt double precision NOT NULL,
     karat_id bigint,
-    company_info_id integer,
+    
     CONSTRAINT stud_metals_pkey PRIMARY KEY (id),
     CONSTRAINT fk_karat_id FOREIGN KEY (karat_id)
         REFERENCES public.gold_kts (id) MATCH SIMPLE

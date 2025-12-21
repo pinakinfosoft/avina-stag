@@ -2,10 +2,11 @@ import { Request } from "express";
 import { ActiveStatus, condition, couponType, DeletedStatus, isCombined, offerType, userSegments } from "../../utils/app-enumeration";
 import { getLocalDate, resSuccess, resUnknownError } from "../../utils/shared-functions";
 import { QueryTypes } from "sequelize";
-import { initModels } from "../model/index.model";
+import { AppUser } from "../model/app-user.model";
 import app from "../../config/app";
+import dbContext from "../../config/db-context";
 
-export const applyOfferWithBuyNewOneGetOne = async (req: Request, cart_list: any, client_id: number) => {
+export const applyOfferWithBuyNewOneGetOne = async (req: Request, cart_list: any) => {
   try {
     const cartItems = cart_list.cart_list.map((item: any) => {
       return {...item, dataValues: {...item.dataValues, product_price: Math.ceil(item.dataValues.product_price)}};
@@ -146,7 +147,6 @@ export const applyOfferWithBuyNewOneGetOne = async (req: Request, cart_list: any
             item.dataValues.product_id,
             item.dataValues.product_price,
             req?.body?.session_res?.id_app_user,
-            req
           );
           let bestProductOffer: any = null;
           let bestProductDiscount = 0;
@@ -194,7 +194,7 @@ export const applyOfferWithBuyNewOneGetOne = async (req: Request, cart_list: any
             item.dataValues.product_id,
             item.dataValues.product_price,
             req?.body?.session_res?.id_app_user,
-            req
+            
           );
           let bestProductOffer: any = null;
           let bestProductDiscount = 0;
@@ -263,7 +263,7 @@ export const applyOfferWithBuyNewOneGetOne = async (req: Request, cart_list: any
         item.dataValues.product_id,
         item.dataValues.product_price,
         req?.body?.session_res?.id_app_user,
-        req
+        
       );
       let bestProductOffer: any = null;
       let bestProductDiscount = 0;
@@ -320,8 +320,8 @@ for (let j = 0; j < orderOffers.length; j++) {
     continue;
   
   if (!isOfferValidByTime(offer, getLocalDate())) continue;
-  if (!await isUserEligible(offer, req?.body?.session_res?.id_app_user, req)) continue;
-  if (!await isUseageLimit(offer, req?.body?.session_res?.id_app_user, req)) continue;
+  if (!await isUserEligible(offer, req?.body?.session_res?.id_app_user)) continue;
+  if (!await isUseageLimit(offer, req?.body?.session_res?.id_app_user)) continue;
 
   const discount = Number(calculateDiscountAmount(offer, cartSubtotal));
   if (discount > bestOrderDiscount && discount < cartSubtotal) {
@@ -515,7 +515,7 @@ export const fetchActiveOffers = async (req: any) => {
        AND offers.is_deleted = '${DeletedStatus.No}'
       GROUP BY offers.id`;
   
-  return await req.body.db_connection.query(activeOffersQuery, { type: QueryTypes.SELECT });
+  return await dbContext.query(activeOffersQuery, { type: QueryTypes.SELECT });
 };
 
 function calculateDiscountOfBuyXGetY(product: any, offer: any) {
@@ -532,15 +532,15 @@ function calculateDiscountOfBuyXGetY(product: any, offer: any) {
   return discount;
 }
 
-export const getProductOffersForId = async (productOffers:any,productId:any,product_price:any,id_app_user:any, req:any) => {
+export const getProductOffersForId = async (productOffers:any,productId:any,product_price:any,id_app_user:any) => {
   const applicableOffers = [];
   if (productOffers.length > 0) {
     for (let j = 0; j < productOffers.length; j++) {
       const offer = productOffers[j];
     if (!isOfferValidByTime(offer, getLocalDate())) continue;
-    if (!isUserEligible(offer, id_app_user, req)) continue;
-    if (!isUseageLimit(offer, id_app_user, req)) continue;
-    const isEligible = await isProductEligible(offer, productId, req);
+    if (!isUserEligible(offer, id_app_user)) continue;
+    if (!isUseageLimit(offer, id_app_user)) continue;
+    const isEligible = await isProductEligible(offer, productId);
     if (!isEligible) continue;
     if ((offer.min_price && product_price < offer.min_price) || (offer.max_price && product_price > offer.max_price)) {
       continue;
@@ -556,12 +556,12 @@ export function calculateDiscountAmount(offer: any, price: any) {
   return offer?.discount_type == couponType.FixedAmountDiscount ? offer?.discount : (price * offer?.discount) / 100 > offer?.maximum_discount_amount ? offer?.maximum_discount_amount : (price * offer?.discount) / 100;
 }
 
-const isUserEligible = async (offer: any, user_id: any, req: any): Promise<any> => {
+const isUserEligible = async (offer: any, user_id: any): Promise<any> => {
   if (offer.all_user === isCombined.YES) {
     return true;
   } else if (offer.specific_user_segments === isCombined.YES) {
     for (const eligible_customer of offer.eligible_customers) {
-      const isEligible = await isUserInSegment(user_id, eligible_customer, req);
+      const isEligible = await isUserInSegment(user_id, eligible_customer);
       if (isEligible) {
         return true;
       }
@@ -577,8 +577,8 @@ const isUserEligible = async (offer: any, user_id: any, req: any): Promise<any> 
   return false;
 };
 
-const isUserInSegment = async (user_id: any, eligible_customer: any, req: any): Promise<any> => {
-  const userData = await getUserDataFromDB(user_id, req);
+const isUserInSegment = async (user_id: any, eligible_customer: any): Promise<any> => {
+  const userData = await getUserDataFromDB(user_id);
   if (!userData) {
     return false;
   }
@@ -590,25 +590,24 @@ const isUserInSegment = async (user_id: any, eligible_customer: any, req: any): 
   return false;
 };
 
-const getUserDataFromDB = async (user_id: any, req: any): Promise<any> => {
-  const { AppUser } = initModels(req);
+const getUserDataFromDB = async (user_id: any): Promise<any> => {
   const userDatabase = await AppUser.findAll({ where: { id: user_id } });
   return userDatabase.find((user: any) => user.id === user_id);
 };
 
-const isUseageLimit = async (offer: any, user_id: any, req): Promise<any> => {
-  const totalUsage = await getTotalOfferUsageCount(offer.offer_id, req);
+const isUseageLimit = async (offer: any, user_id: any): Promise<any> => {
+  const totalUsage = await getTotalOfferUsageCount(offer.offer_id);
   if (offer.total_number_of_usage_limit !== null && totalUsage >= offer.total_number_of_usage_limit) {
     return false;
   }
-  const userUsageCount = await getUserOfferUsageCount(user_id, offer.offer_id, req);
+  const userUsageCount = await getUserOfferUsageCount(user_id, offer.offer_id);
   if (offer.per_user_usage_limit !== null && userUsageCount >= offer.per_user_usage_limit) {
     return false;
   }
   return true;
 };
 
-const getTotalOfferUsageCount = async (offer_id: any, req: any): Promise<any> => {
+const getTotalOfferUsageCount = async (offer_id: any): Promise<any> => {
   const productDetailsQuery = `
     SELECT 
         o.offer_details->>'offer_id'
@@ -617,7 +616,7 @@ const getTotalOfferUsageCount = async (offer_id: any, req: any): Promise<any> =>
     WHERE 
         (o.offer_details->>'offer_id')::int = :offer_id
   `;
-  const orderDatabase: any = await req.body.db_connection.query(productDetailsQuery, {
+  const orderDatabase: any = await dbContext.query(productDetailsQuery, {
     replacements: { offer_id: offer_id },
     type: QueryTypes.SELECT,
   });
@@ -625,7 +624,7 @@ const getTotalOfferUsageCount = async (offer_id: any, req: any): Promise<any> =>
   return totalUsage;
 };
 
-const getUserOfferUsageCount = async (user_id: any, offer_id: any, req:any): Promise<any> => {
+const getUserOfferUsageCount = async (user_id: any, offer_id: any): Promise<any> => {
   const productDetailsQuery = `
   SELECT 
      o.user_id,
@@ -636,7 +635,7 @@ const getUserOfferUsageCount = async (user_id: any, offer_id: any, req:any): Pro
       o.user_id = :user_id 
       AND (o.offer_details->>'offer_id')::int = :offer_id
 `;
-  const orderDatabase = await req.body.db_connection.query(productDetailsQuery, {
+  const orderDatabase = await dbContext.query(productDetailsQuery, {
     replacements: { user_id: user_id ? user_id : 207, offer_id: offer_id },
     type: QueryTypes.SELECT
   });
@@ -644,7 +643,7 @@ const getUserOfferUsageCount = async (user_id: any, offer_id: any, req:any): Pro
   return userUsage;
 };
 
-const isProductEligible = async (offer: any, product_id: any,req:any): Promise<boolean> => {
+const isProductEligible = async (offer: any, product_id: any): Promise<boolean> => {
   const productDetailsQuery = `
     SELECT 
         p.id AS product_id,
@@ -660,7 +659,7 @@ const isProductEligible = async (offer: any, product_id: any,req:any): Promise<b
     WHERE 
         p.id = :product_id
   `;
-  const productDetails: any = await req.body.db_connection.query(productDetailsQuery, {
+  const productDetails: any = await dbContext.query(productDetailsQuery, {
     replacements: { product_id: product_id },
     type: QueryTypes.SELECT,
   });

@@ -1,8 +1,7 @@
 import { DATE, DOUBLE, INTEGER, JSON, SMALLINT, STRING } from "sequelize";
+import dbContext from "../../config/db-context";
 
-export const OrderTransaction = (dbContext: any) => { 
-  
-let orderTransaction = dbContext.define("order_transactions", {
+export const OrderTransaction = dbContext.define("order_transactions", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -37,10 +36,5 @@ let orderTransaction = dbContext.define("order_transactions", {
   },
   created_date: {
     type: DATE,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return orderTransaction;
-}

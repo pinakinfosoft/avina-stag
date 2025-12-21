@@ -25,11 +25,10 @@ import {
   RECORD_DELETE_SUCCESSFULLY,
   RECORD_UPDATE_SUCCESSFULLY,
 } from "../../utils/app-messages";
-import { initModels } from "../model/index.model";
+import { BlogCategoryData } from "../model/blog-category.model";
 
 export const getBlogCategory = async (req: Request) => {
   try {
-    const {BlogCategoryData} = initModels(req);
     let paginationProps = {};
 
     let pagination = {
@@ -39,18 +38,17 @@ export const getBlogCategory = async (req: Request) => {
     let noPagination = req.query.no_pagination === Pagination.no;
 
     let where = [
-      {company_info_id :req?.body?.session_res?.client_id},
       !noPagination
         ? { is_deleted: DeletedStatus.No }
         : { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
               { name: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -85,10 +83,9 @@ export const getBlogCategory = async (req: Request) => {
 
 export const getByIdBlogCategory = async (req: Request) => {
   try {
-    const {BlogCategoryData} = initModels(req);
 
     const findBlogCategory = await BlogCategoryData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
       attributes: ["id", "name", "slug", "is_active", "sort_order"],
     });
 
@@ -105,13 +102,11 @@ export const getByIdBlogCategory = async (req: Request) => {
 export const addBlogCategory = async (req: Request) => {
   try {
     const { name, sort_order = null } = req.body;
-    const {BlogCategoryData} = initModels(req);
 
     const findBlogCategory = await BlogCategoryData.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
       ],
     });
 
@@ -125,10 +120,9 @@ export const addBlogCategory = async (req: Request) => {
       sort_order,
       is_active: ActiveStatus.Active,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         blog_category_id: blogCategory?.dataValues?.id, data: {
@@ -145,12 +139,11 @@ export const addBlogCategory = async (req: Request) => {
 
 export const updateBlogCategory = async (req: Request) => {
   try {
-    const {BlogCategoryData} = initModels(req);
 
     const { name, sort_order } = req.body;
     const id = req.params.id;
     const findBlogCategory = await BlogCategoryData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findBlogCategory && findBlogCategory.dataValues)) {
@@ -166,7 +159,6 @@ export const updateBlogCategory = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
       ],
     });
 
@@ -187,14 +179,13 @@ export const updateBlogCategory = async (req: Request) => {
         where: {
           id: findBlogCategory.dataValues.id,
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id,
         },
       }
     );
     const AfterUpdatefindCategorySection = await BlogCategoryData.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No},
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { blog_category_id: findBlogCategory?.dataValues?.id, data: {...findBlogCategory?.dataValues}},
       new_data: {
         blog_category_id: AfterUpdatefindCategorySection?.dataValues?.id, data: { ...AfterUpdatefindCategorySection?.dataValues }
@@ -209,10 +200,9 @@ export const updateBlogCategory = async (req: Request) => {
 
 export const deleteBlogCategory = async (req: Request) => {
   try {
-    const {BlogCategoryData} = initModels(req);
 
     const tagToBeDelete = await BlogCategoryData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(tagToBeDelete && tagToBeDelete.dataValues)) {
@@ -229,9 +219,9 @@ export const deleteBlogCategory = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: tagToBeDelete.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: tagToBeDelete.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { blog_category_id: tagToBeDelete?.dataValues?.id, data: {...tagToBeDelete?.dataValues}},
       new_data: {
         blog_category_id: tagToBeDelete?.dataValues?.id, data: {
@@ -249,12 +239,11 @@ export const deleteBlogCategory = async (req: Request) => {
 
 export const statusUpdateForBlogCategory = async (req: Request) => {
   try {
-    const {BlogCategoryData} = initModels(req);
 
     const { is_active } = req.body;
     const id = req.params.id;
     const findBlogCategory = await BlogCategoryData.findOne({
-      where: { id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findBlogCategory && findBlogCategory.dataValues)) {
@@ -271,9 +260,9 @@ export const statusUpdateForBlogCategory = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findBlogCategory.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findBlogCategory.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { blog_category_id: findBlogCategory?.dataValues?.id, data: {...findBlogCategory?.dataValues}},
       new_data: {
         blog_category_id: findBlogCategory?.dataValues?.id, data: {
@@ -291,7 +280,6 @@ export const statusUpdateForBlogCategory = async (req: Request) => {
 
 export const blogCategoryList = async (req: Request) => {
   try {
-    const {BlogCategoryData} = initModels(req);
 
     const list = await BlogCategoryData.findAll({
       where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },

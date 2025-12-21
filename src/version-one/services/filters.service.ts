@@ -3,14 +3,28 @@ import { addActivityLogs, columnValueLowerCase, getCompanyIdBasedOnTheCompanyKey
 import { ActiveStatus, DeletedStatus, FilterItemScope, FilterMasterKey, FilterType, LogsActivityType, LogsType, Master_type, Pagination } from "../../utils/app-enumeration";
 import { Op, Sequelize } from "sequelize";
 import { DEFAULT_STATUS_CODE_SUCCESS, RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
-import { initModels } from "../model/index.model";
+import { FiltersData } from "../model/filters.model";
+import { CategoryData } from "../model/category.model";
+import { Image } from "../model/image.model";
+import { SettingTypeData } from "../model/master/attributes/settingType.model";
+import { SizeData } from "../model/master/attributes/item-size.model";
+import { LengthData } from "../model/master/attributes/item-length.model";
+import { StoneData } from "../model/master/attributes/gemstones.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { MetalMaster } from "../model/master/attributes/metal/metal-master.model";
+import { MetalTone } from "../model/master/attributes/metal/metalTone.model";
+import { BrandData } from "../model/master/attributes/brands.model";
+import { Master } from "../model/master/master.model";
+import { Colors } from "../model/master/attributes/colors.model";
+import { ClarityData } from "../model/master/attributes/clarity.model";
+import { CutsData } from "../model/master/attributes/cuts.model";
+import { Collection } from "../model/master/attributes/collection.model";
 import { LOG_FOR_SUPER_ADMIN } from "../../utils/app-constants";
 
 export const addFilters = async (req: Request) => {
   try {
     const { name, key, filter_select_type = FilterType.Multiple, selected_value = [], item_scope } = req.body
-    const {FiltersData} = initModels(req)
-    const findSameFilter = await FiltersData.findOne({ where: [columnValueLowerCase("name", name), { company_info_id: req?.body?.session_res?.client_id }] })
+    const findSameFilter = await FiltersData.findOne({ where: [columnValueLowerCase("name", name)] })
     if (findSameFilter && findSameFilter.dataValues) {
       return resErrorDataExit()
     }
@@ -23,10 +37,9 @@ export const addFilters = async (req: Request) => {
       created_by: req.body.session_res.id_app_user,
       item_scope: item_scope,
       created_date: getLocalDate(),
-      is_active: ActiveStatus.Active,
-      company_info_id: req.body.session_res.client_id
+      is_active: ActiveStatus.Active
     })
-    await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         filter_id: data?.dataValues?.id, data: {
@@ -43,7 +56,6 @@ export const addFilters = async (req: Request) => {
 export const getAllFilters = async (req: Request) => {
   try {
     let paginationProps = {};
-    const {CategoryData, FiltersData} = initModels(req)
 
     let pagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -53,15 +65,13 @@ export const getAllFilters = async (req: Request) => {
 
     const categories = await CategoryData.findAll({
       where: {
-        company_info_id: req.body.session_res.client_id,
         is_active: ActiveStatus.Active,
         is_deleted: DeletedStatus.No,
       },
     })
 
     let where = [
-      { company_info_id: req.body.session_res.client_id },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
           [Op.or]: [
@@ -71,7 +81,7 @@ export const getAllFilters = async (req: Request) => {
 
           ],
         }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -151,11 +161,10 @@ const result = data.map((item) => {
 
 export const editFilters = async (req: Request) => {
   try {
-    const {FiltersData} = initModels(req)
 
     const { name, filter_select_type = FilterType.Multiple, selected_value = [], item_scope } = req.body
 
-    const findSameFilter = await FiltersData.findOne({ where: { id: req.params.id, company_info_id: req?.body?.session_res?.client_id } })
+    const findSameFilter = await FiltersData.findOne({ where: { id: req.params.id } })
     if (!(findSameFilter && findSameFilter.dataValues)) {
       return resNotFound()
     }
@@ -167,11 +176,11 @@ export const editFilters = async (req: Request) => {
       selected_value: selected_value,
       modified_by: req.body.session_res.id_app_user,
       modified_date: getLocalDate(),
-    }, { where: { id: req.params.id, company_info_id: req?.body?.session_res?.client_id } })
+    }, { where: { id: req.params.id } })
 
     const afterUpdateFindSameFilter = await FiltersData.findOne({ where: { id: req.params.id } })
 
-    await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: { filter_id: findSameFilter?.dataValues?.id, data: {...findSameFilter?.dataValues} },
       new_data: {
         filter_id: afterUpdateFindSameFilter?.dataValues?.id, data: { ...afterUpdateFindSameFilter?.dataValues }
@@ -186,10 +195,9 @@ export const editFilters = async (req: Request) => {
 
 export const statusUpdateForFilter = async (req: Request) => {
   try {
-    const {FiltersData} = initModels(req)
 
     const findFilter = await FiltersData.findOne({
-      where: { id: req.params.id, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.params.id },
     });
     if (!(findFilter && findFilter.dataValues)) {
       return resNotFound();
@@ -200,9 +208,9 @@ export const statusUpdateForFilter = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findFilter.dataValues.id, company_info_id: req?.body?.session_res?.client_id } }
+      { where: { id: findFilter.dataValues.id } }
     );
-    await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: { filter_id: findFilter?.dataValues?.id, data: {...findFilter?.dataValues} },
       new_data: {
         filter_id: findFilter?.dataValues?.id, data: {
@@ -220,17 +228,11 @@ export const statusUpdateForFilter = async (req: Request) => {
 
 export const getFilterForUser = async (req: Request) => {
   try {
-    const {Image,FiltersData, SettingTypeData, SizeData, LengthData, StoneData, DiamondShape, CategoryData, MetalMaster, MetalTone, BrandData,Master, Colors, ClarityData, CutsData, Collection} = initModels(req)
 
     const { scope = FilterItemScope.Product } = req.query
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
     const data = await FiltersData.findAll({
       where: {
         is_active: ActiveStatus.Active,
-        company_info_id: company_info_id?.data,
         [Op.or]: [
           { item_scope: scope },
           { item_scope: FilterItemScope.Both },
@@ -730,9 +732,8 @@ export const getFilterForUser = async (req: Request) => {
 
 export const filterMasterList = async (req: Request) => {
   try {
-    const {SettingTypeData,MetalMaster,MetalTone,DiamondShape,Collection,Master,Image, BrandData, Colors, ClarityData, CategoryData, CutsData, StoneData, SizeData, LengthData} = initModels(req)
 
-    const where = { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id: req.body.session_res.client_id }
+    const where = { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active }
     const settingStyleList = await SettingTypeData.findAll({
       where,
       attributes: [

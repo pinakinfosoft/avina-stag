@@ -45,12 +45,28 @@ import { Op, QueryTypes, Sequelize } from "sequelize";
 import {
   DISCOUNT_TYPE_PLACE_ID,
 } from "../../utils/app-constants";
-import { initModels } from "../model/index.model";
 const readXlsxFile = require("read-excel-file/node");
+import { ConfigProduct } from "../model/config-product.model";
+import { ShanksData } from "../model/master/attributes/shanks.model";
+import { HeadsData } from "../model/master/attributes/heads.model";
+import { SideSettingStyles } from "../model/master/attributes/side-setting-styles.model";
+import { DiamondGroupMaster } from "../model/master/attributes/diamond-group-master.model";
+import { DiamondCaratSize } from "../model/master/attributes/caratSize.model";
+import { Colors } from "../model/master/attributes/colors.model";
+import { ClarityData } from "../model/master/attributes/clarity.model";
+import { CutsData } from "../model/master/attributes/cuts.model";
+import { MMSizeData } from "../model/master/attributes/mmSize.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { StoneData } from "../model/master/attributes/gemstones.model";
+import { MetalMaster } from "../model/master/attributes/metal/metal-master.model";
+import { GoldKarat } from "../model/master/attributes/metal/gold-karat.model";
+import { MetalTone } from "../model/master/attributes/metal/metalTone.model";
+import { ConfigProductMetals } from "../model/config-product-metal.model";
+import { ConfigProductDiamonds } from "../model/config-product-diamonds.model";
+import dbContext from "../../config/db-context";
 
 export const addRetailConfigProductsFromCSVFile = async (req: Request) => {
   try {
-    const {ProductBulkUploadFile} = initModels(req);
     if (!req.file) {
       return resUnprocessableEntity({
         message: FILE_NOT_FOUND,
@@ -68,7 +84,6 @@ export const addRetailConfigProductsFromCSVFile = async (req: Request) => {
       req.file.destination,
       PRODUCT_CSV_FOLDER_PATH,
       req.file.originalname,
-      req
     );
 
     if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -80,7 +95,6 @@ export const addRetailConfigProductsFromCSVFile = async (req: Request) => {
       status: FILE_STATUS.Uploaded,
       file_type: FILE_BULK_UPLOAD_TYPE.ConfigProductUpload,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
 
@@ -88,8 +102,6 @@ export const addRetailConfigProductsFromCSVFile = async (req: Request) => {
       resPBUF.dataValues.id,
       resMFTL.data,
       req.body.session_res.id_app_user,
-      req.body.session_res.client_id,
-      req
     );
 
     return PPBUF;
@@ -102,13 +114,10 @@ const processRetailProductBulkUploadFile = async (
   id: number,
   path: string,
   idAppUser: number,
-  clientId: number,
-  req: Request
 ) => {
-    const {ProductBulkUploadFile} = initModels(req);
 
   try {
-    const data = await processCSVFile(path, idAppUser,clientId, req);
+    const data = await processCSVFile(path, idAppUser);
     if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       await ProductBulkUploadFile.update(
         {
@@ -146,7 +155,7 @@ const processRetailProductBulkUploadFile = async (
   }
 };
 
-const processCSVFile = async (path: string, idAppUser: number,clientId:number, req: Request) => {
+const processCSVFile = async (path: string, idAppUser: number) => {
   try {
     const resRows = await getArrayOfRowsFromCSVFile(path);
 
@@ -166,12 +175,12 @@ const processCSVFile = async (path: string, idAppUser: number,clientId:number, r
     //   });
     // }
 
-    const resProducts = await getProductsFromRows(resRows.data.results,clientId, req);
+    const resProducts = await getProductsFromRows(resRows.data.results);
     if (resProducts.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resProducts;
     }
 
-    const resAPTD = await addProductToDB(resProducts.data, idAppUser,clientId, req);
+    const resAPTD = await addProductToDB(resProducts.data, idAppUser);
     if (resAPTD.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resAPTD;
     }
@@ -339,11 +348,10 @@ const validateHeaders = async (headers: string[]) => {
   return resSuccess();
 };
 
-const getProductsFromRows = async (rows: any,client_id:number, req: Request) => {
+const getProductsFromRows = async (rows: any) => {
   let currentProductIndex = -1;
   let productList: any = [];
-  let where = { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, company_info_id: client_id };
-  const {ConfigProduct, ShanksData, HeadsData, SideSettingStyles, DiamondGroupMaster, DiamondCaratSize, Colors, ClarityData, CutsData, MMSizeData, DiamondShape, StoneData} = initModels(req);
+  let where = { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No };
   
   try {
     let errors: {
@@ -375,7 +383,7 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
 
         //   const productName = await ConfigProduct.findOne({ where: { name: row.name, is_deleted: DeletedStatus.No } })
         const productsku = await ConfigProduct.findOne({
-          where: { sku: row.sku, is_deleted: DeletedStatus.No,company_info_id:client_id },
+          where: { sku: row.sku, is_deleted: DeletedStatus.No },
         });
 
         //   if (productName != null) {
@@ -474,48 +482,46 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
 
         const diamondGroupMaster = await DiamondGroupMaster.findOne({
           where: {
-            company_info_id:client_id,
             id_stone: await getPipedIdFromField(
               StoneData,
               row.center_stone,
               "name",
-              client_id,
+
             ),
             id_shape: await getPipedIdFromField(
               DiamondShape,
               row.center_dia_shape,
               "name",
-              client_id,
+
             ),
             id_mm_size: await getPipedIdFromField(
               MMSizeData,
               row.center_dia_mm_size.toString(),
               "value",
-              client_id,
+
             ),
             id_color: await getPipedIdFromField(
               Colors,
               row.center_dia_color,
               "value",
-              client_id,
+
             ),
             id_clarity: await getPipedIdFromField(
               ClarityData,
               row.center_dia_clarity,
               "value",
-              client_id,
+
             ),
             id_cuts: await getPipedIdFromField(
               CutsData,
               row.center_dia_cut,
               "value",
-              client_id,
+
             ),
             id_carat: await getPipedIdFromField(
               DiamondCaratSize,
               row.center_dia_carat,
               "value",
-              client_id,
             ),
           },
         });
@@ -574,7 +580,7 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
       }
     }
 
-    const resSMO = await setProductMetalDetails(productList,client_id, req);
+    const resSMO = await setProductMetalDetails(productList);
 
     if (resSMO.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       resSMO.data.map((t: any) =>
@@ -586,7 +592,7 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
       );
     }
 
-    const resSDO = await setDiamondOptions(productList,client_id, req);
+    const resSDO = await setDiamondOptions(productList);
 
     if (resSDO.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       resSDO.data.map((t: any) =>
@@ -627,7 +633,6 @@ const getPipedIdFromField = async (
   model: any,
   fieldValue: string,
   fieldName: string,
-  client_id:number,
 ) => {
   console.log("field-value", fieldValue);
   if (fieldValue == null || fieldValue === "") {
@@ -642,7 +647,6 @@ const getPipedIdFromField = async (
       ),
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      company_info_id:client_id,
     },
   });
 
@@ -694,11 +698,10 @@ const addProductDetailsToProductList = async (
   }
 };
 
-const setProductMetalDetails = async (productList: any,client_id:number, req: Request) => {
+const setProductMetalDetails = async (productList: any) => {
   let configMetalNameList = [],
     configKaratNameList = [],
     pmo;
-  const {MetalMaster, GoldKarat, MetalTone} = initModels(req);
   let errors: {
     product_name: string;
     product_sku: string;
@@ -720,7 +723,6 @@ const setProductMetalDetails = async (productList: any,client_id:number, req: Re
       }),
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      company_info_id:client_id,
     },
   });
   const karatList = await GoldKarat.findAll({
@@ -728,7 +730,6 @@ const setProductMetalDetails = async (productList: any,client_id:number, req: Re
       name: { [Op.in]: configKaratNameList },
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      company_info_id:client_id,
     },
   });
 
@@ -743,7 +744,6 @@ const setProductMetalDetails = async (productList: any,client_id:number, req: Re
         MetalTone,
         pmo.metal_tone,
         "sort_code",
-        client_id,
       );
     }
   }
@@ -757,7 +757,6 @@ const getPipedIdFromFieldValue = async (
   model: any,
   fieldValue: string,
   fieldName: string,
-  client_id:number
 ) => {
   if (fieldValue == null || fieldValue === "") {
     return "";
@@ -772,7 +771,6 @@ const getPipedIdFromFieldValue = async (
       ),
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      company_info_id:client_id
     },
   });
   let idList = [];
@@ -782,8 +780,7 @@ const getPipedIdFromFieldValue = async (
   return idList.join("|");
 };
 
-const setDiamondOptions = async (productList: any, client_id: number, req: Request) => {
-  const {DiamondGroupMaster, StoneData, DiamondShape, MMSizeData, Colors, ClarityData, CutsData, DiamondCaratSize} = initModels(req);
+const setDiamondOptions = async (productList: any) => {
   let configGroupNameList = [],
     configStoneSettingList = [],
     pmo,
@@ -874,48 +871,42 @@ const setDiamondOptions = async (productList: any, client_id: number, req: Reque
 
       const diamondGroupMaster = await DiamondGroupMaster.findOne({
         where: {
-          company_info_id:client_id,
           id_stone: await getPipedIdFromField(
             StoneData,
             productList[i].product_diamond_details[k].stone,
             "name",
-            client_id,
+
           ),
           id_shape: await getPipedIdFromField(
             DiamondShape,
             productList[i].product_diamond_details[k].shape,
             "name",
-            client_id,
+
           ),
           id_mm_size: await getPipedIdFromField(
             MMSizeData,
             productList[i].product_diamond_details[k].mm_size.toString(),
             "value",
-            client_id
           ),
           id_color: await getPipedIdFromField(
             Colors,
             productList[i].product_diamond_details[k].color,
             "value",
-            client_id
           ),
           id_clarity: await getPipedIdFromField(
             ClarityData,
             productList[i].product_diamond_details[k].clarity,
             "value",
-            client_id
           ),
           id_cuts: await getPipedIdFromField(
             CutsData,
             productList[i].product_diamond_details[k].cut,
             "value",
-            client_id
           ),
           id_carat: await getPipedIdFromField(
             DiamondCaratSize,
             productList[i].product_diamond_details[k].carat,
             "value",
-            client_id
           ),
           is_deleted: DeletedStatus.No,
         },
@@ -993,7 +984,6 @@ const getPipedShortCodeFromField = async (
   fieldValue: string,
   fieldName: string,
   returnValue: string,
-  client_id:number,
 ) => {
   if (fieldValue == null || fieldValue === "") {
     return null;
@@ -1003,15 +993,13 @@ const getPipedShortCodeFromField = async (
       [fieldName]: fieldValue,
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      company_info_id:client_id,
     },
   });
 
   return findData ? findData.dataValues[returnValue] : null;
 };
-const addProductToDB = async (productList: any, idAppUser: number, client_id: number, req: Request) => {
-  const {ConfigProduct,ShanksData, HeadsData, SideSettingStyles, DiamondCaratSize, StoneData, Colors, ClarityData, CutsData, ConfigProductMetals, ConfigProductDiamonds, DiamondShape, MetalMaster, GoldKarat} = initModels(req);
-  const trn = await (req.body.db_connection).transaction();
+const addProductToDB = async (productList: any, idAppUser: number) => {
+  const trn = await dbContext.transaction();
   let resProduct,
     productMetalData,
     productDiamondData,
@@ -1025,112 +1013,109 @@ const addProductToDB = async (productList: any, idAppUser: number, client_id: nu
         product.shak_type,
         "id",
         "sort_code",
-        client_id
+
       );
       let setting = await getPipedShortCodeFromField(
         SideSettingStyles,
         product.setting_type,
         "id",
         "sort_code",
-        client_id
+
       );
       let head = await getPipedShortCodeFromField(
         HeadsData,
         product.head_type,
         "id",
         "sort_code",
-        client_id
+
       );
       let centerStone = await getPipedShortCodeFromField(
         StoneData,
         product.center_stone,
         "id",
         "sort_code",
-        client_id
+
       );
       let centerStoneName = await getPipedShortCodeFromField(
         StoneData,
         product.center_stone,
         "id",
         "name",
-        client_id
+
       );
       let diamondShape = await getPipedShortCodeFromField(
         DiamondShape,
         product.center_dia_shape,
         "id",
         "sort_code",
-        client_id
+
       );
       let metal = await getPipedShortCodeFromField(
         MetalMaster,
         product.product_metal_data[0].metal,
         "id",
         "name",
-        client_id
+
       );
       let karat = await getPipedShortCodeFromField(
         GoldKarat,
         product.product_metal_data[0].karat,
         "id",
         "name",
-        client_id
+
       );
       let carat = await getPipedShortCodeFromField(
         DiamondCaratSize,
         product.center_dia_carat,
         "id",
         "value",
-        client_id
+
       );
       let diamondShapeName = await getPipedShortCodeFromField(
         DiamondShape,
         product.center_dia_shape,
         "id",
         "name",
-        client_id
+
       );
       let shankName = await getPipedShortCodeFromField(
         ShanksData,
         product.shak_type,
         "id",
         "name",
-        client_id
+
       );
       let settingName = await getPipedShortCodeFromField(
         SideSettingStyles,
         product.setting_type,
         "id",
         "name",
-        client_id
+
       );
       let headName = await getPipedShortCodeFromField(
         HeadsData,
         product.head_type,
         "id",
         "name",
-        client_id
+
       );
       let clarity = await getPipedShortCodeFromField(
         ClarityData,
         product.center_dia_clarity,
         "id",
         "slug",
-        client_id,
       );
       let cut = await getPipedShortCodeFromField(
         CutsData,
         product.center_dia_cut,
         "id",
         "slug",
-        client_id,
       );
       let color = await getPipedShortCodeFromField(
         Colors,
         product.center_dia_color,
         "id",
         "value",
-        client_id
       );
       let sku = karat
         ? `${shank}-${setting}-${head}-${centerStone}-${diamondShape}-${metal}${
@@ -1159,7 +1144,7 @@ const addProductToDB = async (productList: any, idAppUser: number, client_id: nu
       const sameSlugCount = await ConfigProduct.count({
         where: [
           columnValueLowerCase("slug", slug),
-          { is_deleted: DeletedStatus.No,company_info_id:client_id},
+          { is_deleted: DeletedStatus.No},
         ],
         transaction: trn,
       });
@@ -1199,7 +1184,6 @@ const addProductToDB = async (productList: any, idAppUser: number, client_id: nu
           created_by: idAppUser,
           is_deleted: DeletedStatus.No,
           created_date: getLocalDate(),
-          company_info_id:client_id,
         },
         { transaction: trn }
       );
@@ -1215,7 +1199,6 @@ const addProductToDB = async (productList: any, idAppUser: number, client_id: nu
           labor_charge: productMetalData.labor_charge,
           created_date: getLocalDate(),
           created_by: idAppUser,
-          company_info_id:client_id,
         });
       }
 
@@ -1236,7 +1219,6 @@ const addProductToDB = async (productList: any, idAppUser: number, client_id: nu
           dia_mm_size: productDiamondData.mm_size,
           dia_clarity: productDiamondData.clarity,
           dia_cuts: productDiamondData.cut,
-          company_info_id:client_id,
         });
       }
     }
@@ -1249,12 +1231,12 @@ const addProductToDB = async (productList: any, idAppUser: number, client_id: nu
     });
 
     activitylogs = {...activitylogs,Metal:ProductMetalsData.map((t)=>t.dataValues),diamonds:ProductDiamondsData.map((t)=>t.dataValues)}
-    await addActivityLogs(req,client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: activitylogs}], null, LogsActivityType.Add, LogsType.RetailDiscountConfigProductBulkUpload, idAppUser,trn)
         
     await trn.commit();
-    await refreshMaterializedRingThreeStoneConfiguratorPriceFindView;
+    await refreshMaterializedRingThreeStoneConfiguratorPriceFindView(dbContext);
     return resSuccess();
   } catch (e) {
     await trn.rollback();
@@ -1267,7 +1249,6 @@ const addProductToDB = async (productList: any, idAppUser: number, client_id: nu
 
 export const ringConfiguratorPriceFindWithUsingMaterializedView = async (req: any) => {
   try {
-    const {DiamondGroupMaster} = initModels(req);
     const {
       center_stone,
       diamond_type,
@@ -1287,10 +1268,6 @@ export const ringConfiguratorPriceFindWithUsingMaterializedView = async (req: an
       id_band_metal_tone,
       user_id,
     } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     if (
       id_head_metal_tone &&
       id_head_metal_tone != undefined &&
@@ -1308,7 +1285,6 @@ export const ringConfiguratorPriceFindWithUsingMaterializedView = async (req: an
         id_clarity: center_stone_clarity,
         id_carat: center_stone_size ? center_stone_size : null,
         id_cuts: center_stone_cuts,
-        company_info_id: company_info_id?.data,
         is_deleted: DeletedStatus.No,
       },
     });
@@ -1317,7 +1293,7 @@ export const ringConfiguratorPriceFindWithUsingMaterializedView = async (req: an
       return resNotFound({ message: PRODUCT_NOT_FOUND });
     }
 
-    const configProduct: any = await req.body.db_connection.query(
+    const configProduct: any = await dbContext.query(
       `(SELECT 
     id,
     product_title,
@@ -1409,7 +1385,6 @@ WHERE
     AND center_diamond_group_id = ${diamond_group?.dataValues.id}
     AND center_dia_type = ${diamond_type}
     AND metal_id = ${metal} 
-    AND company_info_id = ${company_info_id?.data}
     ${
       karat && karat != null
         ? `AND karat_id = ${karat}`
@@ -1440,7 +1415,6 @@ WHERE
 
 export const ringConfiguratorPriceFindWithoutUsingMaterializedView = async (req: any) => {
   try {
-    const { DiamondGroupMaster } = initModels(req);
     const {
       center_stone,
       diamond_type,
@@ -1460,10 +1434,6 @@ export const ringConfiguratorPriceFindWithoutUsingMaterializedView = async (req:
       id_band_metal_tone,
       user_id,
     } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
     if (
       id_head_metal_tone &&
       id_head_metal_tone != undefined &&
@@ -1481,7 +1451,6 @@ export const ringConfiguratorPriceFindWithoutUsingMaterializedView = async (req:
         id_clarity: center_stone_clarity,
         id_carat: center_stone_size ? center_stone_size : null,
         id_cuts: center_stone_cuts,
-        company_info_id: company_info_id?.data,
         is_deleted: DeletedStatus.No,
       },
     });
@@ -1490,7 +1459,7 @@ export const ringConfiguratorPriceFindWithoutUsingMaterializedView = async (req:
       return resNotFound({ message: "PRODUCT_NOT_FOUND" });
     }
 
-    const configProduct: any = await req.body.db_connection.query(
+    const configProduct: any = await dbContext.query(
       `(
  SELECT cp.id,
     cp.sku,
@@ -1627,17 +1596,11 @@ ON
     END
     AND WISHLIST.IS_BAND = '${is_band}'
 	 LEFT JOIN diamond_group_masters dgm ON cp.center_diamond_group_id = dgm.id  AND dgm.is_deleted = '0' AND dgm.is_Active = '1'
-	 	AND dgm.company_info_id = cp.company_info_id
      INNER JOIN carat_sizes cz ON cz.id::double precision = cp.center_dia_cts 
-	 	AND cz.company_info_id = cp.company_info_id
      INNER JOIN gemstones stone ON stone.id = dgm.id_stone AND stone.is_deleted = '0' 
-	 	AND stone.company_info_id = cp.company_info_id
 	 INNER JOIN config_product_metals as cpmo ON cpmo.config_product_id = cp.id 
-	 	AND cpmo.company_info_id = cp.company_info_id
 	 INNER JOIN metal_masters metal_master ON metal_master.id = cpmo.metal_id
-	 	AND metal_master.company_info_id = cp.company_info_id
-     LEFT JOIN gold_kts ON gold_kts.id = cpmo.karat_id  
-	 	AND gold_kts.company_info_id = cp.company_info_id
+     LEFT JOIN gold_kts ON gold_kts.id = cpmo.karat_id
     WHERE 
         head_type_id = ${head}
         AND shank_type_id = ${shank} 
@@ -1646,7 +1609,6 @@ ON
         AND center_diamond_group_id = ${diamond_group?.dataValues.id}
         AND center_dia_type = ${diamond_type}
         AND metal_id = ${metal} 
-        AND cp.company_info_id = ${company_info_id?.data}
         ${karat && karat != null
         ? `AND karat_id = ${karat}`
         : `AND karat_id IS NULL`
@@ -1660,7 +1622,7 @@ ON
     if (configProduct && configProduct.length == 0) {
       return resNotFound({ message: "PRODUCT_NOT_FOUND" });
     }
-    const productDiamondPrice: any = await req.body.db_connection.query(`(SELECT count(cpdo.id) AS count,cpdo.config_product_id, 
+    const productDiamondPrice: any = await dbContext.query(`(SELECT count(cpdo.id) AS count,cpdo.config_product_id, 
               sum(cpdo.dia_stone) FILTER (WHERE lower(cpdo.product_type::text) ~~* 'side'::text) AS dia_stone,
               jsonb_agg(DISTINCT jsonb_build_object('dia_count', cpdo.dia_count, 'dia_weight', cpdo.dia_weight, 'product_type', cpdo.product_type)) FILTER (WHERE lower(cpdo.product_type::text) ~~* 'side'::text) AS cpdo,
               CASE WHEN ${is_band} != 1 THEN COALESCE(sum(
@@ -1693,7 +1655,7 @@ ON
           )`, { type: QueryTypes.SELECT });
     let sideDiamondDetails = []
     if (productDiamondPrice.length > 0) {
-      sideDiamondDetails = await req.body.db_connection.query(`
+      sideDiamondDetails = await dbContext.query(`
         SELECT 
               CPD.id,
               CPD.dia_count,
@@ -1741,7 +1703,6 @@ const createDiamondArray = async (
   req: Request,
 ) => {
   let sideDiamondList = [];
-  const {DiamondGroupMaster} = initModels(req)
   for (let index = 0; index < list.length; index++) {
     const element = list[index];
     const diamondGroup = await DiamondGroupMaster.findOne({
@@ -1795,11 +1756,6 @@ export const threeStonePriceFindWithUsingMaterializedView = async (req: any) => 
       id_band_metal_tone,
       user_id,
     } = req.body;
-    const {DiamondGroupMaster} = initModels(req)
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     if (
       id_head_metal_tone &&
       id_head_metal_tone != undefined &&
@@ -1817,7 +1773,6 @@ export const threeStonePriceFindWithUsingMaterializedView = async (req: any) => 
         id_clarity: center_stone_clarity,
         id_carat: center_stone_size ? center_stone_size : null,
         id_cuts: center_stone_cuts,
-        company_info_id: company_info_id?.data,
         is_deleted: DeletedStatus.No,
       },
     });
@@ -1826,7 +1781,7 @@ export const threeStonePriceFindWithUsingMaterializedView = async (req: any) => 
       return resNotFound({ message: PRODUCT_NOT_FOUND });
     }
 
-    const configProduct: any = await req.body.db_connection.query(
+    const configProduct: any = await dbContext.query(
       `(SELECT 
     id,
     product_title,
@@ -1921,7 +1876,6 @@ WHERE
     AND center_diamond_group_id = ${diamond_group?.dataValues.id}
     AND center_dia_type = ${diamond_type}
     AND metal_id = ${metal} 
-    AND company_info_id = ${company_info_id?.data}
 
     ${
       karat && karat != null
@@ -1973,11 +1927,6 @@ export const threeStonePriceFindWithoutUsingMaterializedView = async (req: any) 
       id_band_metal_tone,
       user_id,
     } = req.body;
-    const {DiamondGroupMaster} = initModels(req)
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     if (
       id_head_metal_tone &&
       id_head_metal_tone != undefined &&
@@ -1995,7 +1944,6 @@ export const threeStonePriceFindWithoutUsingMaterializedView = async (req: any) 
         id_clarity: center_stone_clarity,
         id_carat: center_stone_size ? center_stone_size : null,
         id_cuts: center_stone_cuts,
-        company_info_id: company_info_id?.data,
         is_deleted: DeletedStatus.No,
       },
     });
@@ -2004,7 +1952,7 @@ export const threeStonePriceFindWithoutUsingMaterializedView = async (req: any) 
       return resNotFound({ message: PRODUCT_NOT_FOUND });
     }
 
-    const configProduct: any = await req.body.db_connection.query(
+    const configProduct: any = await dbContext.query(
           `(
  SELECT cp.id,
     cp.sku,
@@ -2146,17 +2094,11 @@ ON
     END
     AND WISHLIST.IS_BAND = '${is_band}'
 	 LEFT JOIN diamond_group_masters dgm ON cp.center_diamond_group_id = dgm.id  AND dgm.is_deleted = '0' AND dgm.is_Active = '1'
-	 	AND dgm.company_info_id = cp.company_info_id
      INNER JOIN carat_sizes cz ON cz.id::double precision = cp.center_dia_cts 
-	 	AND cz.company_info_id = cp.company_info_id
      INNER JOIN gemstones stone ON stone.id = dgm.id_stone AND stone.is_deleted = '0' 
-	 	AND stone.company_info_id = cp.company_info_id
 	 INNER JOIN config_product_metals as cpmo ON cpmo.config_product_id = cp.id 
-	 	AND cpmo.company_info_id = cp.company_info_id
 	 INNER JOIN metal_masters metal_master ON metal_master.id = cpmo.metal_id
-	 	AND metal_master.company_info_id = cp.company_info_id
-     LEFT JOIN gold_kts ON gold_kts.id = cpmo.karat_id  
-	 	AND gold_kts.company_info_id = cp.company_info_id
+     LEFT JOIN gold_kts ON gold_kts.id = cpmo.karat_id
     LEFT JOIN config_product_diamonds as cpdo ON cpdo.config_product_id = cp.id
     WHERE 
         head_type_id = ${head}
@@ -2166,7 +2108,6 @@ ON
         AND center_diamond_group_id = ${diamond_group?.dataValues.id}
         AND center_dia_type = ${diamond_type}
         AND metal_id = ${metal} 
-        AND cp.company_info_id = ${company_info_id?.data}
         ${
           karat && karat != null
             ? `AND karat_id = ${karat}`
@@ -2184,7 +2125,7 @@ ON
         if(configProduct && configProduct.length == 0){
           return resNotFound({ message: "PRODUCT_NOT_FOUND" });
     }
-    const productDiamondPrice:any = await req.body.db_connection.query(`(SELECT cpdo.config_product_id,
+    const productDiamondPrice:any = await dbContext.query(`(SELECT cpdo.config_product_id,
               sum(cpdo.dia_stone) FILTER (WHERE lower(cpdo.product_type::text) ~~* 'side'::text) AS dia_stone,
               jsonb_agg(DISTINCT jsonb_build_object('dia_count', cpdo.dia_count, 'dia_weight', cpdo.dia_weight, 'product_type', cpdo.product_type)) FILTER (WHERE lower(cpdo.product_type::text) ~~* 'side'::text) AS cpdo,
               CASE WHEN ${is_band} != 1 THEN COALESCE(sum(
@@ -2218,7 +2159,7 @@ ON
     
     let sideDiamondDetails = []
     if (productDiamondPrice.length > 0) {
-      sideDiamondDetails = await req.body.db_connection.query(`
+      sideDiamondDetails = await dbContext.query(`
         SELECT 
               CPD.id,
               CPD.dia_count,
@@ -2272,12 +2213,7 @@ export const publicConfigProductRetailPriceFind = async (req: Request) => {
       metal,
       karat,
     } = req.body;
-    const {DiamondGroupMaster, ConfigProduct,ConfigProductMetals} = initModels(req)
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const diamond_group = await DiamondGroupMaster.findOne({
       where: {
         id_stone: center_stone,
@@ -2286,7 +2222,6 @@ export const publicConfigProductRetailPriceFind = async (req: Request) => {
         id_clarity: center_stone_clarity,
         id_carat: center_stone_size ? center_stone_size : null,
         id_cuts: center_stone_cuts,
-        company_info_id :company_info_id?.data,
       },
     });
     if (!diamond_group && diamond_group == null) {
@@ -2302,7 +2237,6 @@ export const publicConfigProductRetailPriceFind = async (req: Request) => {
         Sequelize.where(Sequelize.literal('"CPMO"."metal_id"'), "=", metal),
         Sequelize.where(Sequelize.literal('"CPMO"."karat_id"'), "=", karat),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :company_info_id?.data},
       ],
       attributes: [
         "id",
@@ -2393,7 +2327,6 @@ export const publicConfigProductRetailPriceFind = async (req: Request) => {
           model: ConfigProductMetals,
           as: "CPMO",
           attributes: [],
-          where:{company_info_id :company_info_id?.data}
         },
         // {
         //   required: true,
@@ -2429,11 +2362,7 @@ export const configProductMazzsRetailPriceFind = async (req: Request) => {
       metal,
       karat,
     } = req.body;
-    const { DiamondGroupMaster, ConfigProduct, ConfigProductMetals } = req.body.db_connection.models;
-        const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-        if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-          return company_info_id;
-        }
+    const { DiamondGroupMaster, ConfigProduct, ConfigProductMetals } = dbContext.models;
     const diamond_group = await DiamondGroupMaster.findOne({
       where: {
         id_stone: center_stone,
@@ -2442,7 +2371,6 @@ export const configProductMazzsRetailPriceFind = async (req: Request) => {
         id_clarity: center_stone_clarity,
         id_carat: center_stone_size ? center_stone_size : null,
         id_cuts: center_stone_cuts,
-        company_info_id :company_info_id?.data,
       },
     });
 
@@ -2459,7 +2387,6 @@ export const configProductMazzsRetailPriceFind = async (req: Request) => {
         { center_dia_type: diamond_type },
         Sequelize.where(Sequelize.literal('"CPMO"."metal_id"'), "=", metal),
         Sequelize.where(Sequelize.literal('"CPMO"."karat_id"'), "=", karat),
-        {company_info_id :company_info_id?.data},
       ],
       attributes: [
         "id",
@@ -2494,7 +2421,6 @@ export const configProductMazzsRetailPriceFind = async (req: Request) => {
           model: ConfigProductMetals,
           as: "CPMO",
           attributes: [],
-          where:{company_info_id :company_info_id?.data}
         },
         // {
         //   required: true,

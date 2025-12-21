@@ -23,11 +23,10 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../utils/shared-functions";
-import { initModels } from "../../../model/index.model";
+import { MMSizeData } from "../../../model/master/attributes/mmSize.model";
 
 export const addMMSize = async (req: Request) => {
   try {
-    const { MMSizeData } = initModels(req);
     const { value } = req.body;
     const slug = createSlug(value);
     const payload = {
@@ -37,14 +36,14 @@ export const addMMSize = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findValue = await MMSizeData.findOne({
       where: [
         columnValueLowerCase("slug", slug),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -53,7 +52,7 @@ export const addMMSize = async (req: Request) => {
     }
 
     const mmSize = await MMSizeData.create(payload);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         mm_size_id: mmSize?.dataValues?.id, data: {
@@ -70,7 +69,6 @@ export const addMMSize = async (req: Request) => {
 
 export const getAllMMSize = async (req: Request) => {
   try {
-    const { MMSizeData } = initModels(req);
 
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -79,8 +77,8 @@ export const getAllMMSize = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       {
         [Op.or]: [
           { value: { [Op.iLike]: "%" + pagination.search_text + "%" } },
@@ -117,10 +115,9 @@ export const getAllMMSize = async (req: Request) => {
 
 export const getByIdMMSize = async (req: Request) => {
   try {
-    const { MMSizeData } = initModels(req);
 
     const findSize = await MMSizeData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findSize && findSize.dataValues)) {
@@ -134,13 +131,12 @@ export const getByIdMMSize = async (req: Request) => {
 
 export const updateMMSize = async (req: Request) => {
   try {
-    const { MMSizeData } = initModels(req);
 
     const { value } = req.body;
     const id = req.params.id;
     const slug = createSlug(value);
     const findSize = await MMSizeData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findSize && findSize.dataValues)) {
       return resNotFound();
@@ -150,7 +146,7 @@ export const updateMMSize = async (req: Request) => {
         columnValueLowerCase("value", value),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id}
+        {}
       ],
     });
     if (valueExists && valueExists.dataValues) {
@@ -164,13 +160,13 @@ export const updateMMSize = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
     const afterUpdatefindSize = await MMSizeData.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { mm_size_id: findSize?.dataValues?.id, data: {...findSize?.dataValues} },
       new_data: {
         mm_size_id: afterUpdatefindSize?.dataValues?.id, data: { ...afterUpdatefindSize?.dataValues }
@@ -185,10 +181,9 @@ export const updateMMSize = async (req: Request) => {
 
 export const deleteMMSize = async (req: Request) => {
   try {
-    const { MMSizeData } = initModels(req);
 
     const findSize = await MMSizeData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     console.log(findSize);
@@ -202,10 +197,10 @@ export const deleteMMSize = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findSize.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSize.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { mm_size_id: findSize?.dataValues?.id, data: {...findSize?.dataValues} },
       new_data: {
         mm_size_id: findSize?.dataValues?.id, data: {
@@ -224,10 +219,9 @@ export const deleteMMSize = async (req: Request) => {
 
 export const statusUpdateForMMSize = async (req: Request) => {
   try {
-    const { MMSizeData } = initModels(req);
 
     const findSize = await MMSizeData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findSize && findSize.dataValues)) {
       return resNotFound();
@@ -238,10 +232,10 @@ export const statusUpdateForMMSize = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findSize.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSize.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { mm_size_id: findSize?.dataValues?.id, data: {...findSize?.dataValues} },
       new_data: {
         mm_size_id: findSize?.dataValues?.id, data: {

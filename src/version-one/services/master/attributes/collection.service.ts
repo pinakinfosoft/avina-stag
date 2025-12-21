@@ -24,11 +24,11 @@ import {
   RECORD_DELETE_SUCCESSFULLY,
   RECORD_UPDATE_SUCCESSFULLY,
 } from "../../../../utils/app-messages";
-import { initModels } from "../../../model/index.model";
+import { Collection } from "../../../model/master/attributes/collection.model";
+import { CategoryData } from "../../../model/category.model";
 
 export const addCollection = async (req: Request) => {
   try {
-    const {Collection} = initModels(req);
     const { name, id_category = null } = req.body;
     const slug = createSlug(name);
     const payload = {
@@ -39,14 +39,14 @@ export const addCollection = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findName = await Collection.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -55,7 +55,7 @@ export const addCollection = async (req: Request) => {
     }
     const collectionData =await Collection.create(payload);
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
             old_data: null,
             new_data: {
               collection_id: collectionData?.dataValues?.id, data: {
@@ -72,7 +72,6 @@ export const addCollection = async (req: Request) => {
 
 export const getCollections = async (req: Request) => {
   try {
-    const {Collection,CategoryData} = initModels(req);
     let paginationProps = {};
 
     let pagination = {
@@ -83,8 +82,8 @@ export const getCollections = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -92,7 +91,7 @@ export const getCollections = async (req: Request) => {
               { name: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -124,7 +123,7 @@ export const getCollections = async (req: Request) => {
         "id_category",
         [Sequelize.literal("category.category_name"), "category_name"],
       ],
-      include: [{ model: CategoryData, as: "category", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: CategoryData, as: "category", attributes: [],required:false }],  
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -135,12 +134,11 @@ export const getCollections = async (req: Request) => {
 
 export const updateCollection = async (req: Request) => {
   try {
-    const {Collection} = initModels(req);
     const { id_category = null, name } = req.body;
     const id = req.params.id;
     const slug = createSlug(name);
     const findCollection = await Collection.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No },
     });
     if (!(findCollection && findCollection.dataValues)) {
       return resNotFound();
@@ -151,7 +149,7 @@ export const updateCollection = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -166,12 +164,12 @@ export const updateCollection = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
     const AfterUpdatefindCollection = await Collection.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { collection_id: findCollection?.dataValues?.id, data: findCollection?.dataValues },
       new_data: {
         collection_id: AfterUpdatefindCollection?.dataValues?.id, data: { ...AfterUpdatefindCollection?.dataValues }
@@ -188,9 +186,8 @@ export const updateCollection = async (req: Request) => {
 
 export const deleteCollection = async (req: Request) => {
   try {
-    const {Collection} = initModels(req);
     const findCollection = await Collection.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCollection && findCollection.dataValues)) {
@@ -202,9 +199,9 @@ export const deleteCollection = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findCollection.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCollection.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { collection_id: findCollection?.dataValues?.id, data: {...findCollection?.dataValues} },
       new_data: {
         collection_id: findCollection?.dataValues?.id, data: {
@@ -223,9 +220,8 @@ export const deleteCollection = async (req: Request) => {
 
 export const statusUpdateForCollection = async (req: Request) => {
   try {
-    const {Collection} = initModels(req);
     const findCollection = await Collection.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCollection && findCollection.dataValues)) {
       return resNotFound();
@@ -236,10 +232,10 @@ export const statusUpdateForCollection = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findCollection.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCollection.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { collection_id: findCollection?.dataValues?.id, data: {...findCollection?.dataValues} },
       new_data: {
         collection_id: findCollection?.dataValues?.id, data: {
@@ -259,13 +255,9 @@ export const statusUpdateForCollection = async (req: Request) => {
 
 export const getCollectionList = async (req: Request) => {
   try {
-    const {Collection,CategoryData} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     const findCollections = await Collection.findAll({
-      where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No },
       attributes: [
         "id",
         "name",
@@ -273,7 +265,7 @@ export const getCollectionList = async (req: Request) => {
         "id_category",
         [Sequelize.literal("category.category_name"), "category_name"],
       ],
-      include: [{ model: CategoryData, as: "category", attributes: [],where:{company_info_id:company_info_id?.data},required:false }],
+      include: [{ model: CategoryData, as: "category", attributes: [],required:false }],
     });
 
     return resSuccess({ data: findCollections });

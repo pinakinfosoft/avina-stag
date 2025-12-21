@@ -1,6 +1,5 @@
 import { Request } from "express";
 import {
-  getCompanyIdBasedOnTheCompanyKey,
   addActivityLogs,
   getInitialPaginationFromQuery,
   getListFromToValues,
@@ -54,18 +53,23 @@ import {
 } from "../../helpers/file.helper";
 import {  Op, Sequelize } from "sequelize";
 import { PRODUCT_FILE_LOCATION } from "../../utils/app-constants";
-import {
-  getRapnetDiamonds,
-  getVDBDiamondByStockNumber,
-  getVDBDiamonds,
-} from "./tp-diamond.service";
 import { IDiamondFilter } from "../../data/interfaces/diamond/diamond.interface";
-import { initModels } from "../model/index.model";
 const readXlsxFile = require("read-excel-file/node");
+import { ProductBulkUploadFile } from "../model/product-bulk-upload-file.model";
+import { Master } from "../model/master/master.model";
+import { StoneData } from "../model/master/attributes/gemstones.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { Colors } from "../model/master/attributes/colors.model";
+import { ClarityData } from "../model/master/attributes/clarity.model";
+import { CutsData } from "../model/master/attributes/cuts.model";
+import { LooseDiamondGroupMasters } from "../model/loose-diamond-group-master.model";
+import { StockChangeLog } from "../model/stock-change-log.model";
+import { FiltersData } from "../model/filters.model";
+import { DiamondCaratSize } from "../model/master/attributes/caratSize.model";
+import dbContext from "../../config/db-context";
 
 export const addLooseDiamondCSVFile = async (req: Request) => {
   try {
-    const {ProductBulkUploadFile} = initModels(req);
     if (!req.file) {
       return resUnprocessableEntity({
         message: FILE_NOT_FOUND,
@@ -88,8 +92,7 @@ export const addLooseDiamondCSVFile = async (req: Request) => {
       req.file.filename,
       req.file.destination,
       PRODUCT_CSV_FOLDER_PATH,
-      req.file.originalname,
-      req
+      req.file.originalname
     );
 
     if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -101,16 +104,13 @@ export const addLooseDiamondCSVFile = async (req: Request) => {
       status: FILE_STATUS.Uploaded,
       file_type: FILE_BULK_UPLOAD_TYPE.DiamondGroupUpload,
       created_by: req.body.session_res.id_app_user,
-      company_info_id: req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
 
     const resPDBUF = await processDiamondGroupBulkUploadFile(
       resPBUF.dataValues.id,
       resMFTL.data,
-      req.body.session_res.id_app_user,
-      req?.body?.session_res?.client_id,
-      req
+      req.body.session_res.id_app_user
     );
 
     return resPDBUF;
@@ -136,14 +136,11 @@ const parseError = (error: any) => {
 const processDiamondGroupBulkUploadFile = async (
   id: number,
   path: string,
-  idAppUser: number,
-  clientId: number,
-  req: Request
+  idAppUser: number
 ) => {
-  const {ProductBulkUploadFile} = initModels(req);
 
   try {
-    const data = await processCSVFile(path, idAppUser, clientId, req);
+    const data = await processCSVFile(path, idAppUser);
     if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       await ProductBulkUploadFile.update(
         {
@@ -183,7 +180,7 @@ const processDiamondGroupBulkUploadFile = async (
   }
 };
 
-const processCSVFile = async (path: string, idAppUser: number, client_id: number, req: Request) => {
+const processCSVFile = async (path: string, idAppUser: number) => {
   try {
     const resRows = await getArrayOfRowsFromCSVFile(path);
     if (resRows.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -198,14 +195,12 @@ const processCSVFile = async (path: string, idAppUser: number, client_id: number
     const resProducts = await getDiamondGroupFromRows(
       resRows.data.results,
       idAppUser,
-      client_id,
-      req
     );
     if (resProducts.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resProducts;
     }
 
-    const resAPTD = await addGroupToDB(resProducts.data, idAppUser, client_id, req);
+    const resAPTD = await addGroupToDB(resProducts.data, idAppUser);
     if (resAPTD.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resAPTD;
     }
@@ -385,10 +380,9 @@ const validateHeaders = async (headers: string[]) => {
   return resSuccess();
 };
 
-const getDiamondGroupFromRows = async (rows: any, idAppUser: any, client_id: number, req: Request) => {
+const getDiamondGroupFromRows = async (rows: any, idAppUser: any) => {
   let currentGroupIndex = -1;
   try {
-    const {Master, StoneData, DiamondShape, Colors, ClarityData, CutsData, LooseDiamondGroupMasters} = initModels(req)
 
     let errors: {
       column_id?: number;
@@ -400,127 +394,108 @@ const getDiamondGroupFromRows = async (rows: any, idAppUser: any, client_id: num
       where: {
         master_type: Master_type.Availability,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const stoneList = await StoneData.findAll({
       where: {
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const shapeList = await DiamondShape.findAll({
       where: {
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const colorList = await Colors.findAll({
       where: {
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const clarityList = await ClarityData.findAll({
       where: {
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const CutGradeList = await CutsData.findAll({
       where: {
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const polishList = await Master.findAll({
       where: {
         master_type: Master_type.Polish,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const SymmetryList = await Master.findAll({
       where: {
         master_type: Master_type.symmetry,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const fluorescenceIntensityList = await Master.findAll({
       where: {
         master_type: Master_type.fluorescenceIntensity,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const fluorescenceColorList = await Master.findAll({
       where: {
         master_type: Master_type.fluorescenceColor,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const labList = await Master.findAll({
       where: {
         master_type: Master_type.lab,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const fancyColorList = await Master.findAll({
       where: {
         master_type: Master_type.fancyColor,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const fancyColorOvertoneList = await Master.findAll({
       where: {
         master_type: Master_type.fancyColorOvertone,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const fancyColorIntensityList = await Master.findAll({
       where: {
         master_type: Master_type.fancyColorIntensity,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const countryList = await Master.findAll({
       where: {
         master_type: Master_type.country,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const stateList = await Master.findAll({
       where: {
         master_type: Master_type.state,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const cityList = await Master.findAll({
       where: {
         master_type: Master_type.city,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const growthTypeList = await Master.findAll({
       where: {
         master_type: Master_type.growthType,
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     const looseDiamondList = await LooseDiamondGroupMasters.findAll({
       where: {
         is_deleted: DeletedStatus.No,
-        company_info_id: client_id,
       },
     });
     let updatedDiamondList = [];
@@ -1164,7 +1139,6 @@ const getDiamondGroupFromRows = async (rows: any, idAppUser: any, client_id: num
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
             created_by: idAppUser,
-            company_info_id: client_id,
             created_at: getLocalDate(),
           });
         }
@@ -1195,10 +1169,9 @@ const getDiamondGroupFromRows = async (rows: any, idAppUser: any, client_id: num
   }
 };
 
-const addGroupToDB = async (list: any, idAppUser: any, client_id: any, req: Request) => {
-    const {LooseDiamondGroupMasters,StockChangeLog} = initModels(req);
+const addGroupToDB = async (list: any, idAppUser: any) => {
 
-  const trn = await req.body.db_connection.transaction();
+  const trn = await dbContext.transaction();
   let activitylogs: any = {};
   let StockChangeLogData;
   try {
@@ -1221,7 +1194,6 @@ const addGroupToDB = async (list: any, idAppUser: any, client_id: any, req: Requ
           new_quantity: diamond.dataValues.remaining_quantity_count,
           transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
           changed_by: diamond.dataValues.created_by,
-          company_info_id: client_id,
           email: null,
           change_date: getLocalDate(),
         });
@@ -1304,11 +1276,11 @@ const addGroupToDB = async (list: any, idAppUser: any, client_id: any, req: Requ
     if (list.update.length > 0) {
       //updated
       activitylogs = { ...activitylogs, StockChangeLog: StockChangeLogData && StockChangeLogData.map((t) => t.dataValues) }
-      await addActivityLogs(req,client_id, [{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Edit, LogsType.LooseDiamondBulkImport, idAppUser)
+      await addActivityLogs([{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Edit, LogsType.LooseDiamondBulkImport, idAppUser)
     } else if (list.create.length > 0) {
       //add
       activitylogs = { ...activitylogs, StockChangeLog: StockChangeLogData && StockChangeLogData.map((t) => t.dataValues) }
-      await addActivityLogs(req,client_id, [{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Add, LogsType.LooseDiamondBulkImport, idAppUser)
+      await addActivityLogs([{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Add, LogsType.LooseDiamondBulkImport, idAppUser)
     }
     await trn.commit();
     return resSuccess({ data: list });
@@ -1321,7 +1293,6 @@ const addGroupToDB = async (list: any, idAppUser: any, client_id: any, req: Requ
 
 export const addLooseDiamondImages = async (req: Request) => {
   try {
-    const {LooseDiamondGroupMasters} = initModels(req);
     let diamond;
     let afterUpdatediamond;
     const files = req.files as {
@@ -1336,16 +1307,13 @@ export const addLooseDiamondImages = async (req: Request) => {
       where: {
         is_active: ActiveStatus.Active,
         is_deleted: DeletedStatus.No,
-        company_info_id: req?.body?.session_res?.client_id,
       },
     });
 
     for (let image of files.images) {
-      const resPRF = await moveFileToS3ByTypeAndLocation(req.body.db_connection,
+      const resPRF = await moveFileToS3ByTypeAndLocation(
         image,
-        `${PRODUCT_FILE_LOCATION}/loose-diamond`,
-        req?.body?.session_res?.client_id,
-        req
+        `${PRODUCT_FILE_LOCATION}/loose-diamond`
       );
       if (resPRF.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return resPRF;
@@ -1376,7 +1344,6 @@ export const addLooseDiamondImages = async (req: Request) => {
         {
           where: {
             id: diamond.dataValues.id,
-            company_info_id: req?.body?.session_res?.client_id,
           },
         }
       );
@@ -1400,7 +1367,7 @@ export const addLooseDiamondImages = async (req: Request) => {
       return resBadRequest({ data: error });
     }
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id, [{
+    await addActivityLogs([{
       old_data: { data: diamond.map((t) => t.dataValues) },
       new_data: { data: afterUpdatediamond.map((t) => t.dataValues) }
     }], null, LogsActivityType.Edit, LogsType.LooseDiamondBulkImportImage, req?.body?.session_res?.id_app_user)
@@ -1412,21 +1379,10 @@ export const addLooseDiamondImages = async (req: Request) => {
 
 export const looseDiamondAdminList = async (req: Request) => {
   try {
-    const {LooseDiamondGroupMasters,Master, StoneData, DiamondShape, Colors, ClarityData, CutsData} = initModels(req);
 
     const { query }: any = req;
     const { id } = req.params;
-    let client_id: number;
     let paginationProps = {};
-    if (req?.body?.session_res?.client_id) {
-      client_id = req?.body?.session_res?.client_id
-    } else {
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return company_info_id;
-      }
-      client_id = company_info_id?.data
-    }
     const pagination = {
       ...getInitialPaginationFromQuery(query),
       search_text: query.search_text,
@@ -1434,9 +1390,8 @@ export const looseDiamondAdminList = async (req: Request) => {
     let noPagination = req.query.no_pagination === Pagination.no;
     const where = [
       { is_deleted: DeletedStatus.No },
-      id ? { id: id } : {},
-      { company_info_id: client_id },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      id ? { id: id } : 
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
           [Op.or]: [
@@ -1460,39 +1415,39 @@ export const looseDiamondAdminList = async (req: Request) => {
             ),
           ],
         }
-        : {},
+        : 
       query.shape
         ? Sequelize.where(Sequelize.col(`shape`), {
           [Op.in]: query.shape.split(","),
         })
-        : {},
+        : 
       query.clarity
         ? Sequelize.where(Sequelize.col(`clarity`), {
           [Op.in]: query.clarity.split(","),
         })
-        : {},
+        : 
       query.min_total_price || query.max_total_price
         ? Sequelize.where(Sequelize.col('total_price'), {
           ...(query.min_total_price && { [Op.gte]: parseFloat(query.min_total_price) }),
           ...(query.max_total_price && { [Op.lte]: parseFloat(query.max_total_price) }),
         })
-        : {},
+        : 
       query.min_weight || query.max_weight
         ? Sequelize.where(Sequelize.col('weight'), {
           ...(query.min_weight && { [Op.gte]: parseFloat(query.min_weight) }),
           ...(query.max_weight && { [Op.lte]: parseFloat(query.max_weight) }),
         })
-        : {},
+        : 
       query.color
         ? Sequelize.where(Sequelize.col(`color`), {
           [Op.in]: query.color.split(","),
         })
-        : {},
+        : 
       query.cut_grade
         ? Sequelize.where(Sequelize.col(`cut_grade`), {
           [Op.in]: query.cut_grade.split(","),
         })
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -1580,125 +1535,107 @@ export const looseDiamondAdminList = async (req: Request) => {
           required: false,
           as: "availabilitys",
           attributes: [],
-          where: { company_info_id: client_id },
         },
         {
           model: StoneData,
           as: "stones",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: DiamondShape,
           as: "shapes",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Colors,
           as: "colors",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: ClarityData,
           as: "claritys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: CutsData,
           as: "cut_grades",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "polishs",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "symmetrys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fluorescence_intensitys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fluorescence_colors",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "labs",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fancy_colors",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fancy_color_intensitys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fancy_color_overtones",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "countrys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "states",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "citys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "growth_types",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
       ],
@@ -1711,24 +1648,11 @@ export const looseDiamondAdminList = async (req: Request) => {
 
 export const looseDiamondDetailsForAdmin = async (req: Request) => {
   try {
-    const {LooseDiamondGroupMasters,Master, StoneData, DiamondShape, Colors, ClarityData, CutsData} = initModels(req);
 
     const { query } = req;
-    let client_id: number;
-
-    if (req?.body?.session_res?.client_id) {
-      client_id = req?.body?.session_res?.client_id
-    } else {
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return company_info_id;
-      }
-      client_id = company_info_id?.data
-    }
-
     const { product_id } = req.params;
     const diamondDetail = await LooseDiamondGroupMasters.findOne({
-      where: { is_deleted: DeletedStatus.No, id: product_id, company_info_id: client_id },
+      where: { is_deleted: DeletedStatus.No, id: product_id },
       attributes: [
         "id",
         "stock_id",
@@ -1821,125 +1745,107 @@ export const looseDiamondDetailsForAdmin = async (req: Request) => {
           required: false,
           as: "availabilitys",
           attributes: [],
-          where: { company_info_id: client_id },
         },
         {
           model: StoneData,
           as: "stones",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: DiamondShape,
           as: "shapes",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Colors,
           as: "colors",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: ClarityData,
           as: "claritys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: CutsData,
           as: "cut_grades",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "polishs",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "symmetrys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fluorescence_intensitys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fluorescence_colors",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "labs",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fancy_colors",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fancy_color_intensitys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "fancy_color_overtones",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "countrys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "states",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "citys",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
         {
           model: Master,
           as: "growth_types",
           attributes: [],
-          where: { company_info_id: client_id },
           required: false,
         },
       ],
@@ -1960,23 +1866,8 @@ export const looseDiamondDetailsForAdmin = async (req: Request) => {
 
 export const looseDiamondUserList = async (req: Request) => {
   try {
-    const {LooseDiamondGroupMasters,Master, StoneData, DiamondShape, Colors, ClarityData, CutsData} = initModels(req);
 
     const { query }: any = req;
-    let client_id: any = {};
-
-    if (req?.body?.session_res?.client_id) {
-      client_id.data = req.body.session_res.client_id;
-    } else {
-      const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-      if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return decrypted;
-      }
-
-      client_id = decrypted;
-    }
-
     let paginationProps = {};
     let noPagination = req.query.no_pagination === Pagination.no;
     let pagination = {
@@ -1989,132 +1880,113 @@ export const looseDiamondUserList = async (req: Request) => {
         required: false,
         as: "availabilitys",
         attributes: [],
-        where: { company_info_id: client_id?.data },
       },
       {
         model: StoneData,
         as: "stones",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: DiamondShape,
         as: "shapes",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Colors,
         as: "colors",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: ClarityData,
         as: "claritys",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: CutsData,
         as: "cut_grades",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "polishs",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "symmetrys",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "fluorescence_intensitys",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "fluorescence_colors",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "labs",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "fancy_colors",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "fancy_color_intensitys",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "fancy_color_overtones",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "countrys",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "states",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "citys",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
       {
         model: Master,
         as: "growth_types",
         attributes: [],
-        where: { company_info_id: client_id?.data },
         required: false,
       },
     ]
 
     const where = [
       { is_deleted: DeletedStatus.No },
-      { company_info_id: client_id?.data },
       { is_active: ActiveStatus.Active },
       pagination.search_text
         ? {
@@ -2139,39 +2011,39 @@ export const looseDiamondUserList = async (req: Request) => {
             ),
           ],
         }
-        : {},
+        : 
       query.shape
         ? Sequelize.where(Sequelize.col(`shape`), {
           [Op.in]: query.shape.split(","),
         })
-        : {},
+        : 
       query.clarity
         ? Sequelize.where(Sequelize.col(`clarity`), {
           [Op.in]: query.clarity.split(","),
         })
-        : {},
+        : 
       query.min_total_price || query.max_total_price
         ? Sequelize.where(Sequelize.col('total_price'), {
           ...(query.min_total_price && { [Op.gte]: parseFloat(query.min_total_price) }),
           ...(query.max_total_price && { [Op.lte]: parseFloat(query.max_total_price) }),
         })
-        : {},
+        : 
       query.min_weight || query.max_weight
         ? Sequelize.where(Sequelize.col('weight'), {
           ...(query.min_weight && { [Op.gte]: parseFloat(query.min_weight) }),
           ...(query.max_weight && { [Op.lte]: parseFloat(query.max_weight) }),
         })
-        : {},
+        : 
       query.color
         ? Sequelize.where(Sequelize.col(`color`), {
           [Op.in]: query.color.split(","),
         })
-        : {},
+        : 
       query.cut_grade
         ? Sequelize.where(Sequelize.col(`cut_grade`), {
           [Op.in]: query.cut_grade.split(","),
         })
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -2267,12 +2139,10 @@ export const looseDiamondUserList = async (req: Request) => {
 
 export const looseDiamondDetailsForUser = async (req: Request) => {
   try {
-    const {LooseDiamondGroupMasters} = initModels(req);
 
-    const client_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
     const { product_id } = req.params;
     const diamondDetail = await LooseDiamondGroupMasters.findOne({
-      where: { is_deleted: DeletedStatus.No, id: product_id, company_info_id: client_id?.data, is_active: ActiveStatus.Active },
+      where: { is_deleted: DeletedStatus.No, id: product_id, is_active: ActiveStatus.Active },
       attributes: [
         "stock_id",
       ],
@@ -2286,7 +2156,7 @@ export const looseDiamondDetailsForUser = async (req: Request) => {
       });
     }
 
-    const data = await getLooseDiamondByStockNumber(diamondDetail?.dataValues?.stock_id, req)
+    const data = await getLooseDiamondByStockNumber(diamondDetail?.dataValues?.stock_id)
 
     return resSuccess({ data: data?.data });
   } catch (error) {
@@ -2296,7 +2166,6 @@ export const looseDiamondDetailsForUser = async (req: Request) => {
 
 export const deleteDiamond = async (req: Request) => {
   try {
-    const {LooseDiamondGroupMasters} = initModels(req);
 
     const { product_id } = req.params;
 
@@ -2325,7 +2194,7 @@ export const deleteDiamond = async (req: Request) => {
       }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id, [{
+    await addActivityLogs([{
       old_data: { loos_diamon_group_id: product?.dataValues?.id, data: { ...product?.dataValues } },
       new_data: {
         loos_diamon_group_id: product?.dataValues?.id, data: {
@@ -2342,42 +2211,13 @@ export const deleteDiamond = async (req: Request) => {
   }
 };
 
-export const getAllDiamonds = async (req: Request) => {
-  try {
-    const {LooseDiamondGroupMasters} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
-    const { query }: any = req;
-    if (query.inventory_type === DIAMOND_INVENTROY_TYPE.VDB) {
-      const data = await getVDBDiamonds(req);
-      return data;
-    } else if (query.inventory_type === DIAMOND_INVENTROY_TYPE.Rapnet) {
-      const data = await getRapnetDiamonds(req);
-      return data;
-    }
-
-    const localData = await getLocalDiamonds(req);
-    return localData;
-  } catch (e) {
-    throw e;
-  }
-};
-
 const getLocalDiamonds = async (req: Request) => {
   try {
-    const {FiltersData, Master, DiamondShape, Colors, ClarityData, CutsData,LooseDiamondGroupMasters} = initModels(req)
     const query = req.query as unknown as IDiamondFilter;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
     const scope = FilterItemScope.Diamond;
     const data = await FiltersData.findAll({
       where: {
         is_active: ActiveStatus.Active,
-        company_info_id: company_info_id?.data,
         [Op.or]: [
           { item_scope: scope },
           { item_scope: FilterItemScope.Both },
@@ -2503,23 +2343,22 @@ const getLocalDiamonds = async (req: Request) => {
     ];
 
     const where = [
-      { company_info_id: company_info_id?.data },
       { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       query.shape
         ? Sequelize.where(Sequelize.col(`shapes.name`), {
           [Op.in]: query.shape.split(","),
         })
-        : {},
+        : 
       query.min_carat
         ? Sequelize.where(Sequelize.col(`loose_diamond_group_masters.weight`), {
           [Op.gte]: query.min_carat,
         })
-        : {},
+        : 
       query.max_carat
         ? Sequelize.where(Sequelize.col(`loose_diamond_group_masters.weight`), {
           [Op.lte]: query.max_carat,
         })
-        : {},
+        : 
       query.diamond_origin
         ? Sequelize.where(
           Sequelize.col(`loose_diamond_group_masters.stone_type`),
@@ -2527,7 +2366,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.like]: query.diamond_origin,
           }
         )
-        : {},
+        : 
       query.min_price
         ? Sequelize.where(
           Sequelize.literal(
@@ -2537,7 +2376,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.gte]: query.min_price,
           }
         )
-        : {},
+        : 
       query.max_price
         ? Sequelize.where(
           Sequelize.literal(
@@ -2547,7 +2386,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.lte]: query.max_price,
           }
         )
-        : {},
+        : 
       query.color_from || query.color_to
         ? Sequelize.where(Sequelize.col(`colors.value`), {
           [Op.in]: getListFromToValues(
@@ -2556,7 +2395,7 @@ const getLocalDiamonds = async (req: Request) => {
             query.color_to
           ),
         })
-        : {},
+        : 
       query.clarity_from || query.clarity_to
         ? Sequelize.where(Sequelize.col(`claritys.value`), {
           [Op.in]: getListFromToValues(
@@ -2565,7 +2404,7 @@ const getLocalDiamonds = async (req: Request) => {
             query.clarity_to
           ),
         })
-        : {},
+        : 
       query.cut_from || query.cut_to
         ? Sequelize.where(Sequelize.col(`cut_grades.value`), {
           [Op.in]: getListFromToValues(
@@ -2574,17 +2413,17 @@ const getLocalDiamonds = async (req: Request) => {
             query.cut_to
           ),
         })
-        : {},
+        : 
       query.h_a
         ? Sequelize.where(Sequelize.col(`loose_diamond_group_masters.h_a`), {
           [Op.ne]: null,
         })
-        : {},
+        : 
       query.report ? {
         [Op.or]: [
           { certificate: { [Op.iLike]: "%" + query.report + "%" } },
         ],
-      } : {},
+      } : 
       query.min_lw_ratio
         ? Sequelize.where(
           Sequelize.literal(
@@ -2601,7 +2440,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.gte]: query.min_lw_ratio,
           }
         )
-        : {},
+        : 
       query.max_lw_ratio
         ? Sequelize.where(
           Sequelize.literal(
@@ -2618,12 +2457,12 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.lte]: query.max_lw_ratio,
           }
         )
-        : {},
+        : 
       query.fluorescence_intensity
         ? Sequelize.where(Sequelize.col(`fluorescence_intensitys.name`), {
           [Op.in]: query.fluorescence_intensity.split(","),
         })
-        : {},
+        : 
       query.polish_from || query.polish_to
         ? Sequelize.where(Sequelize.col(`polishs.name`), {
           [Op.in]: getListFromToValues(
@@ -2632,7 +2471,7 @@ const getLocalDiamonds = async (req: Request) => {
             query.polish_to
           ),
         })
-        : {},
+        : 
       query.symmetry_from || query.symmetry_to
         ? Sequelize.where(Sequelize.col(`symmetrys.name`), {
           [Op.in]: getListFromToValues(
@@ -2641,7 +2480,7 @@ const getLocalDiamonds = async (req: Request) => {
             query.symmetry_to
           ),
         })
-        : {},
+        : 
       query.min_table
         ? Sequelize.where(
           Sequelize.col(`loose_diamond_group_masters.table_per`),
@@ -2649,7 +2488,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.gte]: query.min_table,
           }
         )
-        : {},
+        : 
       query.max_table
         ? Sequelize.where(
           Sequelize.col(`loose_diamond_group_masters.table_per`),
@@ -2657,7 +2496,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.lte]: query.max_table,
           }
         )
-        : {},
+        : 
       query.min_depth
         ? Sequelize.where(
           Sequelize.col(`loose_diamond_group_masters.depth_per`),
@@ -2665,7 +2504,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.gte]: query.min_depth,
           }
         )
-        : {},
+        : 
       query.max_depth
         ? Sequelize.where(
           Sequelize.col(`loose_diamond_group_masters.depth_per`),
@@ -2673,7 +2512,7 @@ const getLocalDiamonds = async (req: Request) => {
             [Op.lte]: query.max_depth,
           }
         )
-        : {},
+        :  {}
     ];
     if (!noPagination) {
       const totalItems = await LooseDiamondGroupMasters.count({
@@ -2874,26 +2713,18 @@ export const getDiamondByStockNumber = async ({
   stock_number: string;
   inventory_type: DIAMOND_INVENTROY_TYPE;
   diamond_origin: DIAMOND_ORIGIN;
-},req: Request) => {
+}) => {
   try {
-    if (inventory_type === DIAMOND_INVENTROY_TYPE.VDB) {
-      const data = await getVDBDiamondByStockNumber(
-        stock_number,
-        diamond_origin
-      );
-      return data;
-    }
 
-    const localData = await getLooseDiamondByStockNumber(stock_number, req);
+    const localData = await getLooseDiamondByStockNumber(stock_number);
     return localData;
   } catch (e) {
     throw e;
   }
 };
 
-export const getLooseDiamondByStockNumber = async (stockNumber: string, req: Request) => {
+export const getLooseDiamondByStockNumber = async (stockNumber: string) => {
   try {
-    const { LooseDiamondGroupMasters, Master, DiamondShape, Colors, ClarityData, CutsData } = initModels(req);
     const include = [
       {
         model: DiamondShape,
@@ -3090,9 +2921,7 @@ export const getLooseDiamondByStockNumber = async (stockNumber: string, req: Req
 export const getAllMasterDataForLooseDiamond = async (req: Request) => {
 
   try {
-    const { StoneData, DiamondCaratSize, DiamondShape, Colors, ClarityData, CutsData, Master } = initModels(req);
-    let client_id = req?.body?.session_res?.client_id;
-    const commanWhere = { company_info_id: client_id, is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active }
+    const commanWhere = { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active }
     const commanAttributes = ["id", "name", "slug"];
     const Stone = await StoneData.findAll({ attributes: [...commanAttributes], where: { ...commanWhere } });
     const Stone_carat = await DiamondCaratSize.findAll({ attributes: ['id', ['value', 'name'], 'slug'], where: { ...commanWhere } });
@@ -3237,8 +3066,7 @@ export const addLooseDiamond = async (req: Request) => {
       quantity,
       session_res
     } = req.body;
-    const { LooseDiamondGroupMasters,StockChangeLog } = initModels(req);
-    trn = await req.body.db_connection.transaction();
+    trn = await dbContext.transaction();
 
     if (!Object.values(DIAMOND_ORIGIN)?.includes(stone_type)) {
       return resNotFound({
@@ -3246,7 +3074,7 @@ export const addLooseDiamond = async (req: Request) => {
       })
     }
 
-    const findStock = await LooseDiamondGroupMasters.findOne({ where: { stock_id: stock_id, is_deleted: DeletedStatus.No, company_info_id: session_res?.client_id }, transaction: trn });
+    const findStock = await LooseDiamondGroupMasters.findOne({ where: { stock_id: stock_id, is_deleted: DeletedStatus.No,  }, transaction: trn });
 
     if (findStock && findStock.dataValues) {
       await trn.rollback();
@@ -3300,7 +3128,6 @@ export const addLooseDiamond = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: session_res?.id_app_user,
-      company_info_id: session_res?.client_id,
       created_at: getLocalDate()
     }, { transaction: trn });
 
@@ -3313,12 +3140,11 @@ export const addLooseDiamond = async (req: Request) => {
       new_quantity: looseDiamondGroupMasters.dataValues.remaining_quantity_count || 0,
       transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
       changed_by: looseDiamondGroupMasters.dataValues.created_by,
-      company_info_id: session_res?.client_id,
       email: null,
       change_date: getLocalDate(),
     };
     const stockLog = await StockChangeLog.create(stockChangeLogPayload, { transaction: trn });
-    addActivityLogs(session_res?.client_id, [{
+    addActivityLogs([{
       old_data: null,
       new_data: { loose_diamond_id: looseDiamondGroupMasters?.dataValues?.id, data: { ...looseDiamondGroupMasters?.dataValues }, stock_log_id: stockLog?.dataValues?.id, stock_log_data: { ...stockLog?.dataValues } }
     }], looseDiamondGroupMasters?.dataValues?.id, LogsActivityType.Add, LogsType.LooseDiamondSingle, session_res?.id_app_user, trn)
@@ -3378,16 +3204,15 @@ export const updateLooseDiamond = async (req: Request) => {
       quantity,
       session_res
     } = req.body;
-    const {LooseDiamondGroupMasters,StockChangeLog} = initModels(req);
     if (!Object.values(DIAMOND_ORIGIN)?.includes(stone_type)) {
       return resNotFound({
         message: prepareMessageFromParams(ERROR_NOT_FOUND, [["field_name", "Stone type"]])
       })
     }
 
-    trn = await req.body.db_connection.transaction();
+    trn = await dbContext.transaction();
 
-    const besforUpdatedLooseDiamond = await LooseDiamondGroupMasters.findOne({ where: { id: id, is_deleted: DeletedStatus.No, company_info_id: session_res?.client_id }, transaction: trn });
+    const besforUpdatedLooseDiamond = await LooseDiamondGroupMasters.findOne({ where: { id: id, is_deleted: DeletedStatus.No,  }, transaction: trn });
     if (!(besforUpdatedLooseDiamond && besforUpdatedLooseDiamond.dataValues)) {
       await trn.rollback();
       return resNotFound({
@@ -3400,7 +3225,6 @@ export const updateLooseDiamond = async (req: Request) => {
         stock_id: stock_id,
         is_deleted: DeletedStatus.No,
         id: { [Op.ne]: besforUpdatedLooseDiamond?.dataValues?.id },
-        company_info_id: session_res?.client_id
       }
     })
 
@@ -3459,7 +3283,6 @@ export const updateLooseDiamond = async (req: Request) => {
       remaining_quantity_count: quantity,
       modified_by: session_res?.id_app_user,
       modified_at: getLocalDate(),
-      company_info_id: session_res?.client_id,
     }, { where: { id: id }, transaction: trn });
 
     const stockChangeLogPayload = {
@@ -3471,15 +3294,14 @@ export const updateLooseDiamond = async (req: Request) => {
       new_quantity: quantity,
       transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
       changed_by: session_res?.id_app_user,
-      company_info_id: session_res?.client_id,
       email: null,
       change_date: getLocalDate(),
     };
     const afterStockLog = await StockChangeLog.create(stockChangeLogPayload, { transaction: trn });
 
-    const afterUpdatedLooseDiamond = await LooseDiamondGroupMasters.findOne({ where: { id: id, is_deleted: DeletedStatus.No, company_info_id: session_res?.client_id }, transaction: trn });
+    const afterUpdatedLooseDiamond = await LooseDiamondGroupMasters.findOne({ where: { id: id, is_deleted: DeletedStatus.No,  }, transaction: trn });
 
-    addActivityLogs(session_res?.client_id, [{
+    addActivityLogs([{
       old_data: { loose_diamond_id: besforUpdatedLooseDiamond?.dataValues?.id, data: { ...besforUpdatedLooseDiamond?.dataValues }, stock_log_id: null, stock_log_data: null },
       new_data: { loose_diamond_id: afterUpdatedLooseDiamond?.dataValues?.id, data: { ...afterUpdatedLooseDiamond?.dataValues }, stock_log_id: afterStockLog?.dataValues?.id, stock_log_data: { ...afterStockLog?.dataValues } }
 
@@ -3496,8 +3318,7 @@ export const updateLooseDiamond = async (req: Request) => {
 
 export const statusUpdateLooseDiamond = async (req: Request) => {
   try {
-    const {LooseDiamondGroupMasters} = initModels(req);
-    const LooseDiamondExists = await LooseDiamondGroupMasters.findOne({ where: { id: req.params.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } });
+    const LooseDiamondExists = await LooseDiamondGroupMasters.findOne({ where: { id: req.params.id, is_deleted: DeletedStatus.No,  } });
     if (LooseDiamondExists) {
       const LooseDiamondActionInfo = await (LooseDiamondGroupMasters.update(
         {
@@ -3505,10 +3326,10 @@ export const statusUpdateLooseDiamond = async (req: Request) => {
           modified_date: getLocalDate(),
           modified_by: req.body.session_res.id_app_user
         },
-        { where: { id: LooseDiamondExists.dataValues.id, company_info_id: req?.body?.session_res?.client_id } }
+        { where: { id: LooseDiamondExists.dataValues.id,  } }
       ));
       if (LooseDiamondActionInfo) {
-        await addActivityLogs(req,req?.body?.session_res?.client_id, [{
+        await addActivityLogs([{
           old_data: { loose_diamond_id: LooseDiamondExists?.dataValues?.id, data: { ...LooseDiamondExists?.dataValues } },
           new_data: {
             loose_diamond_id: LooseDiamondExists?.dataValues?.id, data: {

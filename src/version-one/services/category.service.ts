@@ -25,7 +25,8 @@ import {
   resNotFound,
   resSuccess,
 } from "../../utils/shared-functions";
-import { initModels } from "../model/index.model";
+import { CategoryData } from "../model/category.model";
+import { Image } from "../model/image.model";
 
 // export const addCategory = async (req: Request) => {
 //     const {parent_id ,name, position, slug, created_by } = req.body
@@ -74,14 +75,12 @@ export const addCategory = async (req: Request) => {
       id_length,
     } = req.body;
 
-    const { CategoryData, Image } = initModels(req);
     let imagePath = null;
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.category,
-        req?.body?.session_res?.client_id,
-        req
+        null
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -91,7 +90,7 @@ export const addCategory = async (req: Request) => {
       imagePath = moveFileResult.data;
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       let idImage = null;
@@ -101,7 +100,6 @@ export const addCategory = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.category,
             created_by: req.body.session_res.id_app_user,
-            company_info_id: req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -115,7 +113,6 @@ export const addCategory = async (req: Request) => {
         position: position,
         created_date: getLocalDate(),
         created_by: req.body.session_res.id_app_user,
-        company_info_id: req?.body?.session_res?.client_id,
         id_image: idImage,
         is_setting_style: is_setting_style,
         is_size: is_size,
@@ -132,11 +129,10 @@ export const addCategory = async (req: Request) => {
           category_name: name,
           parent_id: { [Op.eq]: parent_id },
           is_deleted: DeletedStatus.No,
-          company_info_id: req?.body?.session_res?.client_id,
         },
       });
       const categorySlugExists = await CategoryData.findOne({
-        where: [columnValueLowerCase("slug", slug), { is_deleted: DeletedStatus.No }, { company_info_id: req?.body?.session_res?.client_id }],
+        where: [columnValueLowerCase("slug", slug), { is_deleted: DeletedStatus.No }],
       });
 
       if (categoryNameExists && categorySlugExists.dataValues) {
@@ -151,7 +147,7 @@ export const addCategory = async (req: Request) => {
 
       const category = await CategoryData.create(payload, { transaction: trn });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs(req,null,[{
         old_data: null,
         new_data: {
           category_id: category?.dataValues?.id, data: {
@@ -161,7 +157,7 @@ export const addCategory = async (req: Request) => {
       }], category?.dataValues?.id, LogsActivityType.Add, LogsType.Category, req?.body?.session_res?.id_app_user, trn)
 
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       return resSuccess({ data: payload });
 
     } catch (e) {
@@ -175,8 +171,7 @@ export const addCategory = async (req: Request) => {
 
 export const getAllCategory = async (req: Request) => {
   try {
-    let where = [{ is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id }];
-    const { CategoryData,Image } = initModels(req);
+    let where = [{ is_deleted: DeletedStatus.No }];
     const totalItems = await CategoryData.count({
       where,
     });
@@ -209,7 +204,7 @@ export const getAllCategory = async (req: Request) => {
         "created_date",
         "is_active",
       ],
-      include: [{ model: Image, as: "image", attributes: [], where: { company_info_id: req?.body?.session_res?.client_id }, required: false }],
+      include: [{ model: Image, as: "image", attributes: [], required: false }],
     });
 
     return resSuccess({ data: result });
@@ -220,14 +215,12 @@ export const getAllCategory = async (req: Request) => {
 
 export const getAllMainCategory = async (req: Request) => {
   try {
-    const { CategoryData,Image } = initModels(req);
     const maincategoryList = await CategoryData.findAll({
       where: {
         parent_id: {
           [Op.eq]: null,
         },
         is_deleted: DeletedStatus.No,
-        company_info_id: req?.body?.session_res?.client_id,
       },
       attributes: [
         "id",
@@ -255,7 +248,7 @@ export const getAllMainCategory = async (req: Request) => {
         "created_date",
         "is_active",
       ],
-      include: [{ model: Image, as: "image", attributes: [], where: { company_info_id: req?.body?.session_res?.client_id }, required: false }],
+      include: [{ model: Image, as: "image", attributes: [], required: false }],
     });
 
     return resSuccess({ data: maincategoryList });
@@ -266,7 +259,6 @@ export const getAllMainCategory = async (req: Request) => {
 
 export const getAllSubCategory = async (req: Request) => {
   try {
-    const { CategoryData,Image } = initModels(req);
     if (req.body.parent_id != null) {
       const subCategoryList = await CategoryData.findAll({
         where: {
@@ -275,7 +267,6 @@ export const getAllSubCategory = async (req: Request) => {
           },
           is_active: ActiveStatus.Active,
           is_deleted: DeletedStatus.No,
-          company_info_id: req?.body?.session_res?.client_id,
         },
         attributes: [
           "id",
@@ -303,7 +294,7 @@ export const getAllSubCategory = async (req: Request) => {
           "created_date",
           "is_active",
         ],
-        include: [{ model: Image, as: "image", attributes: [], where: { company_info_id: req?.body?.session_res?.client_id }, required: false }],
+        include: [{ model: Image, as: "image", attributes: [], required: false }],
       });
 
       return resSuccess({ data: subCategoryList });
@@ -330,10 +321,9 @@ export const updateCategory = async (req: Request) => {
     id_length,
     image_delete = "0",
   } = req.body;
-  const { CategoryData, Image } = initModels(req);
   try {
     const CategoryId = await CategoryData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No },
     });
 
     if (CategoryId == null) {
@@ -344,11 +334,10 @@ export const updateCategory = async (req: Request) => {
     let imagePath = null;
 
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.category,
-        req?.body?.session_res?.client_id,
-        req
+        null
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -358,7 +347,7 @@ export const updateCategory = async (req: Request) => {
       imagePath = moveFileResult.data;
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       if (imagePath) {
         const imageResult = await Image.create(
@@ -366,7 +355,6 @@ export const updateCategory = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.category,
             created_by: req.body.session_res.id_app_user,
-            company_info_id: req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -381,7 +369,6 @@ export const updateCategory = async (req: Request) => {
           id: { [Op.ne]: id },
           parent_id: { [Op.eq]: parent_id },
           is_deleted: DeletedStatus.No,
-          company_info_id: req?.body?.session_res?.client_id,
         },
       });
 
@@ -390,7 +377,6 @@ export const updateCategory = async (req: Request) => {
           columnValueLowerCase("slug", slug),
           { id: { [Op.ne]: id } },
           { is_deleted: DeletedStatus.No },
-          { company_info_id: req?.body?.session_res?.client_id },
         ],
       });
 
@@ -420,24 +406,24 @@ export const updateCategory = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
         },
 
-        { where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id }, transaction: trn }
+        { where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn }
       );
 
       if (image_delete && image_delete == "1") {
         const findImage = await Image.findOne({
-          where: { id: CategoryId.dataValues.id_image, company_info_id: req?.body?.session_res?.client_id },
+          where: { id: CategoryId.dataValues.id_image },
           transaction: trn,
         });
-        await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(req,findImage,null);
       }
 
       if (CategoryInfo) {
         const CategoryInformation = await CategoryData.findOne({
-          where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+          where: { id: id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
 
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs(req,null,[{
           old_data: { category_id: CategoryId?.dataValues?.id, data: {...CategoryId?.dataValues} },
           new_data: {
             category_id: CategoryInformation?.dataValues?.id, data: {...CategoryInformation?.dataValues }
@@ -447,7 +433,7 @@ export const updateCategory = async (req: Request) => {
         return resSuccess({ data: CategoryInformation });
       }
 
-      // await refreshMaterializedProductListView(req.body.db_connection)
+      // await refreshMaterializedProductListViewdbContext
       return resSuccess();
     } catch (e) {
       await trn.rollback();
@@ -461,9 +447,8 @@ export const updateCategory = async (req: Request) => {
 
 export const deleteCategory = async (req: Request) => {
   try {
-    const { CategoryData } = initModels(req);
     const CategoryExists = await CategoryData.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No },
     });
 
 
@@ -471,7 +456,7 @@ export const deleteCategory = async (req: Request) => {
       return resNotFound();
     }
     const ChieldCategoryExists = await CategoryData.findAll({
-      where: { parent_id: req.body.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { parent_id: req.body.id, is_deleted: DeletedStatus.No },
     });
     await CategoryData.update(
       {
@@ -482,7 +467,6 @@ export const deleteCategory = async (req: Request) => {
       {
         where: {
              id: CategoryExists.dataValues.id ,
-          company_info_id: req?.body?.session_res?.client_id,
         },
       }
     );
@@ -496,12 +480,11 @@ export const deleteCategory = async (req: Request) => {
       {
         where: {
           parent_id: CategoryExists.dataValues.id ,
-          company_info_id: req?.body?.session_res?.client_id,
         },
       }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs(req,null,[{
       old_data: { category_id: CategoryExists?.dataValues?.id, data: {...CategoryExists?.dataValues} },
       new_data: {
         category_id: CategoryExists?.dataValues?.id, data: {
@@ -519,10 +502,9 @@ export const deleteCategory = async (req: Request) => {
 
 export const statusUpdateCategory = async (req: Request) => {
   try {
-    const { CategoryData } = initModels(req);
 
     const CategoryExists = await CategoryData.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No },
     });
     if (CategoryExists) {
       const CategoryActionInfo = await CategoryData.update(
@@ -531,10 +513,10 @@ export const statusUpdateCategory = async (req: Request) => {
           modified_date: getLocalDate(),
           modified_by: req.body.session_res.id_app_user,
         },
-        { where: { id: CategoryExists.dataValues.id, company_info_id: req?.body?.session_res?.client_id } }
+        { where: { id: CategoryExists.dataValues.id } }
       );
       if (CategoryActionInfo) {
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs(req,null,[{
           old_data: { category_id: CategoryExists?.dataValues?.id, data: {...CategoryExists?.dataValues} },
           new_data: {
             category_id: CategoryExists?.dataValues?.id, data: {
@@ -557,10 +539,9 @@ export const statusUpdateCategory = async (req: Request) => {
 
 export const searchablesCategory = async (req: Request) => {
   try {
-    const { CategoryData } = initModels(req);
 
     const CategoryExists = await CategoryData.findOne({
-      where: { id: req.body.id, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.body.id },
     });
     if (CategoryExists) {
       const CategoryActionInfo = await CategoryData.update(
@@ -569,10 +550,10 @@ export const searchablesCategory = async (req: Request) => {
           modified_date: getLocalDate(),
           modified_by: req.body.session_res.id_app_user,
         },
-        { where: { id: CategoryExists.dataValues.id, company_info_id: req?.body?.session_res?.client_id } }
+        { where: { id: CategoryExists.dataValues.id } }
       );
       if (CategoryActionInfo) {
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs(req,null,[{
           old_data: { category_id: CategoryExists?.dataValues?.id, data: {...CategoryExists?.dataValues} },
           new_data: {
             category_id: CategoryExists?.dataValues?.id, data: {

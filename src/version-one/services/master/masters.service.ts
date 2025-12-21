@@ -27,12 +27,13 @@ import {
 } from "../../../utils/app-enumeration";
 import { MasterError } from "../../../utils/app-constants";
 import { moveFileToS3ByType } from "../../../helpers/file.helper";
-import { initModels } from "../../model/index.model";
+import { Master } from "../../model/master/master.model";
+import { Image } from "../../model/image.model";
+import dbContext from "../../../config/db-context";
 
 
 export const addMaster = async (req: Request) => {
   try {
-    const {Master,Image} = initModels(req);
     const {
       name,
       sort_code,
@@ -48,11 +49,10 @@ export const addMaster = async (req: Request) => {
     let filePath = null;
 
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType((req.body.db_connection),
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.Master,
-        req?.body?.session_res?.client_id,
-        req
+        
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -72,7 +72,7 @@ export const addMaster = async (req: Request) => {
         id_parent && { id_parent: id_parent },
         { master_type: master_type },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -82,11 +82,11 @@ export const addMaster = async (req: Request) => {
           ? {
               sort_code: columnValueLowerCase("sort_code", sort_code),
             }
-          : {},
+          : 
         id_parent && { id_parent: id_parent },
         { master_type: master_type },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -110,7 +110,7 @@ export const addMaster = async (req: Request) => {
 
     if (id_parent) {
       const parentIdCheck = await Master.findOne({
-        where: { id: id_parent,company_info_id :req?.body?.session_res?.client_id },
+        where: { id: id_parent, },
       });
       if (!parentIdCheck) {
         return resBadRequest({
@@ -122,7 +122,7 @@ export const addMaster = async (req: Request) => {
       }
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     let imageId;
     try {
@@ -133,7 +133,7 @@ export const addMaster = async (req: Request) => {
               image_path: filePath,
               created_at: getLocalDate(),
               created_by: session_res.user_id,
-              company_info_id :req?.body?.session_res?.client_id,
+              
               is_deleted: DeletedStatus.No,
               is_active: ActiveStatus.Active,
               image_type: IMAGE_TYPE.Master,
@@ -159,12 +159,12 @@ export const addMaster = async (req: Request) => {
           is_active: ActiveStatus.Active,
           created_at: getLocalDate(),
           created_by: session_res.user_id,
-          company_info_id :req?.body?.session_res?.client_id
+          
         },
         { transaction: trn }
       );
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           master_id: masterData?.dataValues?.id, data: {
@@ -186,7 +186,6 @@ export const addMaster = async (req: Request) => {
 
 export const updateMaster = async (req: Request) => {
   try {
-    const {Master,Image} = initModels(req);
 
     const { id } = req.params;
     const {
@@ -207,11 +206,10 @@ export const updateMaster = async (req: Request) => {
     let filePath = null;
 
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType((req.body.db_connection),
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.Master,
-        req?.body?.session_res?.client_id,
-        req
+        
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -227,7 +225,7 @@ export const updateMaster = async (req: Request) => {
         name: columnValueLowerCase("name", name),
         master_type: master_type,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
+        
       },
     });
 
@@ -238,11 +236,11 @@ export const updateMaster = async (req: Request) => {
           ? {
               sort_code: columnValueLowerCase("sort_code", sort_code),
             }
-          : {},
+          : 
         id_parent && { id_parent: id_parent },
         { master_type: master_type },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -269,13 +267,13 @@ export const updateMaster = async (req: Request) => {
         id: id,
         is_deleted: DeletedStatus.No,
         master_type: master_type,
-        company_info_id :req?.body?.session_res?.client_id,
+        
       },
     });
 
     if (id_parent) {
       const parentIdCheck = await Master.findOne({
-        where: { id: id_parent,company_info_id :req?.body?.session_res?.client_id },
+        where: { id: id_parent, },
       });
       if (!parentIdCheck) {
         return resBadRequest({
@@ -287,14 +285,14 @@ export const updateMaster = async (req: Request) => {
       }
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     if (MasterData) {
       const imageUpdate = await Image.findOne({
         where: {
           id: MasterData.dataValues.id_image,
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id
+          
         },
       });
       if (imageUpdate) {
@@ -309,7 +307,7 @@ export const updateMaster = async (req: Request) => {
               image_type: IMAGE_TYPE.Master,
             },
             {
-              where: { id: imageUpdate.dataValues.id,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: imageUpdate.dataValues.id, },
               transaction: trn,
             }
           );
@@ -334,7 +332,7 @@ export const updateMaster = async (req: Request) => {
           where: {
             id: MasterData.dataValues.id,
             is_deleted: DeletedStatus.No,
-            company_info_id :req?.body?.session_res?.client_id
+            
           },
         }
       );
@@ -347,7 +345,7 @@ export const updateMaster = async (req: Request) => {
         },
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { master_id: MasterData?.dataValues?.id, data: {...MasterData?.dataValues} },
         new_data: {
           master_id: AfterUpdateMasterData?.dataValues?.id, data: { ...AfterUpdateMasterData?.dataValues }
@@ -370,7 +368,6 @@ export const updateMaster = async (req: Request) => {
 
 export const masterList = async (req: Request) => {
   try {
-    const { Master,Image } = initModels(req);
     const { master_type } = req.params;
     const { query } = req;
     let pagination = {
@@ -380,9 +377,9 @@ export const masterList = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
+      
       { master_type: master_type },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: {
@@ -390,7 +387,7 @@ export const masterList = async (req: Request) => {
               slug: { [Op.iLike]: `%${pagination.search_text}%` },
             },
           }
-        : {},
+        : {}
     ];
 
     const totalItems = await Master.count({
@@ -403,7 +400,7 @@ export const masterList = async (req: Request) => {
 
     pagination.total_items = totalItems;
     pagination.total_pages = Math.ceil(totalItems / pagination.per_page_rows);
-    const configData:any = getWebSettingData(req.body.db_connection,req?.body?.session_res?.client_id)
+    const configData:any = getWebSettingData()
     const Masters = await Master.findAll({
       where,
       limit: pagination.per_page_rows,
@@ -436,7 +433,6 @@ export const masterList = async (req: Request) => {
           model: Image,
           attributes: [],
           as: "image",
-          where:{company_info_id :req?.body?.session_res?.client_id},
         },
       ],
     });
@@ -448,16 +444,15 @@ export const masterList = async (req: Request) => {
 
 export const masterDetail = async (req: Request) => {
   try {
-    const { Master,Image } = initModels(req);
 
     const { id, master_type } = req.params;
-    const configData:any = getWebSettingData(req.body.db_connection,req?.body?.session_res?.client_id)
+    const configData:any = getWebSettingData()
     const MasterData = await Master.findOne({
       where: {
         id: id,
         is_deleted: DeletedStatus.No,
         master_type: master_type,
-        company_info_id :req?.body?.session_res?.client_id,
+        
       },
       attributes: [
         "id",
@@ -486,7 +481,6 @@ export const masterDetail = async (req: Request) => {
           model: Image,
           attributes: [],
           as: "image",
-          where:{company_info_id :req?.body?.session_res?.client_id},
         },
       ],
     });
@@ -507,7 +501,6 @@ export const masterDetail = async (req: Request) => {
 
 export const masterStatusUpdate = async (req: Request) => {
   try {
-    const { Master,Image } = initModels(req);
 
     const { id, master_type } = req.params;
     const { session_res } = req.body;
@@ -517,7 +510,7 @@ export const masterStatusUpdate = async (req: Request) => {
         id: id,
         is_deleted: DeletedStatus.No,
         master_type: master_type,
-        company_info_id :req?.body?.session_res?.client_id,
+        
       },
     });
 
@@ -537,9 +530,9 @@ export const masterStatusUpdate = async (req: Request) => {
             modified_at: getLocalDate(),
             modified_by: session_res.user_id,
           },
-          { where: { id: MasterData.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+          { where: { id: MasterData.dataValues.id, } }
         );
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: { master_id: MasterData?.dataValues?.id, data: {...MasterData?.dataValues} },
           new_data: {
             master_id: MasterData?.dataValues?.id, data: {
@@ -559,10 +552,10 @@ export const masterStatusUpdate = async (req: Request) => {
             modified_at: getLocalDate(),
             modified_by: session_res.user_id,
           },
-          { where: { id: MasterData.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+          { where: { id: MasterData.dataValues.id, } }
         );
 
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: { master_id: MasterData?.dataValues?.id, data: {...MasterData?.dataValues} },
           new_data: {
             master_id: MasterData?.dataValues?.id, data: {
@@ -586,7 +579,6 @@ export const masterStatusUpdate = async (req: Request) => {
 
 export const masterDelete = async (req: Request) => {
   try {
-    const { Master,Image } = initModels(req);
 
     const { id, master_type } = req.params;
     const { session_res } = req.body;
@@ -596,7 +588,7 @@ export const masterDelete = async (req: Request) => {
         id: id,
         is_deleted: DeletedStatus.No,
         master_type: master_type,
-        company_info_id :req?.body?.session_res?.client_id
+        
       },
     });
 
@@ -605,7 +597,7 @@ export const masterDelete = async (req: Request) => {
         id_parent: id,
         master_type: master_type,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id
+        
       },
     });
 
@@ -625,7 +617,7 @@ export const masterDelete = async (req: Request) => {
           deleted_by: session_res.user_id,
         },
         {
-          where: { id: ParentData.map((t) => t.dataValues.id) ,company_info_id :req?.body?.session_res?.client_id},
+          where: { id: ParentData.map((t) => t.dataValues.id) ,},
         }
       );
     }
@@ -637,11 +629,11 @@ export const masterDelete = async (req: Request) => {
         deleted_by: session_res.user_id,
       },
       {
-        where: { id: MasterData.dataValues.id,company_info_id :req?.body?.session_res?.client_id },
+        where: { id: MasterData.dataValues.id, },
       }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { master_id: MasterData?.dataValues?.id, data:{...MasterData?.dataValues} },
       new_data: {
         master_id: MasterData?.dataValues?.id, data: {

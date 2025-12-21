@@ -1,7 +1,8 @@
 import { DATE, DOUBLE, INTEGER, JSON, STRING } from "sequelize";
-import {Image} from "./image.model";
-export const TemplateTwoBanner = (dbContext:any) => {
-  let templateTwoBanner = dbContext.define("template_banners", {
+import dbContext from "../../config/db-context";
+import { Image } from "./image.model";
+
+export const TemplateTwoBanner = dbContext.define("template_banners", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -64,9 +65,6 @@ export const TemplateTwoBanner = (dbContext:any) => {
   banner_text_color: {
     type: STRING,
   },
-  company_info_id :{ 
-    type:INTEGER
-  },
   button_color: {
     type: 'character varying',
   },
@@ -89,14 +87,15 @@ export const TemplateTwoBanner = (dbContext:any) => {
     type: JSON
   },
   title_color: {
-    type:STRING
+    type: STRING
   },
-  sub_title_color:{
-    type:STRING
+  sub_title_color: {
+    type: STRING
   },
-  description_color:{
-    type:STRING
+  description_color: {
+    type: STRING
   },
 });
-  return templateTwoBanner
-};
+
+// Associations
+TemplateTwoBanner.hasOne(Image, { as: "image", foreignKey: "id", sourceKey: "id_image" });

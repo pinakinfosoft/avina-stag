@@ -9,7 +9,6 @@ import {
   resBadRequest,
   resNotFound,
   resSuccess,
-  superAdminWhere,
 } from "../../utils/shared-functions";
 import bcrypt from "bcrypt";
 import { PASSWORD_SOLT, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY } from "../../utils/app-constants";
@@ -30,19 +29,20 @@ import {
   USER_NOT_FOUND,
 } from "../../utils/app-messages";
 import { moveFileToS3ByType } from "../../helpers/file.helper";
-import { initModels } from "../model/index.model";
+import { Role } from "../model/role.model";
+import { AppUser } from "../model/app-user.model";
+import { BusinessUser } from "../model/business-user.model";
+import { Image } from "../model/image.model";
+import dbContext from "../../config/db-context";
 
 const checkBURoleAndEmailAvailability = async (
   idRole: number,
   email: string | null = null,
   trn: Transaction | null = null,
   ignoredId: number | null = null,
-  client_id: number,
-  req: Request
 ) => {
-  const { Role,AppUser } = initModels(req);
   const findRole = await Role.findOne({
-    where: { id: idRole, is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active,company_info_id :client_id },
+    where: { id: idRole, is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     ...(trn ? { transaction: trn } : {}),
   });
 
@@ -55,8 +55,7 @@ const checkBURoleAndEmailAvailability = async (
       where: [
         columnValueLowerCase("username", email),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :client_id},
-        ignoredId ? { id: { [Op.ne]: ignoredId } } : {},
+        ignoredId ? { id: { [Op.ne]: ignoredId } } : {}
       ],
       ...(trn ? { transaction: trn } : {}),
     });
@@ -70,7 +69,6 @@ const checkBURoleAndEmailAvailability = async (
 
 export const getAllBusinessUsers = async (req: Request) => {
   try {
-    const { Role,AppUser,BusinessUser,Image } = initModels(req);
 
     let pagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -83,29 +81,17 @@ export const getAllBusinessUsers = async (req: Request) => {
       return resNotFound();
     }
 
-    const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
 
     let where = [
-      ...(isSuperAdmin
-        ? [
-            {
-              company_info_id: {
-                [Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY], // Super admin sees their company + global
-              },
-            },
-          ]
-        : [
-            { company_info_id: req?.body?.session_res?.client_id },
-            Sequelize.literal(`NOT EXISTS (
+      Sequelize.literal(`NOT EXISTS (
             SELECT 1 
             FROM app_users 
             INNER JOIN roles ON roles.id = app_users.id_role
             WHERE (roles.is_super_admin = true OR roles.is_sub_admin = true)
             AND app_users.id = "business_users"."id_app_user"
             )`),
-          ]),
       { is_deleted: DeletedStatus.No },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -115,7 +101,7 @@ export const getAllBusinessUsers = async (req: Request) => {
               Sequelize.where(Sequelize.literal('"app_user->role"."role_name"'), "ILIKE", `%${pagination.search_text}%`),
             ],
           }
-        : {},
+        : {}
     ];
     const totalItems = await BusinessUser.count({
       where,
@@ -172,7 +158,6 @@ export const getAllBusinessUsers = async (req: Request) => {
 
 export const getBusinessUserById = async (req: Request) => {
   try {
-    const { BusinessUser, AppUser, Role } = initModels(req);
     let idBusinessUser = getDecryptedText(req.params.id);
     if (!idBusinessUser) return resBadRequest({ message: INVALID_ID });
     idBusinessUser = parseInt(idBusinessUser);
@@ -205,14 +190,13 @@ export const getBusinessUserById = async (req: Request) => {
 };
 
 export const addBusinessUser = async (req: Request) => {
-  const trn = await (req.body.db_connection).transaction();
-  const { BusinessUser, AppUser, Role, Image } = initModels(req);
+  const trn = await dbContext.transaction();
   try {
     const { email, password, name, phone_number, id_role, is_active } =
       req.body;
     let idImage = null;
     const appUser = await AppUser.findOne({
-      where: { id: req?.body?.session_res?.id_app_user, is_deleted: DeletedStatus.No ,...superAdminWhere(req?.body?.session_res?.client_id) },
+      where: { id: req?.body?.session_res?.id_app_user, is_deleted: DeletedStatus.No },
       transaction: trn,
     });
 
@@ -230,8 +214,6 @@ export const addBusinessUser = async (req: Request) => {
       email,
       trn,
       null,
-      appUser?.dataValues?.is_super_admin ? [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY] : req?.body?.session_res?.client_id,
-      req
     );
 
     if (roleEmailChecker.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -242,11 +224,9 @@ export const addBusinessUser = async (req: Request) => {
     const pass_hash = await bcrypt.hash(password, Number(PASSWORD_SOLT));
 
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.profile,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -259,7 +239,6 @@ export const addBusinessUser = async (req: Request) => {
           image_path: moveFileResult.data,
           image_type: IMAGE_TYPE.profile,
           created_by: req.body.session_res.id_app_user, 
-          company_info_id: req?.body?.session_res?.client_id,
           created_date: getLocalDate(),
         },
         { transaction: trn }
@@ -278,7 +257,6 @@ export const addBusinessUser = async (req: Request) => {
         is_email_verified: "1",
         is_active,
         created_by: req.body.session_res.id_app_user, 
-        company_info_id:findRole?.dataValues?.is_super_admin == true ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : req?.body?.session_res?.client_id,
         created_date: getLocalDate(),
       },
       { transaction: trn }
@@ -293,12 +271,11 @@ export const addBusinessUser = async (req: Request) => {
         is_active,
         id_image: idImage,
         created_by: req.body.session_res.id_app_user, 
-        company_info_id:findRole?.dataValues?.is_super_admin == true ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : req?.body?.session_res?.client_id,
         created_date: getLocalDate(),
       },
       { transaction: trn }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         app_user_id: resultAU?.dataValues?.id, app_user_data: {
@@ -319,14 +296,13 @@ export const addBusinessUser = async (req: Request) => {
 };
 
 export const updateBusinessUser = async (req: Request) => {
-  const trn = await (req.body.db_connection).transaction();
-  const { BusinessUser, AppUser, Role, Image } = initModels(req);
+  const trn = await dbContext.transaction();
 
   try {
     const { name, phone_number, id_role, is_active } = req.body;
     let idImage = null;
     const appUser = await AppUser.findOne({
-      where: { id: req?.body?.session_res?.id_app_user, is_deleted: DeletedStatus.No ,...superAdminWhere(req?.body?.session_res?.client_id) },
+      where: { id: req?.body?.session_res?.id_app_user, is_deleted: DeletedStatus.No },
       transaction: trn,
     });
 
@@ -334,7 +310,7 @@ export const updateBusinessUser = async (req: Request) => {
       await trn.rollback();
       return resNotFound({ message: USER_NOT_FOUND });
     }
-    const isSuperAdmin = !appUser?.dataValues?.is_super_admin ? {company_info_id : req?.body?.session_res?.client_id} :{}; 
+    const isSuperAdmin = {}; 
 
 
     const findRole = await Role.findOne({
@@ -385,7 +361,7 @@ export const updateBusinessUser = async (req: Request) => {
         transaction: trn,
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { app_user_id: buToUpdate?.dataValues?.id, app_user_data: {...buToUpdate?.dataValues} ,business_id: buToUpdate?.dataValues?.id, business_data: {...buToUpdate?.dataValues}  },
         
         new_data: { app_user_id: afterupdateToUpdate?.dataValues?.id, app_user_data: {...afterupdateToUpdate?.dataValues} ,business_id: CustomerInformation?.dataValues?.id, business_data:{... CustomerInformation?.dataValues}  },
@@ -404,8 +380,7 @@ export const updateBusinessUser = async (req: Request) => {
         null,
         trn,
         null,
-        appUser?.dataValues?.is_super_admin ? [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY] : req?.body?.session_res?.client_id,
-        req
+       
       );
 
       if (roleEmailChecker.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -415,11 +390,9 @@ export const updateBusinessUser = async (req: Request) => {
     }
 
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.profile,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -444,7 +417,6 @@ export const updateBusinessUser = async (req: Request) => {
             image_path: moveFileResult.data,
             image_type: IMAGE_TYPE.profile,
             created_by: req.body.session_res.id_app_user, 
-            company_info_id: req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -462,7 +434,6 @@ export const updateBusinessUser = async (req: Request) => {
         is_super_admin:findRole?.dataValues?.is_super_admin,
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
-        company_info_id:findRole?.dataValues?.is_super_admin == true ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : req?.body?.session_res?.client_id,
       },
       { where: { id: buToUpdate.dataValues.id_app_user,...isSuperAdmin }, transaction: trn }
     );
@@ -475,7 +446,6 @@ export const updateBusinessUser = async (req: Request) => {
         id_image: idImage,
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
-        company_info_id:findRole?.dataValues?.is_super_admin == true ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : req?.body?.session_res?.client_id,
 
       },
       { where: { id: buToUpdate.dataValues.id,...isSuperAdmin }, transaction: trn }
@@ -490,7 +460,7 @@ export const updateBusinessUser = async (req: Request) => {
       transaction: trn,
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { app_user_id: buToUpdate?.dataValues?.id, app_user_data: {...buToUpdate?.dataValues} ,business_id: buToUpdate?.dataValues?.id, business_data: {...buToUpdate?.dataValues}  },
       
       new_data: { app_user_id: afterupdateToUpdate?.dataValues?.id, app_user_data: {...afterupdateToUpdate?.dataValues} ,business_id: CustomerInformation?.dataValues?.id, business_data: {...CustomerInformation?.dataValues}  },
@@ -506,19 +476,18 @@ export const updateBusinessUser = async (req: Request) => {
 };
 
 export const deleteBusinessUser = async (req: Request) => {
-  const trn = await (req.body.db_connection).transaction();
-  const { BusinessUser, AppUser, Role, Image } = initModels(req);
+  const trn = await dbContext.transaction();
 
   try {
     let idBusinessUser = getDecryptedText(req.params.id);
     if (!idBusinessUser) return resBadRequest({ message: INVALID_ID });
     idBusinessUser = parseInt(idBusinessUser);
     const appUser = await AppUser.findOne({
-      where: { id: req?.body?.session_res?.id_app_user, is_deleted: DeletedStatus.No ,...superAdminWhere(req?.body?.session_res?.client_id) },
+      where: { id: req?.body?.session_res?.id_app_user, is_deleted: DeletedStatus.No },
       transaction: trn,
     });
 
-    const isSuperAdmin = !appUser?.dataValues?.is_super_admin ? {company_info_id : req?.body?.session_res?.client_id} :{}; 
+    const isSuperAdmin = {}; 
 
     if (!appUser) {
       await trn.rollback();
@@ -560,7 +529,7 @@ export const deleteBusinessUser = async (req: Request) => {
       where: { id: buToDelete.dataValues.id, is_deleted: DeletedStatus.No },
       transaction: trn,
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { business_user_id: buToDelete?.dataValues?.id, customer_data: {...buToDelete?.dataValues}},
       new_data: {
         business_user_id: CustomerInformation?.dataValues?.id, customer_data: {

@@ -37,8 +37,8 @@ export async function callServiceMethod(
     };
     if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
 
-      const dbConnection = req.body.db_connection;
-      delete req.body.db_connection;
+      const dbConnection = dbContext;
+      delete dbContext;
         await ExceptionLogs(dbConnection || dbContext).create({
           request_body:req?.body,
           request_query:req?.query,
@@ -59,8 +59,8 @@ export async function callServiceMethod(
         data: err.data && typeof err != "object" ? parseData(err) : null,
       },
     };
-     const dbConnection = req.body.db_connection;
-      delete req.body.db_connection;
+     const dbConnection = dbContext;
+      delete dbContext;
      await ExceptionLogs(dbConnection || dbContext).create({
       request_body:req?.body,
       request_query:req?.query,

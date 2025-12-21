@@ -2,11 +2,10 @@ import { Request } from "express";
 import { getInitialPaginationFromQuery, resNotFound, resSuccess } from "../../utils/shared-functions";
 import { Pagination } from "../../utils/app-enumeration";
 import { literal, Op, where as whereClause} from "sequelize";
-import { initModels } from "../model/index.model";
+import { EamilLog } from "../model/email-logs.model";
 
 export const getMailLog = async (req: Request) => {
   try {
-    const { EamilLog } = initModels(req);
     let paginationProps = {};
 
     let pagination:any = {
@@ -14,15 +13,17 @@ export const getMailLog = async (req: Request) => {
       search_text: req.query.search_text,
     };
     let noPagination = req.query.no_pagination === Pagination.no;
-      const startDateFilter: any =req?.query?.start_date != undefined ? req?.query?.start_date : new Date().getFullYear();
+      const startDateFilter: any = req?.query?.start_date != undefined 
+        ? new Date(req.query.start_date as string) 
+        : new Date(new Date().getFullYear(), 0, 1);
 
       const endDateFilter: any = req?.query?.end_date != undefined ? req?.query?.end_date : new Date();
       const endDate = new Date(endDateFilter);
       endDate.setDate(endDate.getDate() + 1);
+      const startDate = new Date(startDateFilter);
     
     let where = [
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -40,8 +41,8 @@ export const getMailLog = async (req: Request) => {
                 }),
             ],
         }
-        : {},
-        { created_at: { [Op.between]: [startDateFilter, endDate] }}
+        : 
+        { created_at: { [Op.between]: [startDate, endDate] }}
     ];
 
     if (!noPagination) {
@@ -90,7 +91,6 @@ export const getMailLog = async (req: Request) => {
 
 export const getByIdMailLogs = async (req: Request) => {
   try {
-    const { EamilLog } = initModels(req);
 
     const findMailLogs = await EamilLog.findOne({
         attributes: [
@@ -108,7 +108,7 @@ export const getByIdMailLogs = async (req: Request) => {
         "created_at",
         "updated_at"
       ],
-      where: { id: req.params.id,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id },
     });
 
     if (!(findMailLogs && findMailLogs.dataValues)) {

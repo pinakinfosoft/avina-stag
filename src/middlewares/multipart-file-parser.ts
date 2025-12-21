@@ -1,5 +1,5 @@
-import { RequestHandler } from "express";
-import multer from "multer";
+import { Request, RequestHandler, Response } from "express";
+import multer, { MulterError } from "multer";
 import path from "path";
 import {
   PRODUCT_BULK_UPLOAD_FILE_SIZE,
@@ -10,237 +10,361 @@ import { createFolderIfNot } from "../helpers/file.helper";
 import { DEFAULT_STATUS_CODE_ERROR } from "../utils/app-messages";
 import {
   generateRandomString,
-  getCryptoRandomUUID,
-  getLocalDate,
   resUnknownError,
 } from "../utils/shared-functions";
+import { MulterCustomError } from "../helpers/custom-error.helper";
 
-const upload = (options?: multer.Options) =>
-  multer(
-    {
-      //   storage: multer.diskStorage({
-      //     destination: function (req, file, cb) {
-      //       cb(null, destinationPath);
-      //     },
-      //     filename: function (_req, file, cb) {
-      //       const imagePath = file.originalname
-      //         .replace(/\s|\(|\)/g, "_")
-      //         .replace(/\.[^/.]+$/, "");
-      //       const ext = path.extname(file.originalname);
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
 
-      //       cb(
-      //         null,
-      //         imagePath.toLocaleLowerCase() + "-" + genrerateRandomString(32) + ext
-      //       );
-      //     },
-      //   }
-      // ),
-      limits: options?.limits,
-    });
-const uploadAllValue = multer().any();
-export const reqSingleImageParser =
-  (field_name: string): RequestHandler =>
-    (req, res, next) => {
-      try {
-        const session_res = req.body.session_res;
-        const db_connection = req.body.db_connection;
-        upload().single(field_name)(req, res, (err) => {
-          if (err) {
-            return res
-              .status(DEFAULT_STATUS_CODE_ERROR)
-              .send(resUnknownError({ data: err }));
-          }
-          req.body["session_res"] = session_res;
-          req.body["db_connection"] = db_connection;
-          return next();
-        });
-      } catch (e) {
-        return res
-          .status(DEFAULT_STATUS_CODE_ERROR)
-          .send(resUnknownError({ data: e }));
-      }
-    };
+/**
+ * Extended Request interface with preserved session and connection
+ */
+interface IExtendedRequest extends Request {
+  body: {
+    session_res?: unknown;
+    db_connection?: unknown;
+    [key: string]: unknown;
+  };
+}
 
-export const reqMultiImageParser =
-  (fieldArray: string[]): RequestHandler =>
-    (req, res, next) => {
-      try {
-        const session_res = req.body.session_res;
-        const db_connection = req.body.db_connection;
-        upload().fields(
-          fieldArray.map((name) => ({ name, maxCount: 1 }))
-        )(req, res, (err) => {
-          if (err) {
-            return res
-              .status(DEFAULT_STATUS_CODE_ERROR)
-              .send(resUnknownError({ data: err }));
-          }
-          req.body["session_res"] = session_res;
-          req.body["db_connection"] = db_connection;
+/**
+ * Multer field configuration
+ */
+interface IMulterField {
+  name: string;
+  maxCount?: number;
+}
 
-          return next();
-        });
-      } catch (e) {
-        return res
-          .status(DEFAULT_STATUS_CODE_ERROR)
-          .send(resUnknownError({ data: e }));
-      }
-    };
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
-    
-const onlyFileUpload = (destinationPath:any, options?: multer.Options) =>
-  multer({
+/**
+ * Preserves session and database connection from request body
+ * Multer may overwrite req.body, so we need to restore these values
+ * @param req - Express request object
+ * @returns Object containing session_res and db_connection
+ */
+const preserveRequestData = (req: IExtendedRequest): {
+  session_res?: unknown;
+  db_connection?: unknown;
+} => {
+  return {
+    session_res: req.body.session_res,
+    db_connection: dbContext,
+  };
+};
+
+/**
+ * Restores session and database connection to request body
+ * @param req - Express request object
+ * @param preservedData - Preserved session and connection data
+ */
+const restoreRequestData = (
+  req: IExtendedRequest,
+  preservedData: { session_res?: unknown; db_connection?: unknown }
+): void => {
+  req.body["session_res"] = preservedData.session_res;
+  req.body["db_connection"] = preservedData.db_connection;
+};
+
+/**
+ * Handles multer upload errors
+ * @param err - Multer error
+ * @param res - Express response object
+ * @returns True if error was handled, false otherwise
+ */
+const handleMulterError = (err: unknown, res: Response): boolean => {
+  if (err instanceof MulterError) {
+    res.status(DEFAULT_STATUS_CODE_ERROR).send(resUnknownError({ data: err }));
+    return true;
+  }
+
+  if (err instanceof MulterCustomError) {
+    res.status(DEFAULT_STATUS_CODE_ERROR).send(err.getData());
+    return true;
+  }
+
+  if (err instanceof Error) {
+    res.status(DEFAULT_STATUS_CODE_ERROR).send(resUnknownError({ data: err }));
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Creates a multer instance with optional limits
+ * @param options - Multer options
+ * @returns Configured multer instance
+ */
+const createMulterInstance = (options?: multer.Options): multer.Multer => {
+  return multer({
+    limits: options?.limits,
+  });
+};
+
+/**
+ * Creates a multer instance with disk storage
+ * @param destinationPath - Destination directory path
+ * @param options - Multer options
+ * @returns Configured multer instance with disk storage
+ */
+const createMulterWithDiskStorage = (
+  destinationPath: string,
+  options?: multer.Options
+): multer.Multer => {
+  // Ensure destination directory exists
+  createFolderIfNot(destinationPath);
+
+  return multer({
     storage: multer.diskStorage({
-      destination: function (req, file, cb) {
+      destination: (_req, _file, cb) => {
         cb(null, destinationPath);
       },
-      filename: function (_req, file, cb) {
+      filename: (_req, file, cb) => {
+        // Sanitize filename
         const imagePath = file.originalname
           .replace(/\s|\(|\)/g, "_")
           .replace(/\.[^/.]+$/, "");
         const ext = path.extname(file.originalname);
 
-        cb(
-          null,
-          imagePath.toLocaleLowerCase() + "-" + generateRandomString(32) + ext
-        );
+        // Generate unique filename
+        const filename = `${imagePath.toLowerCase()}-${generateRandomString(32)}${ext}`;
+        cb(null, filename);
       },
     }),
     limits: options?.limits,
   });
+};
 
-export const reqProductBulkUploadFileParser =
-  (field_name: string): RequestHandler =>
-    (req, res, next) => {
-      try {
-        const session_res = req.body.session_res;
-        const db_connection = req.body.db_connection;
-        onlyFileUpload(STORE_TEMP_FILE_PATH,{
-          limits: { fileSize: PRODUCT_BULK_UPLOAD_FILE_SIZE * 1000 * 1000 },
-        }).single(field_name)(req, res, (err) => {
-          if (err) {
-            return res
-              .status(DEFAULT_STATUS_CODE_ERROR)
-              .send(resUnknownError({ data: err }));
+/**
+ * Creates a generic file parser middleware wrapper
+ * @param multerMiddleware - Multer middleware function
+ * @returns Request handler middleware
+ */
+const createFileParserMiddleware = (
+  multerMiddleware: (req: Request, res: Response, callback: (err: unknown) => void) => void
+): RequestHandler => {
+  return (req: IExtendedRequest, res: Response, next) => {
+    try {
+      const preservedData = preserveRequestData(req);
+
+      multerMiddleware(req, res, (err: unknown) => {
+        if (err) {
+          if (handleMulterError(err, res)) {
+            return;
           }
-          req.body["session_res"] = session_res;
-          req.body["db_connection"] = db_connection;
+          return res
+            .status(DEFAULT_STATUS_CODE_ERROR)
+            .send(resUnknownError({ data: err }));
+        }
 
-          return next();
-        });
-      } catch (e) {
-        return res
-          .status(DEFAULT_STATUS_CODE_ERROR)
-          .send(resUnknownError({ data: e }));
-      }
-    };
+        restoreRequestData(req, preservedData);
+        return next();
+      });
+    } catch (error) {
+      return res
+        .status(DEFAULT_STATUS_CODE_ERROR)
+        .send(resUnknownError({ data: error }));
+    }
+  };
+};
 
-export const reqProductBulkZipFileParser =
-  (field_name: string): RequestHandler =>
-    (req, res, next) => {
-      try {
-        const session_res = req.body.session_res;
-        const db_connection = req.body.db_connection;
-        createFolderIfNot(STORE_TEMP_FILE_PATH);
-        upload().single(field_name)(req, res, (err) => {
-          console.log("err", err);
-          //Check below code why it's not working
+// ============================================================================
+// SINGLE FILE PARSERS
+// ============================================================================
 
-          // if (err) {
-          //   return res
-          //     .status(DEFAULT_STATUS_CODE_ERROR)
-          //     .send(resUnknownError({ data: err }));
-          // }
-          req.body["session_res"] = session_res;
-          req.body["db_connection"] = db_connection;
+/**
+ * Single image file parser middleware
+ * Parses a single image file from the specified field name
+ * @param fieldName - Form field name for the image file
+ * @returns Request handler middleware
+ * 
+ * @example
+ * ```typescript
+ * app.post('/upload', reqSingleImageParser('image'), (req, res) => {
+ *   const file = req.file;
+ *   // Handle uploaded file
+ * });
+ * ```
+ */
+export const reqSingleImageParser = (
+  fieldName: string
+): RequestHandler => {
+  const multerInstance = createMulterInstance();
+  const multerMiddleware = multerInstance.single(fieldName);
 
-          return next();
-        });
-      } catch (e) {
-        console.log("e", e);
-        return res
-          .status(DEFAULT_STATUS_CODE_ERROR)
-          .send(resUnknownError({ data: e }));
-      }
-    };
+  return createFileParserMiddleware(multerMiddleware);
+};
 
-export const reqArrayImageParser =
-  (fieldArray: string[]): RequestHandler =>
-    (req, res, next) => {
-      try {
-        const session_res = req.body.session_res;
-        const db_connection = req.body.db_connection;
-        upload().fields(
-          fieldArray.map((name) => ({ name }))
-        )(req, res, (err) => {
-          if (err) {
-            return res
-              .status(DEFAULT_STATUS_CODE_ERROR)
-              .send(resUnknownError({ data: err }));
+/**
+ * Product bulk upload file parser middleware
+ * Handles large file uploads for product bulk operations
+ * @param fieldName - Form field name for the file
+ * @returns Request handler middleware
+ * 
+ * @example
+ * ```typescript
+ * app.post('/bulk-upload', reqProductBulkUploadFileParser('csvFile'), handler);
+ * ```
+ */
+export const reqProductBulkUploadFileParser = (
+  fieldName: string
+): RequestHandler => {
+  const fileSizeLimit = PRODUCT_BULK_UPLOAD_FILE_SIZE * 1024 * 1024; // Convert MB to bytes
+
+  const multerInstance = createMulterWithDiskStorage(STORE_TEMP_FILE_PATH, {
+    limits: { fileSize: fileSizeLimit },
+  });
+
+  const multerMiddleware = multerInstance.single(fieldName);
+
+  return createFileParserMiddleware(multerMiddleware);
+};
+
+/**
+ * Product bulk ZIP file parser middleware
+ * Handles ZIP file uploads for product bulk operations
+ * @param fieldName - Form field name for the ZIP file
+ * @returns Request handler middleware
+ * 
+ * @example
+ * ```typescript
+ * app.post('/bulk-upload-zip', reqProductBulkZipFileParser('zipFile'), handler);
+ * ```
+ */
+export const reqProductBulkZipFileParser = (
+  fieldName: string
+): RequestHandler => {
+  // Ensure directory exists
+  createFolderIfNot(STORE_TEMP_FILE_PATH);
+
+  const multerInstance = createMulterInstance();
+  const multerMiddleware = multerInstance.single(fieldName);
+
+  return createFileParserMiddleware(multerMiddleware);
+};
+
+// ============================================================================
+// MULTIPLE FILE PARSERS
+// ============================================================================
+
+/**
+ * Multiple image file parser middleware
+ * Parses multiple image files from specified field names (one file per field)
+ * @param fieldArray - Array of form field names
+ * @returns Request handler middleware
+ * 
+ * @example
+ * ```typescript
+ * app.post('/upload', reqMultiImageParser(['image1', 'image2']), handler);
+ * ```
+ */
+export const reqMultiImageParser = (
+  fieldArray: string[]
+): RequestHandler => {
+  const multerInstance = createMulterInstance();
+  const fields: IMulterField[] = fieldArray.map((name) => ({
+    name,
+    maxCount: 1,
+  }));
+
+  const multerMiddleware = multerInstance.fields(fields);
+
+  return createFileParserMiddleware(multerMiddleware);
+};
+
+/**
+ * Array image parser middleware
+ * Parses multiple image files from specified field names (unlimited files per field)
+ * @param fieldArray - Array of form field names
+ * @returns Request handler middleware
+ * 
+ * @example
+ * ```typescript
+ * app.post('/upload', reqArrayImageParser(['images']), handler);
+ * ```
+ */
+export const reqArrayImageParser = (
+  fieldArray: string[]
+): RequestHandler => {
+  const multerInstance = createMulterInstance();
+  const fields: IMulterField[] = fieldArray.map((name) => ({ name }));
+
+  const multerMiddleware = multerInstance.fields(fields);
+
+  return createFileParserMiddleware(multerMiddleware);
+};
+
+/**
+ * Array video parser middleware
+ * Parses multiple video files from specified field names
+ * @param fieldArray - Array of form field names
+ * @returns Request handler middleware
+ * 
+ * @example
+ * ```typescript
+ * app.post('/upload', reqArrayVideoParser(['videos']), handler);
+ * ```
+ */
+export const reqArrayVideoParser = (
+  fieldArray: string[]
+): RequestHandler => {
+  const multerInstance = createMulterInstance();
+  const fields: IMulterField[] = fieldArray.map((name) => ({ name }));
+
+  const multerMiddleware = multerInstance.fields(fields);
+
+  return createFileParserMiddleware(multerMiddleware);
+};
+
+// ============================================================================
+// ANY TYPE PARSERS
+// ============================================================================
+
+/**
+ * Any type image/file parser middleware
+ * Accepts any file type from any field name
+ * Use with caution - accepts all files without validation
+ * @returns Request handler middleware
+ * 
+ * @example
+ * ```typescript
+ * app.post('/upload', reqAnyTypeImageAnyFormat(), handler);
+ * ```
+ */
+export const reqAnyTypeImageAnyFormat = (): RequestHandler => {
+  const multerInstance = multer();
+  const multerMiddleware = multerInstance.any();
+
+  return (req: IExtendedRequest, res: Response, next) => {
+    try {
+      const preservedData = preserveRequestData(req);
+
+      multerMiddleware(req, res, (err: unknown) => {
+        if (err) {
+          if (handleMulterError(err, res)) {
+            return;
           }
-          req.body["session_res"] = session_res;
-          req.body["db_connection"] = db_connection;
+          return res
+            .status(DEFAULT_STATUS_CODE_ERROR)
+            .send(resUnknownError({ data: err }));
+        }
 
-          return next();
-        });
-      } catch (e) {
-        return res
-          .status(DEFAULT_STATUS_CODE_ERROR)
-          .send(resUnknownError({ data: e }));
-      }
-    };
+        // Restore session and connection if they existed
+        if (preservedData.session_res || preservedData.db_connection) {
+          restoreRequestData(req, preservedData);
+        }
 
-export const reqArrayVideoParser =
-  (fieldArray: string[]): RequestHandler =>
-    (req, res, next) => {
-      try {
-        const session_res = req.body.session_res;
-        const db_connection = req.body.db_connection;
-        console.log("here");
-        upload().fields(
-          fieldArray.map((name) => ({ name }))
-        )(req, res, (err) => {
-          if (err) {
-            return res
-              .status(DEFAULT_STATUS_CODE_ERROR)
-              .send(resUnknownError({ data: err }));
-          }
-          req.body["session_res"] = session_res;
-          req.body["db_connection"] = db_connection;
-
-          return next();
-        });
-      } catch (e) {
-        return res
-          .status(DEFAULT_STATUS_CODE_ERROR)
-          .send(resUnknownError({ data: e }));
-      }
-    };
-
-export const reqAnyTypeImageAnyFormat = () => (req, res, next) => {
-  try {
-    const session_res = req.body.session_res;
-    const db_connection = req.body.db_connection;
-    uploadAllValue(req, res, (err: any) => {
-      if (err) {
-        return res
-          .status(DEFAULT_STATUS_CODE_ERROR)
-          .send(resUnknownError({ data: err }));
-      }
-
-      // Preserve session_res if it exists
-      if (session_res) {
-
-        req.body["session_res"] = session_res;
-        req.body["db_connection"] = db_connection;
-
-      }
-
-      next();
-    });
-  } catch (e) {
-    return res
-      .status(DEFAULT_STATUS_CODE_ERROR)
-      .send(resUnknownError({ data: e }))
-  }
+        return next();
+      });
+    } catch (error) {
+      return res
+        .status(DEFAULT_STATUS_CODE_ERROR)
+        .send(resUnknownError({ data: error }));
+    }
+  };
 };

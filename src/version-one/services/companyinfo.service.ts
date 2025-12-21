@@ -20,10 +20,14 @@ import {
   resSuccess,
 } from "../../utils/shared-functions";
 import { LOG_FOR_SUPER_ADMIN, GLEAMORA_KEY } from "../../utils/app-constants";
-import { initModels } from "../model/index.model";
+import { CompanyInfo } from "../model/companyinfo.model";
+import { Image } from "../model/image.model";
+import { TaxMaster } from "../model/master/tax.model";
+import { StaticPageData } from "../model/static_page.model";
+import { WebConfigSetting } from "../model/theme/web-config-setting.model";
+import { CurrencyData } from "../model/master/currency.model";
 
 export const addCompanyInfo = async (req: Request) => {
-  const {CompanyInfo,Image} = initModels(req);
   const {
     company_name,
     company_email,
@@ -89,7 +93,6 @@ export const addCompanyInfo = async (req: Request) => {
 };
 
 export const updateCompanyInfo = async (req: Request) => {
-  const {CompanyInfo,Image} = initModels(req);
 
   const {
     id,
@@ -123,7 +126,7 @@ export const updateCompanyInfo = async (req: Request) => {
       where: { id: id },
     });
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       let darkIdImage = null;
@@ -141,7 +144,7 @@ export const updateCompanyInfo = async (req: Request) => {
           IMAGE_TYPE.headerLogo,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
+null
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -165,7 +168,7 @@ export const updateCompanyInfo = async (req: Request) => {
           IMAGE_TYPE.footerLogo,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
+null
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -189,7 +192,7 @@ export const updateCompanyInfo = async (req: Request) => {
           IMAGE_TYPE.FaviconImage,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
+null
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           await trn.rollback();
@@ -265,7 +268,6 @@ export const updateCompanyInfo = async (req: Request) => {
 
 export const getCompanyInfoData = async (req: Request) => {
   try {
-  const {CompanyInfo,Image} = initModels(req);
 
     const companyInfo = await CompanyInfo.findAll({
       attributes: [
@@ -326,7 +328,6 @@ export const getCompanyInfoData = async (req: Request) => {
 
 export const getCompanyInfoCustomer = async (req: Request) => {
   try {
-  const {CompanyInfo,Image,TaxMaster,StaticPageData, WebConfigSetting, CurrencyData} = await initModels(req);
     const companyInfo = await CompanyInfo.findOne({
       where: { key: req.query.company_key, is_active: ActiveStatus.Active },
       attributes: [
@@ -437,15 +438,15 @@ export const getCompanyInfoCustomer = async (req: Request) => {
       };
 
       const taxList = await TaxMaster.findAll({
-        where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, company_info_id: companyInfo.dataValues.id },
+        where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
       });
 
       const staticPageList = await StaticPageData.findAll({
-        where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id: companyInfo.dataValues.id },
+        where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
         attributes: ["id", "page_title", "slug"],
       });
       const currencyList = await CurrencyData.findAll({
-        where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id: companyInfo.dataValues.id },
+        where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
         attributes: ["id", "currency", "code", "symbol", "thousand_token", "symbol_placement"],
       });
 
@@ -528,9 +529,8 @@ export const getCompanyInfoCustomer = async (req: Request) => {
 };
 export const getCompanyInfoForAdmin = async (req: Request) => {
   try {
-    const {CompanyInfo,Image, TaxMaster, StaticPageData, CurrencyData,WebConfigSetting} = initModels(req);
     const companyInfo = await CompanyInfo.findOne({
-      where: { id: req.body.session_res.client_id, is_active: ActiveStatus.Active },
+      where: { id: null, is_active: ActiveStatus.Active },
       attributes: [
         "id",
         "key",
@@ -721,7 +721,6 @@ export const getCompanyInfoForAdmin = async (req: Request) => {
           is_default: "1",
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
-          company_info_id: companyInfo.dataValues.id
         },
         attribute: ["id", "currency", "code", "symbol", "thousand_token", "symbol_placement"]
       })
@@ -743,7 +742,6 @@ export const getCompanyInfoForAdmin = async (req: Request) => {
 };
 export const updateWebRestrictURL = async (req: Request) => {
   try {
-    const {CompanyInfo} = initModels(req);
     const { web_link } = req.body;
     const findexistingData:any = await CompanyInfo.findOne( { where: { key: req.params.key } })
     const updateData = await CompanyInfo.update(

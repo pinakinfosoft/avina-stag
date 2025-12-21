@@ -24,7 +24,7 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../utils/shared-functions";
-import { initModels } from "../../model/index.model";
+import { CurrencyData } from "../../model/master/currency.model";
 
 export const addCurrency = async (req: Request) => {
   try {
@@ -41,19 +41,18 @@ export const addCurrency = async (req: Request) => {
       exchange_rate_type,
     } = req.body;
 
-    const { CurrencyData } = initModels(req);
     const findCurrency = await  CurrencyData.findOne({
       where: [
         columnValueLowerCase("currency", currency),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     const findCode = await  CurrencyData.findOne({
       where: [
         columnValueLowerCase("code", code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -82,10 +81,10 @@ export const addCurrency = async (req: Request) => {
       exchange_rate_type,
       thousand_token,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
     const currencydata = await  CurrencyData.create(payload);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         currency_id: currencydata?.dataValues?.id, data: {
@@ -102,7 +101,6 @@ export const addCurrency = async (req: Request) => {
 
 export const getAllCurrency = async (req: Request) => {
   try {
-    const { CurrencyData } = initModels(req);
 
     let paginationProps = {};
 
@@ -114,15 +112,15 @@ export const getAllCurrency = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
               { currency: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -172,10 +170,9 @@ export const getAllCurrency = async (req: Request) => {
 
 export const getByIdCurrency = async (req: Request) => {
   try {
-    const { CurrencyData } = initModels(req);
 
     const findCurrency = await  CurrencyData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCurrency && findCurrency.dataValues)) {
@@ -202,10 +199,9 @@ export const updateCurrency = async (req: Request) => {
       exchange_rate_type,
     } = req.body;
     const id = req.params.id;
-    const { CurrencyData } = initModels(req);
 
     const findCurrency = await  CurrencyData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCurrency && findCurrency.dataValues)) {
@@ -216,7 +212,7 @@ export const updateCurrency = async (req: Request) => {
         columnValueLowerCase("currency", currency),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     const findCode = await  CurrencyData.findOne({
@@ -224,7 +220,7 @@ export const updateCurrency = async (req: Request) => {
         columnValueLowerCase("code", code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -252,13 +248,13 @@ export const updateCurrency = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
 
     const afterUpdateFindCurrency = await  CurrencyData.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { currency_id: findCurrency?.dataValues?.id, data: {...findCurrency?.dataValues} },
       new_data: {
         currency_id: afterUpdateFindCurrency?.dataValues?.id, data: { ...afterUpdateFindCurrency?.dataValues }
@@ -273,10 +269,9 @@ export const updateCurrency = async (req: Request) => {
 
 export const deleteCurrency = async (req: Request) => {
   try {
-    const { CurrencyData } = initModels(req);
 
     const CurrencyExists = await  CurrencyData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(CurrencyExists && CurrencyExists.dataValues)) {
@@ -288,10 +283,10 @@ export const deleteCurrency = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: CurrencyExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: CurrencyExists.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { currency_id: CurrencyExists?.dataValues?.id, data: {...CurrencyExists?.dataValues} },
       new_data: {
         currency_id: CurrencyExists?.dataValues?.id, data: {
@@ -310,10 +305,9 @@ export const deleteCurrency = async (req: Request) => {
 
 export const statusUpdateForCurrency = async (req: Request) => {
   try {
-    const { CurrencyData } = initModels(req);
 
     const findCurrency = await  CurrencyData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCurrency && findCurrency.dataValues)) {
       return resNotFound();
@@ -324,10 +318,10 @@ export const statusUpdateForCurrency = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findCurrency.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCurrency.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { currency_id: findCurrency?.dataValues?.id, data: {...findCurrency?.dataValues} },
       new_data: {
         currency_id: findCurrency?.dataValues?.id, data: {
@@ -346,10 +340,9 @@ export const statusUpdateForCurrency = async (req: Request) => {
 
 export const defaultStatusUpdateForCurrency = async (req: Request) => {
   try {
-    const { CurrencyData } = initModels(req);
 
     const findCurrency = await  CurrencyData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCurrency && findCurrency.dataValues)) {
       return resNotFound();
@@ -359,7 +352,7 @@ export const defaultStatusUpdateForCurrency = async (req: Request) => {
       {
         is_default: "0",
       },
-      { where: { is_default: "1",company_info_id :req?.body?.session_res?.client_id } }
+      { where: { is_default: "1", } }
     );
     await  CurrencyData.update(
       {
@@ -368,11 +361,11 @@ export const defaultStatusUpdateForCurrency = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findCurrency.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCurrency.dataValues.id, } }
     );
 
     const changeRateBasedOnDefaultCurrency = await  CurrencyData.findAll({
-      where: { is_default: "0", is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { is_default: "0", is_deleted: DeletedStatus.No, },
     });
 
     for (const data of changeRateBasedOnDefaultCurrency) {
@@ -381,11 +374,11 @@ export const defaultStatusUpdateForCurrency = async (req: Request) => {
         {
           rate: rate,
         },
-        { where: { id: data.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+        { where: { id: data.dataValues.id, } }
       );
     }
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { currency_id: findCurrency?.dataValues?.id, data: {...findCurrency?.dataValues} },
       new_data: {
         currency_id: findCurrency?.dataValues?.id, data: {

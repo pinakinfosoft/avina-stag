@@ -9,7 +9,10 @@ import {
   mailAppointmentForCustomerReceived,
 } from "../mail.service";
 import { DEFAULT_STATUS_CODE_SUCCESS } from "../../../utils/app-messages";
-import { initModels } from "../../model/index.model";
+import { Enquiries } from "../../model/enquiries.model";
+import { CompanyInfo } from "../../model/companyinfo.model";
+import { ProductEnquiries } from "../../model/product-enquiry.model";
+import { Product } from "../../model/product.model";
 
 export const addEnquiries = async (req: Request) => {
   const {
@@ -22,11 +25,7 @@ export const addEnquiries = async (req: Request) => {
     message,
   } = req.body;
   try {
-    const { Enquiries,CompanyInfo } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     const payload = {
       first_name: first_name,
       last_name: last_name,
@@ -38,11 +37,10 @@ export const addEnquiries = async (req: Request) => {
       enquirie_type: 1,
       created_date: getLocalDate(),
       created_by: req.body.session_res.id_app_user,
-      company_info_id : company_info_id?.data,
     };
     const inquiry = await Enquiries.create(payload);
     const productInquiries = await Enquiries.findOne({
-      where: { id: inquiry.dataValues.id,company_info_id : company_info_id?.data, },
+      where: { id: inquiry.dataValues.id },
       attributes: [
         "first_name",
         "last_name",
@@ -53,7 +51,7 @@ export const addEnquiries = async (req: Request) => {
         "time",
       ],
     });
-    const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+      const configData =  await getWebSettingData();
     let logo_image = configData.image_base_url;
     let frontend_url = configData.fronted_base_url;
 
@@ -76,7 +74,7 @@ export const addEnquiries = async (req: Request) => {
       },
     };
     const companyInfo = await CompanyInfo.findOne({
-      where: { id: company_info_id?.data },
+      where: { id: 1 },
       attributes: [
         "id",
         "company_name",
@@ -97,7 +95,7 @@ export const addEnquiries = async (req: Request) => {
       ],
     });
 
-    await mailAppointmentForCustomerReceived(mailPayload,company_info_id?.data, req);
+    await mailAppointmentForCustomerReceived(mailPayload);
     const adminMailPayload = {
       toEmailAddress: companyInfo?.dataValues.company_email,
       contentTobeReplaced: {
@@ -116,15 +114,13 @@ export const addEnquiries = async (req: Request) => {
     };
 
 
-    await mailAppointmentForAdminReceived(adminMailPayload,company_info_id?.data, req);
-      await addActivityLogs(req,company_info_id?.data,[{
+    await mailAppointmentForAdminReceived(adminMailPayload);
+      await addActivityLogs([{
         old_data: null,
         new_data: {
-          enquiry_id: productInquiries?.dataValues?.id, data: {
-            ...productInquiries?.dataValues
-          }
+          enquiry_id: productInquiries?.dataValues?.id, data: { ...productInquiries?.dataValues }
         }
-      }], productInquiries?.dataValues?.id, LogsActivityType.Add, LogsType.Enquiry, req?.body?.session_res?.id_app_user)
+      }], null, LogsActivityType.Add, LogsType.Enquiry, req?.body?.session_res?.id_app_user)
       
     return resSuccess({ data: payload });
   } catch (error) {
@@ -148,12 +144,8 @@ export const addProductEnquiries = async (req: Request) => {
     time,
   } = req.body;
   try {
-    const { ProductEnquiries,Product,CompanyInfo } = initModels(req);
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+  
     const payload = {
       full_name: full_name,
       email: email,
@@ -166,13 +158,12 @@ export const addProductEnquiries = async (req: Request) => {
       created_date: getLocalDate(),
       admin_action: 0,
       created_by: req.body.session_res.id_app_user,
-      company_info_id : company_info_id?.data,
     };
     const inquiry = await ProductEnquiries.create(payload);
 
-    const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+    const configData =  await getWebSettingData();
     const productInquiries = await ProductEnquiries.findOne({
-      where: { id: inquiry.dataValues.id,company_info_id : company_info_id?.data, },
+      where: { id: inquiry.dataValues.id },
       attributes: [
         "id",
         "full_name",
@@ -234,7 +225,6 @@ export const addProductEnquiries = async (req: Request) => {
           model: Product,
           as: "product",
           attributes: [],
-          where:{company_info_id : company_info_id?.data,}
         },
       ],
     });
@@ -253,7 +243,7 @@ export const addProductEnquiries = async (req: Request) => {
     };
 
     const companyInfo = await CompanyInfo.findOne({
-      where: { id: company_info_id?.data },
+      where: { id: 1 },
       attributes: [
         "id",
         "company_name",
@@ -274,7 +264,7 @@ export const addProductEnquiries = async (req: Request) => {
       ],
     });
 
-    await mailProductInquiryFoeCustomerReceived(mailPayload,company_info_id?.data, req);
+    await mailProductInquiryFoeCustomerReceived(mailPayload);
 
     const adminMailPayload = {
       toEmailAddress: companyInfo?.dataValues.company_email,
@@ -286,10 +276,10 @@ export const addProductEnquiries = async (req: Request) => {
       },
     };
 
-    await mailProductInquiryForAdminReceived(adminMailPayload,company_info_id?.data, req);
+    await mailProductInquiryForAdminReceived(adminMailPayload);
 
-    await mailAppointmentForAdminReceived(adminMailPayload,company_info_id?.data, req);
-    await addActivityLogs(req?.body?.db_connection,company_info_id?.data,[{
+    await mailAppointmentForAdminReceived(adminMailPayload);
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         product_enquiry_id: productInquiries?.dataValues?.id, data: {

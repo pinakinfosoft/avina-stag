@@ -27,16 +27,17 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../../utils/shared-functions";
-import { initModels } from "../../../../model/index.model";
+import { GoldKarat } from "../../../../model/master/attributes/metal/gold-karat.model";
+import { Image } from "../../../../model/image.model";
+import dbContext from "../../../../../config/db-context";
 
 export const addGoldKarat = async (req: Request) => {
   try {
     const { name, metal_master_id, calculate_rate } = req.body;
-    const {GoldKarat,Image} = initModels(req);
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       const findName = await GoldKarat.findOne({
-        where: [{ name: name }, { is_deleted: DeletedStatus.No },{company_info_id :req?.body?.session_res?.client_id}],
+        where: [{ name: name }, { is_deleted: DeletedStatus.No },{}],
         transaction: trn,
       });
       if (findName && findName.dataValues) {
@@ -50,7 +51,6 @@ export const addGoldKarat = async (req: Request) => {
           IMAGE_TYPE.goldKT,
           req.body.session_res.id_app_user,
           "",
-          req?.body?.session_res?.client_id
         );
         if (addImage.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           trn.rollback();
@@ -63,7 +63,7 @@ export const addGoldKarat = async (req: Request) => {
         slug: `${createSlug(name)}K`,
         created_date: getLocalDate(),
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
+        
         id_image: idImage,
         calculate_rate:
           calculate_rate &&
@@ -83,7 +83,7 @@ export const addGoldKarat = async (req: Request) => {
       };
 
       const data = await GoldKarat.create(payload, { transaction: trn });
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           karat_id: data.dataValues.id, data: {
@@ -92,7 +92,7 @@ export const addGoldKarat = async (req: Request) => {
         }
       }], data.dataValues.id, LogsActivityType.Add, LogsType.MetalKarat, req.body.session_res.id_app_user,trn)
       await trn.commit();
-      await refreshAllMaterializedView(req.body.db_connection);
+      await refreshAllMaterializedView(dbContext);
       return resSuccess({ data: payload });
     } catch (e) {
       await trn.rollback();
@@ -105,14 +105,13 @@ export const addGoldKarat = async (req: Request) => {
 
 export const getGoldKarat = async (req: Request) => {
   try {
-    const { GoldKarat,Image } = initModels(req);
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
     };
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      { company_info_id :req?.body?.session_res?.client_id },
+      {  },
       {
         [Op.or]: [
           {
@@ -165,7 +164,7 @@ export const getGoldKarat = async (req: Request) => {
         "is_earring",
         "calculate_rate",
       ],
-      include: [{ model: Image, as: "image", attributes: [],where:{ company_info_id :req?.body?.session_res?.client_id },required:false }],
+      include: [{ model: Image, as: "image", attributes: [],where:{  },required:false }],
     });
 
     return resSuccess({ data: { pagination, result } });
@@ -176,9 +175,8 @@ export const getGoldKarat = async (req: Request) => {
 
 export const getByIdGoldKarat = async (req: Request) => {
   try {
-    const { GoldKarat,Image } = initModels(req);
     const findKarat = await GoldKarat.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
       attributes: [
         "id",
         "name",
@@ -196,7 +194,7 @@ export const getByIdGoldKarat = async (req: Request) => {
         "is_earring",
         "calculate_rate",
       ],
-      include: [{ model: Image, as: "image", attributes: [],where:{ company_info_id :req?.body?.session_res?.client_id },required:false}],
+      include: [{ model: Image, as: "image", attributes: [],where:{  },required:false}],
     });
 
     if (!(findKarat && findKarat.dataValues)) {
@@ -217,10 +215,9 @@ export const updateGoldKarat = async (req: Request) => {
       image_delete = "0",
       calculate_rate,
     } = req.body;
-    const { GoldKarat,Image } = initModels(req);
     const id = req.params.id;
     const findKarat = await GoldKarat.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findKarat && findKarat.dataValues)) {
       return resNotFound();
@@ -230,19 +227,19 @@ export const updateGoldKarat = async (req: Request) => {
         { name: name },
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        { company_info_id :req?.body?.session_res?.client_id },
+        {  },
       ],
     });
     if (findName && findName.dataValues) {
       return resErrorDataExit();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findKarat.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findKarat.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: findKarat.dataValues.id_image, },
           transaction: trn,
         });
       }
@@ -252,7 +249,6 @@ export const updateGoldKarat = async (req: Request) => {
           IMAGE_TYPE.goldKT,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id,
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -284,27 +280,27 @@ export const updateGoldKarat = async (req: Request) => {
           where: {
             id: findKarat.dataValues.id,
             is_deleted: DeletedStatus.No,
-            company_info_id :req?.body?.session_res?.client_id,
+            
           },
           transaction: trn,
         }
       );
 
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage);
       }
 
       const afterUpdateFindKarat = await GoldKarat.findOne({
-        where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },transaction:trn
+        where: { id: id, is_deleted: DeletedStatus.No, },transaction:trn
       });
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { karat_id: findKarat.dataValues.id, data: {...findKarat.dataValues} },
         new_data: {
           karat_id: afterUpdateFindKarat.dataValues.id, data: { ...afterUpdateFindKarat.dataValues }
         }
       }], findKarat.dataValues.id, LogsActivityType.Edit, LogsType.MetalKarat, req.body.session_res.id_app_user,trn)
       trn.commit();
-      await refreshAllMaterializedView(req.body.db_connection);
+      await refreshAllMaterializedView(dbContext);
       return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
     } catch (e) {
       await trn.rollback();
@@ -318,9 +314,8 @@ export const updateGoldKarat = async (req: Request) => {
 
 export const deleteGoldKarat = async (req: Request) => {
   try {
-    const { GoldKarat } = initModels(req);
     const findKarat = await GoldKarat.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findKarat && findKarat.dataValues)) {
@@ -331,11 +326,11 @@ export const deleteGoldKarat = async (req: Request) => {
         is_deleted: DeletedStatus.yes,
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
-        company_info_id :req?.body?.session_res?.client_id,
+        
       },
-      { where: { id: findKarat.dataValues.id, company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findKarat.dataValues.id,  } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { karat_id: findKarat.dataValues.id, data: {...findKarat.dataValues} },
       new_data: {
         karat_id: findKarat.dataValues.id, data: {
@@ -345,7 +340,7 @@ export const deleteGoldKarat = async (req: Request) => {
         }
       }
     }], findKarat.dataValues.id, LogsActivityType.Delete, LogsType.MetalKarat, req.body.session_res.id_app_user)
-    await refreshAllMaterializedView(req.body.db_connection);
+    await refreshAllMaterializedView(dbContext);
     return resSuccess({ message: RECORD_DELETE_SUCCESSFULLY });
   } catch (error) {
     throw error;
@@ -354,9 +349,8 @@ export const deleteGoldKarat = async (req: Request) => {
 
 export const statusUpdateForGoldKarat = async (req: Request) => {
   try {
-    const { GoldKarat } = initModels(req);
     const findKarat = await GoldKarat.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findKarat && findKarat.dataValues)) {
       return resNotFound();
@@ -367,9 +361,9 @@ export const statusUpdateForGoldKarat = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findKarat.dataValues.id, company_info_id :req?.body?.session_res?.client_id      } }
+      { where: { id: findKarat.dataValues.id,       } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { karat_id: findKarat.dataValues.id, data: {...findKarat.dataValues} },
       new_data: {
         karat_id: findKarat.dataValues.id, data: {
@@ -379,7 +373,7 @@ export const statusUpdateForGoldKarat = async (req: Request) => {
         }
       }
     }], findKarat.dataValues.id, LogsActivityType.StatusUpdate, LogsType.MetalKarat, req.body.session_res.id_app_user)
-    await refreshAllMaterializedView(req.body.db_connection);
+    await refreshAllMaterializedView(dbContext);
     return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
   } catch (error) {
     throw error;
@@ -388,17 +382,11 @@ export const statusUpdateForGoldKarat = async (req: Request) => {
 
 export const goldKaratActiveList = async (req: Request) => {
   try {
-    const { GoldKarat } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const karatList = await GoldKarat.findAll({
       where: {
         id_metal: req.params.metal_id,
         is_deleted: DeletedStatus.No,
         is_active: ActiveStatus.Active,
-        company_info_id:company_info_id?.data,
       },
       attributes: ["id", "name", "slug", "created_date"],
     });

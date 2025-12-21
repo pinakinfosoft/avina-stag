@@ -1,10 +1,10 @@
 import { ARRAY, DATE, INTEGER, JSON, STRING } from "sequelize";
-import {AppUser} from "./app-user.model";
-import {Image} from "./image.model";
-import {CountryData} from "./master/country.model";
+import dbContext from "../../config/db-context";
+import { AppUser } from "./app-user.model";
+import { Image } from "./image.model";
+import { CountryData } from "./master/country.model";
 
-export const CustomerUser = (dbContext: any) => {
-  let customerUser = dbContext.define("customer_users", {
+export const CustomerUser = dbContext.define("customer_users", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -55,10 +55,21 @@ export const CustomerUser = (dbContext: any) => {
   },
   gender: {
     type: STRING,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return customerUser;
-}
+
+// Associations
+CustomerUser.hasOne(Image, {
+  as: "image",
+  foreignKey: "id",
+  sourceKey: "id_image",
+});
+CustomerUser.hasOne(CountryData, {
+  as: "country",
+  foreignKey: "id",
+  sourceKey: "country_id",
+});
+CustomerUser.belongsTo(AppUser, {
+  as: "app_user",
+  foreignKey: "id_app_user",
+});

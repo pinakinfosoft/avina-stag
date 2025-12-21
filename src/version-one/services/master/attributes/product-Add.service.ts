@@ -17,30 +17,40 @@ import {
 } from "../../../../utils/app-enumeration";
 import { s3UploadObject } from "../../../../helpers/s3-client.helper";
 import { DEFAULT_STATUS_CODE_SUCCESS } from "../../../../utils/app-messages";
-import { initModels } from "../../../model/index.model";
+import { CategoryData } from "../../../model/category.model";
+import { Tag } from "../../../model/master/attributes/tag.model";
+import { Image } from "../../../model/image.model";
+import { SettingTypeData } from "../../../model/master/attributes/settingType.model";
+import { SizeData } from "../../../model/master/attributes/item-size.model";
+import { LengthData } from "../../../model/master/attributes/item-length.model";
+import { MetalMaster } from "../../../model/master/attributes/metal/metal-master.model";
+import { MetalTone } from "../../../model/master/attributes/metal/metalTone.model";
+import { GoldKarat } from "../../../model/master/attributes/metal/gold-karat.model";
+import { MMSizeData } from "../../../model/master/attributes/mmSize.model";
+import { StoneData } from "../../../model/master/attributes/gemstones.model";
+import { CutsData } from "../../../model/master/attributes/cuts.model";
+import { Colors } from "../../../model/master/attributes/colors.model";
+import { ClarityData } from "../../../model/master/attributes/clarity.model";
+import { DiamondCaratSize } from "../../../model/master/attributes/caratSize.model";
+import { DiamondGroupMaster } from "../../../model/master/attributes/diamond-group-master.model";
+import { DiamondShape } from "../../../model/master/attributes/diamondShape.model";
+import { SettingCaratWeight } from "../../../model/master/attributes/settingCaratWeight.model";
+import { SieveSizeData } from "../../../model/master/attributes/seiveSize.model";
+import { BrandData } from "../../../model/master/attributes/brands.model";
+import { Collection } from "../../../model/master/attributes/collection.model";
+import { Orders } from "../../../model/order.model";
+import { Enquiries } from "../../../model/enquiries.model";
+import { BirthStoneProduct } from "../../../model/birth-stone-product/birth-stone-product.model";
+import { HeadsData } from "../../../model/master/attributes/heads.model";
+import { ShanksData } from "../../../model/master/attributes/shanks.model";
+import { SideSettingStyles } from "../../../model/master/attributes/side-setting-styles.model";
+import dbContext from "../../../../config/db-context";
 const { imageToWebp } = require("image-to-webp");
 const fs = require("fs");
 export const addProductDropdown = async (req: Request) => {
   try {
-    const { CategoryData, Tag, Image, SettingTypeData, SizeData, LengthData,
-      MetalMaster, MetalTone, GoldKarat, MMSizeData, StoneData, CutsData, Colors,
-      ClarityData, DiamondCaratSize, DiamondGroupMaster, DiamondShape, SettingCaratWeight, SieveSizeData, BrandData, Collection } = initModels(req);
 
-    let company_info_id: any = {};
-
-    if (req?.body?.session_res?.client_id) {
-      company_info_id = req.body.session_res.client_id;
-    } else {
-      const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-      if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return decrypted;
-      }
-
-      company_info_id = decrypted?.data;
-    }
-
-    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { company_info_id: company_info_id }];
+    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }];
 
     const categoryList = await CategoryData.findAll({
       where,
@@ -72,9 +82,9 @@ export const addProductDropdown = async (req: Request) => {
         ],
       ],
       include: [
-        { model: Image, as: "image", attributes: [], where: { company_info_id: company_info_id }, required: false },
-        { model: CategoryData, as: "parent_category", attributes: [], where: { company_info_id: company_info_id }, required: false },
-      ],
+        { model: Image, as: "image", attributes: [], required: false },
+        { model: CategoryData, as: "parent_category", attributes: [], required: false },
+      ],  
     });
 
     const keyWords = await Tag.findAll({
@@ -90,7 +100,7 @@ export const addProductDropdown = async (req: Request) => {
         "slug",
         [Sequelize.literal("setting_type_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "setting_type_image", attributes: [], where: { company_info_id: company_info_id }, required: false }],
+      include: [{ model: Image, as: "setting_type_image", attributes: [], required: false }],
     });
 
     const item_size = await SizeData.findAll({
@@ -127,7 +137,7 @@ export const addProductDropdown = async (req: Request) => {
         "is_diamond",
         [Sequelize.literal("stone_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "stone_image", attributes: [], where: { company_info_id: company_info_id }, required: false }],
+      include: [{ model: Image, as: "stone_image", attributes: [], required: false }],
     });
 
     const stone_cut = await CutsData.findAll({
@@ -153,7 +163,7 @@ export const addProductDropdown = async (req: Request) => {
         "slug",
         [Sequelize.literal("diamond_shape_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "diamond_shape_image", attributes: [], where: { company_info_id: company_info_id }, required: false }],
+      include: [{ model: Image, as: "diamond_shape_image", attributes: [], required: false }],
     });
 
     const stone_setting = await SettingCaratWeight.findAll({
@@ -184,7 +194,6 @@ export const addProductDropdown = async (req: Request) => {
           model: DiamondCaratSize,
           as: "carats",
           attributes: [],
-          where: { company_info_id: company_info_id },
           required: false
         },
       ]
@@ -246,8 +255,6 @@ export const addProductDropdown = async (req: Request) => {
 
 export const dashboardAPI = async (req: Request) => {
   try {
-    const { Orders, Enquiries } = initModels(req);
-    const company_info_id = req?.body?.session_res?.client_id
 
     const today = new Date();
     const startOfThisWeek = new Date(today);
@@ -262,7 +269,7 @@ export const dashboardAPI = async (req: Request) => {
 
     /* ------------------------- new order ------------------------ */
     const new_order = await Orders.count({
-      where: { order_status: OrderStatus.Pendding, company_info_id: company_info_id },
+      where: { order_status: OrderStatus.Pendding },
     });
 
     // find % of last week for New Order
@@ -270,7 +277,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekNewOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Pendding,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -281,7 +287,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekNewOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Pendding,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -301,7 +306,7 @@ export const dashboardAPI = async (req: Request) => {
     /* ------------------------- Confirm order ------------------------ */
 
     const Confirm_order = await Orders.count({
-      where: { order_status: OrderStatus.Confirmed, company_info_id: company_info_id },
+      where: { order_status: OrderStatus.Confirmed },
     });
 
     // find % of last week for Confirm Order
@@ -309,7 +314,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekConfirmOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Confirmed,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -320,7 +324,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekConfirmOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Confirmed,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -340,7 +343,7 @@ export const dashboardAPI = async (req: Request) => {
     /* ------------------------- In process order ------------------------ */
 
     const In_process_order = await Orders.count({
-      where: { order_status: OrderStatus.Processing, company_info_id: company_info_id },
+      where: { order_status: OrderStatus.Processing },
     });
 
     // find % of last week for In process Order
@@ -348,7 +351,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekInProgressOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Processing,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -359,7 +361,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekInProgressOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Processing,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -377,7 +378,7 @@ export const dashboardAPI = async (req: Request) => {
     }
     /* ------------------------- Out of delivery order ------------------------ */
     const out_of_delivery_order = await Orders.count({
-      where: { order_status: OrderStatus.OutOfDeliver, company_info_id: company_info_id },
+      where: { order_status: OrderStatus.OutOfDeliver },
     });
 
     // find % of last week for In process Order
@@ -385,7 +386,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekOutFoDeliveryOrders = await Orders.count({
       where: {
         order_status: OrderStatus.OutOfDeliver,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -396,7 +396,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekOutFoDeliveryOrders = await Orders.count({
       where: {
         order_status: OrderStatus.OutOfDeliver,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -415,7 +414,7 @@ export const dashboardAPI = async (req: Request) => {
 
     /* ------------------------- Delivery order ------------------------ */
     const delivery_order = await Orders.count({
-      where: { order_status: OrderStatus.Delivered, company_info_id: company_info_id },
+      where: { order_status: OrderStatus.Delivered },
     });
 
     // find % of last week for In process Order
@@ -423,7 +422,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekDeliveryOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Delivered,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -434,7 +432,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekDeliveryOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Delivered,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -453,7 +450,7 @@ export const dashboardAPI = async (req: Request) => {
 
     /* ------------------------- Cancel order ------------------------ */
     const cancel_order = await Orders.count({
-      where: { order_status: OrderStatus.Canceled, company_info_id: company_info_id },
+        where: { order_status: OrderStatus.Canceled },
     });
 
     // find % of last week for In process Order
@@ -461,7 +458,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekCancelOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Canceled,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -472,7 +468,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekCancelOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Canceled,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -491,7 +486,7 @@ export const dashboardAPI = async (req: Request) => {
 
     /* ------------------------- Return order ------------------------ */
     const return_order = await Orders.count({
-      where: { order_status: OrderStatus.Returned, company_info_id: company_info_id },
+      where: { order_status: OrderStatus.Returned },
     });
 
     // find % of last week for In process Order
@@ -499,7 +494,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekReturnOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Returned,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -510,7 +504,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekReturnOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Returned,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -529,7 +522,7 @@ export const dashboardAPI = async (req: Request) => {
 
     /* ------------------------- Failed order ------------------------ */
     const failed_order = await Orders.count({
-      where: { order_status: OrderStatus.Failed, company_info_id: company_info_id },
+      where: { order_status: OrderStatus.Failed },
     });
 
     // find % of last week for In process Order
@@ -537,7 +530,6 @@ export const dashboardAPI = async (req: Request) => {
     const thisWeekFailedOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Failed,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfThisWeek,
         },
@@ -548,7 +540,6 @@ export const dashboardAPI = async (req: Request) => {
     const lastWeekFailedOrders = await Orders.count({
       where: {
         order_status: OrderStatus.Failed,
-        company_info_id: company_info_id,
         created_date: {
           [Op.gte]: startOfLastWeek,
           [Op.lt]: startOfThisWeek,
@@ -567,19 +558,19 @@ export const dashboardAPI = async (req: Request) => {
 
     const total_order = await Orders.count();
 
-    const revenue = await (req.body.db_connection).query(
-      `SELECT sum(order_amount) AS total FROM order_transactions AS OT WHERE OT.payment_status = ${PaymentStatus.paid} AND OT.company_info_id = ${company_info_id}`,
+    const revenue = await dbContext.query(
+      `SELECT sum(order_amount) AS total FROM order_transactions AS OT WHERE OT.payment_status = ${PaymentStatus.paid}`,
       { type: QueryTypes.SELECT }
     );
 
     const total_revenue = revenue[0];
-    const top_selling_product = await (req.body.db_connection).query(
-      `SELECT OD.product_id, products.name, products.sku, products.slug, count(OD.product_id) AS 	order_count , (SELECT product_images.image_path FROM product_images WHERE product_images.id_product = OD.product_id AND product_images.image_type = ${PRODUCT_IMAGE_TYPE.Feature} LIMIT 1) FROM order_details as OD INNER JOIN products ON products.id = OD.product_id WHERE (OD.order_details_json ->> 'product_type') = '${AllProductTypes.Product}' AND products.is_active = '${ActiveStatus.Active}' AND products.is_deleted = '${DeletedStatus.No}' AND OD.company_info_id = ${company_info_id} GROUP BY OD.product_id, products.name, products.sku, products.slug ORDER BY count(OD.product_id) DESC LIMIT 10`,
+    const top_selling_product = await dbContext.query(
+      `SELECT OD.product_id, products.name, products.sku, products.slug, count(OD.product_id) AS 	order_count , (SELECT product_images.image_path FROM product_images WHERE product_images.id_product = OD.product_id AND product_images.image_type = ${PRODUCT_IMAGE_TYPE.Feature} LIMIT 1) FROM order_details as OD INNER JOIN products ON products.id = OD.product_id WHERE (OD.order_details_json ->> 'product_type') = '${AllProductTypes.Product}' AND products.is_active = '${ActiveStatus.Active}' AND products.is_deleted = '${DeletedStatus.No}' GROUP BY OD.product_id, products.name, products.sku, products.slug ORDER BY count(OD.product_id) DESC LIMIT 10`,
       { type: QueryTypes.SELECT }
     );
 
-    const items = await (req.body.db_connection).query(
-      `SELECT sum(order_details.quantity) AS item FROM order_details WHERE order_details.company_info_id = ${company_info_id}`,
+    const items = await dbContext.query(
+      `SELECT sum(order_details.quantity) AS item FROM order_details`,
       { type: QueryTypes.SELECT }
     );
 
@@ -603,14 +594,13 @@ export const dashboardAPI = async (req: Request) => {
 
     const orderRevenue = await Orders.findAll({
       where: [
-        { company_info_id: req.body.session_res.client_id },
         { payment_status: PaymentStatus.paid },
         req.query.start_date && req.query.end_date ?
           {
             order_date: {
               [Op.between]: [startDateFilter, endDate]
             }
-          } : {},
+          } : {}
       ],
       attributes: [
         [fn('TO_CHAR', fn('DATE_TRUNC', 'month', col('created_date')), 'FMMonth'), 'month'],
@@ -625,19 +615,19 @@ export const dashboardAPI = async (req: Request) => {
 
     // 1. Create a map for quick lookup
     const revenueMap = new Map(
-      orderRevenue.map(item => [`${item.month}-${item.year}`, parseFloat(item.avg_revenue)])
+      orderRevenue.map((item:any) => [`${item.month}-${item.year}`, parseFloat(item.avg_revenue)])
     );
 
     // 2. Convert month name to number for sorting
-    const monthNameToNumber = monthName => new Date(`${monthName} 1, 2000`).getMonth();
+    const monthNameToNumber = (monthName:any) => new Date(`${monthName} 1, 2000`).getMonth();
 
     // 3. Find min and max year/month from data
     const sortedDates = orderRevenue
-      .map(item => {
-        const monthNum = monthNameToNumber(item.month);
-        return new Date(parseInt(item.year), monthNum, 1);
+      .map((item:any) => {
+        const monthNum = monthNameToNumber(item?.month);
+        return new Date(parseInt(item?.year), monthNum, 1);
       })
-      .sort((a, b) => a - b);
+      .sort((a:any, b:any) => a - b);
 
     const startDate = sortedDates[0];
     const endDateValue = sortedDates[sortedDates.length - 1];
@@ -693,25 +683,10 @@ export const dashboardAPI = async (req: Request) => {
 
 export const configuratorDropDownData = async (req: Request) => {
   try {
-    const { Image, MMSizeData, StoneData, DiamondCaratSize, DiamondShape, HeadsData, ShanksData, SideSettingStyles, CutsData, CategoryData, SizeData, LengthData, MetalMaster, MetalTone, GoldKarat } = initModels(req);
-    let company_info_id: any = {};
-
-    if (req?.body?.session_res?.client_id) {
-      company_info_id.data = req.body.session_res.client_id;
-    } else {
-      const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-      if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return decrypted;
-      }
-
-      company_info_id = decrypted;
-    }
-
-    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { company_info_id: company_info_id?.data }];
+    
     let categoryName = "ring";
     const query: any = req.query;
-    let whereConfig: any = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { company_info_id: company_info_id?.data }];
+    let whereConfig: any = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }];
 
     if (query.is_config == "1") {
       categoryName = "ring";
@@ -734,7 +709,7 @@ export const configuratorDropDownData = async (req: Request) => {
     } else {
       categoryName = "ring";
       whereConfig = [
-        ...where,
+        ...whereConfig,
         {
           [Op.or]: [
             { is_config: "1" },
@@ -849,7 +824,7 @@ export const configuratorDropDownData = async (req: Request) => {
         ],
         [Sequelize.literal("head_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "head_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "head_image", attributes: [], required: false }],
     });
 
     const shankList = await ShanksData.findAll({
@@ -873,7 +848,7 @@ export const configuratorDropDownData = async (req: Request) => {
 
         [Sequelize.literal("shank_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "shank_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "shank_image", attributes: [], required: false }],
     });
 
     const sideSettingStyle = await SideSettingStyles.findAll({
@@ -951,7 +926,7 @@ export const configuratorDropDownData = async (req: Request) => {
           "image_path",
         ]
       ],
-      include: [{ model: Image, as: "side_setting_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "side_setting_image", attributes: [], required: false }],
     });
     const category = await CategoryData.findOne({
       where: [
@@ -959,7 +934,6 @@ export const configuratorDropDownData = async (req: Request) => {
         { is_active: ActiveStatus.Active },
         { [Op.and]: [{ category_name: { [Op.iLike]: `${categoryName}%` } }] },
         { parent_id: { [Op.eq]: null } },
-        { company_info_id: company_info_id?.data },
       ],
       attributes: [
         "id",
@@ -1022,7 +996,7 @@ export const configuratorDropDownData = async (req: Request) => {
         "id_metal",
         [Sequelize.literal("metal_tone_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "metal_tone_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "metal_tone_image", attributes: [], required: false }],
     });
 
     const cutsList = await CutsData.findAll({
@@ -1062,7 +1036,6 @@ export const configuratorDropDownData = async (req: Request) => {
       where: [
         { is_deleted: DeletedStatus.No },
         { is_active: ActiveStatus.Active },
-        { company_info_id: company_info_id?.data },
         {
           id: {
             [Op.in]: category?.dataValues.id_length
@@ -1087,8 +1060,8 @@ export const configuratorDropDownData = async (req: Request) => {
       ],
       attributes: ["id", "length", "slug"],
     });
-    const colorClarityList = await (req.body.db_connection).query(
-      `SELECT id_color, id_clarity, is_config, CASE WHEN '${query.is_config}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int WHEN '${query.is_band}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EternityBandConfigurator}')::int WHEN '${query.is_bracelet}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.BraceletConfigurator}')::int WHEN '${query.is_pendant}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.PendantConfigurator}')::int WHEN '${query.is_earring}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EarringConfigurator}')::int WHEN '${query.is_three_stone}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.ThreeStoneConfigurator}')::int ELSE (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int END AS is_diamond_type, Colors.name AS color_name, clarities.name AS clarity_name FROM diamond_group_masters AS DGM INNER JOIN colors ON Colors.id = DGM.id_color INNER JOIN clarities ON clarities.id = DGM.id_clarity WHERE CASE WHEN '${query.is_config}' = '1' THEN  DGM.is_config = '1' WHEN '${query.is_three_stone}' = '1' THEN DGM.is_three_stone = '1' WHEN '${query.is_band}' = '1' THEN DGM.is_band = '1' WHEN '${query.is_bracelet}' = '1' THEN DGM.is_bracelet = '1' WHEN '${query.is_pendant}' = '1' THEN DGM.is_pendant = '1' WHEN '${query.is_earring}' = '1' THEN DGM.is_earring = '1' ELSE DGM.is_config = '1' END AND  DGM.is_deleted = '0'AND DGM.is_active = '1' AND DGM.company_info_id = ${company_info_id?.data} GROUP BY DGM.id, Colors.name, clarities.name`,
+    const colorClarityList = await dbContext.query(
+      `SELECT id_color, id_clarity, is_config, CASE WHEN '${query.is_config}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int WHEN '${query.is_band}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EternityBandConfigurator}')::int WHEN '${query.is_bracelet}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.BraceletConfigurator}')::int WHEN '${query.is_pendant}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.PendantConfigurator}')::int WHEN '${query.is_earring}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EarringConfigurator}')::int WHEN '${query.is_three_stone}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.ThreeStoneConfigurator}')::int ELSE (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int END AS is_diamond_type, Colors.name AS color_name, clarities.name AS clarity_name FROM diamond_group_masters AS DGM INNER JOIN colors ON Colors.id = DGM.id_color INNER JOIN clarities ON clarities.id = DGM.id_clarity WHERE CASE WHEN '${query.is_config}' = '1' THEN  DGM.is_config = '1' WHEN '${query.is_three_stone}' = '1' THEN DGM.is_three_stone = '1' WHEN '${query.is_band}' = '1' THEN DGM.is_band = '1' WHEN '${query.is_bracelet}' = '1' THEN DGM.is_bracelet = '1' WHEN '${query.is_pendant}' = '1' THEN DGM.is_pendant = '1' WHEN '${query.is_earring}' = '1' THEN DGM.is_earring = '1' ELSE DGM.is_config = '1' END AND  DGM.is_deleted = '0'AND DGM.is_active = '1' GROUP BY DGM.id, Colors.name, clarities.name`,
       { type: QueryTypes.SELECT }
     );
 
@@ -1096,7 +1069,7 @@ export const configuratorDropDownData = async (req: Request) => {
 
     let eternityProductSizeList;
     if (query.is_band == "1") {
-      eternityProductSizeList = await (req.body.db_connection).query(
+      eternityProductSizeList = await dbContext.query(
         `SELECT
     DISTINCT 
     product_size,
@@ -1106,18 +1079,18 @@ export const configuratorDropDownData = async (req: Request) => {
     side_setting_id,
     is_alternate
 FROM
-    mat_view_eternity_products WHERE product_type ilike 'Eternity Band' AND company_info_id = ${company_info_id?.data};`,
+    mat_view_eternity_products WHERE product_type ilike 'Eternity Band';`,
         { type: QueryTypes.SELECT }
       );
     }
 
-    const clarityList = await (req.body.db_connection).query(
-      `SELECT id_clarity, is_config, CASE WHEN '${query.is_config}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int WHEN '${query.is_band}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EternityBandConfigurator}')::int WHEN '${query.is_bracelet}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.BraceletConfigurator}')::int WHEN '${query.is_pendant}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.PendantConfigurator}')::int WHEN '${query.is_earring}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EarringConfigurator}')::int WHEN '${query.is_three_stone}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.ThreeStoneConfigurator}')::int ELSE (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int END AS is_diamond_type, clarities.name AS clarity_name FROM diamond_group_masters AS DGM INNER JOIN clarities ON clarities.id = DGM.id_clarity WHERE CASE WHEN '${query.is_config}' = '1' THEN  DGM.is_config = '1' WHEN '${query.is_three_stone}' = '1' THEN DGM.is_three_stone = '1' WHEN '${query.is_band}' = '1' THEN DGM.is_band = '1' WHEN '${query.is_bracelet}' = '1' THEN DGM.is_bracelet = '1' WHEN '${query.is_pendant}' = '1' THEN DGM.is_pendant = '1' WHEN '${query.is_earring}' = '1' THEN DGM.is_earring = '1' ELSE DGM.is_config = '1' END AND  DGM.is_deleted = '0'AND DGM.is_active = '1' AND DGM.company_info_id = ${company_info_id?.data} GROUP BY DGM.id, clarities.name`,
+    const clarityList = await dbContext.query(
+      `SELECT id_clarity, is_config, CASE WHEN '${query.is_config}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int WHEN '${query.is_band}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EternityBandConfigurator}')::int WHEN '${query.is_bracelet}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.BraceletConfigurator}')::int WHEN '${query.is_pendant}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.PendantConfigurator}')::int WHEN '${query.is_earring}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EarringConfigurator}')::int WHEN '${query.is_three_stone}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.ThreeStoneConfigurator}')::int ELSE (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int END AS is_diamond_type, clarities.name AS clarity_name FROM diamond_group_masters AS DGM INNER JOIN clarities ON clarities.id = DGM.id_clarity WHERE CASE WHEN '${query.is_config}' = '1' THEN  DGM.is_config = '1' WHEN '${query.is_three_stone}' = '1' THEN DGM.is_three_stone = '1' WHEN '${query.is_band}' = '1' THEN DGM.is_band = '1' WHEN '${query.is_bracelet}' = '1' THEN DGM.is_bracelet = '1' WHEN '${query.is_pendant}' = '1' THEN DGM.is_pendant = '1' WHEN '${query.is_earring}' = '1' THEN DGM.is_earring = '1' ELSE DGM.is_config = '1' END AND  DGM.is_deleted = '0'AND DGM.is_active = '1' GROUP BY DGM.id, clarities.name`,
       { type: QueryTypes.SELECT }
     );
 
-    const colorList = await (req.body.db_connection).query(
-      `SELECT id_color, is_config, CASE WHEN '${query.is_config}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int WHEN '${query.is_band}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EternityBandConfigurator}')::int WHEN '${query.is_bracelet}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.BraceletConfigurator}')::int WHEN '${query.is_pendant}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.PendantConfigurator}')::int WHEN '${query.is_earring}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EarringConfigurator}')::int WHEN '${query.is_three_stone}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.ThreeStoneConfigurator}')::int ELSE (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int END AS is_diamond_type, Colors.name AS color_name FROM diamond_group_masters AS DGM INNER JOIN colors ON Colors.id = DGM.id_color WHERE CASE WHEN '${query.is_config}' = '1' THEN  DGM.is_config = '1' WHEN '${query.is_three_stone}' = '1' THEN DGM.is_three_stone = '1' WHEN '${query.is_band}' = '1' THEN DGM.is_band = '1' WHEN '${query.is_bracelet}' = '1' THEN DGM.is_bracelet = '1' WHEN '${query.is_pendant}' = '1' THEN DGM.is_pendant = '1' WHEN '${query.is_earring}' = '1' THEN DGM.is_earring = '1' ELSE DGM.is_config = '1' END AND  DGM.is_deleted = '0'AND DGM.is_active = '1' AND DGM.company_info_id = ${company_info_id?.data} GROUP BY DGM.id, Colors.name`,
+    const colorList = await dbContext.query(
+      `SELECT id_color, is_config, CASE WHEN '${query.is_config}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int WHEN '${query.is_band}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EternityBandConfigurator}')::int WHEN '${query.is_bracelet}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.BraceletConfigurator}')::int WHEN '${query.is_pendant}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.PendantConfigurator}')::int WHEN '${query.is_earring}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.EarringConfigurator}')::int WHEN '${query.is_three_stone}' = '1' THEN (is_diamond_type::json->> '${ConfiguratorManageKeys.ThreeStoneConfigurator}')::int ELSE (is_diamond_type::json->> '${ConfiguratorManageKeys.RingConfigurator}')::int END AS is_diamond_type, Colors.name AS color_name FROM diamond_group_masters AS DGM INNER JOIN colors ON Colors.id = DGM.id_color WHERE CASE WHEN '${query.is_config}' = '1' THEN  DGM.is_config = '1' WHEN '${query.is_three_stone}' = '1' THEN DGM.is_three_stone = '1' WHEN '${query.is_band}' = '1' THEN DGM.is_band = '1' WHEN '${query.is_bracelet}' = '1' THEN DGM.is_bracelet = '1' WHEN '${query.is_pendant}' = '1' THEN DGM.is_pendant = '1' WHEN '${query.is_earring}' = '1' THEN DGM.is_earring = '1' ELSE DGM.is_config = '1' END AND  DGM.is_deleted = '0'AND DGM.is_active = '1' GROUP BY DGM.id, Colors.name`,
       { type: QueryTypes.SELECT }
     );
 
@@ -1147,13 +1120,8 @@ FROM
 };
 export const publicConfiguratorDropDownData = async (req: Request) => {
   try {
-    const { MMSizeData, StoneData, DiamondCaratSize, DiamondShape, HeadsData, ShanksData, SideSettingStyles, CutsData, Image, SizeData, LengthData, MetalMaster, MetalTone, GoldKarat } = initModels(req);
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
-    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { company_info_id: company_info_id?.data }];
+    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }];
 
     const gemstoneList = await StoneData.findAll({
       where,
@@ -1166,7 +1134,7 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         "gemstone_type",
         [Sequelize.literal("stone_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "stone_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "stone_image", attributes: [], required: false }],
     });
 
     const diamondShapeList = await DiamondShape.findAll({
@@ -1180,11 +1148,11 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         "is_diamond",
         [Sequelize.literal("diamond_shape_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "diamond_shape_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "diamond_shape_image", attributes: [], required: false }],
     });
 
     const caratSizeList = await DiamondCaratSize.findAll({
-      where: [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { is_config: "1" }, { company_info_id: company_info_id?.data }],
+      where: [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { is_config: "1" }],
       attributes: [
         "id",
         "value",
@@ -1194,7 +1162,7 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         "is_diamond_shape",
         [Sequelize.literal("diamond_carat_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "diamond_carat_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "diamond_carat_image", attributes: [], required: false }],
     });
 
     const headList = await HeadsData.findAll({
@@ -1208,7 +1176,7 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         "diamond_shape_id",
         [Sequelize.literal("head_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "head_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "head_image", attributes: [], required: false }],
     });
 
     const shankList = await ShanksData.findAll({
@@ -1221,7 +1189,7 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         "side_setting_id",
         [Sequelize.literal("shank_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "shank_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "shank_image", attributes: [], required: false }],
     });
 
     const sideSettingStyle = await SideSettingStyles.findAll({
@@ -1234,7 +1202,7 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         "id_shank",
         [Sequelize.literal("side_setting_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "side_setting_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+      include: [{ model: Image, as: "side_setting_image", attributes: [], required: false }],
     });
 
     const metal = await MetalMaster.findAll({
@@ -1243,13 +1211,12 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         { is_deleted: DeletedStatus.No },
         { is_config: ConfigStatus.Yes },
         { id: { [Op.ne]: 1 } },
-        { company_info_id: company_info_id?.data },
       ],
       attributes: ["id", ["id", "id_metal"], "name", "slug", "metal_rate"],
     });
 
     const GoldKTList = await GoldKarat.findAll({
-      where: [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { is_config: "1" }, { company_info_id: company_info_id?.data }],
+      where: [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, { is_config: "1" }],
       order: [["name", "ASC"]],
       attributes: [
         "id",
@@ -1276,7 +1243,7 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
         "id_metal",
         [Sequelize.literal("metal_tone_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "metal_tone_image", attributes: [], where: { company_info_id: company_info_id?.data }, required: false }],
+        include: [{ model: Image, as: "metal_tone_image", attributes: [], required: false }],
     });
 
     const cutsList = await CutsData.findAll({
@@ -1306,8 +1273,8 @@ export const publicConfiguratorDropDownData = async (req: Request) => {
     //   ],
     //   attributes: ["id", "size", "slug"],
     // });
-    const colorClarityList = await (req.body.db_connection).query(
-      `SELECT id_color, id_clarity, is_config, is_diamond_type, Colors.name AS color_name, clarities.name AS clarity_name FROM diamond_group_masters AS DGM INNER JOIN colors ON Colors.id = DGM.id_color INNER JOIN clarities ON clarities.id = DGM.id_clarity WHERE DGM.is_config = '1' AND  DGM.is_deleted = '0'AND DGM.is_active = '1' AND DGM.company_info_id=${company_info_id?.data} GROUP BY DGM.id, Colors.name, clarities.name`,
+    const colorClarityList = await dbContext.query(
+      `SELECT id_color, id_clarity, is_config, is_diamond_type, Colors.name AS color_name, clarities.name AS clarity_name FROM diamond_group_masters AS DGM INNER JOIN colors ON Colors.id = DGM.id_color INNER JOIN clarities ON clarities.id = DGM.id_clarity WHERE DGM.is_config = '1' AND  DGM.is_deleted = '0'AND DGM.is_active = '1' GROUP BY DGM.id, Colors.name, clarities.name`,
       { type: QueryTypes.SELECT }
     );
 
@@ -1346,7 +1313,7 @@ export const convertImageToWebpAPI = async (req: Request) => {
     const webpImage = await imageToWebp(req.file?.path, 100);
     const fileStream = fs.readFileSync(webpImage);
     const data = await s3UploadObject(
-      req.body.db_connection,
+      dbContext,
       fileStream,
       `${prefix}.webp`,
       "image/webp",
@@ -1371,11 +1338,6 @@ export const convertImageToWebpAPI = async (req: Request) => {
 export const updateBirthstoneProductTitleSlug = async (req: Request) => {
   const { product_details } = req.body;
   try {
-    const { BirthStoneProduct } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
     for (let index = 0; index < product_details.length; index++) {
       const element = product_details[index];
       const slug = element.name
@@ -1387,7 +1349,7 @@ export const updateBirthstoneProductTitleSlug = async (req: Request) => {
           name: element.name,
           slug: slug,
         },
-        { where: { style_no: element.style_no, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data } }
+        { where: { style_no: element.style_no, is_deleted: DeletedStatus.No } }
       );
     }
 

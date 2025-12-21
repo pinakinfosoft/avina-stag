@@ -3,12 +3,36 @@ import { DeletedStatus, SingleProductType } from "../../utils/app-enumeration";
 import { Op, QueryTypes, Sequelize } from "sequelize";
 import { DEFAULT_STATUS_CODE_SUCCESS } from "../../utils/app-messages";
 import { getCompanyIdBasedOnTheCompanyKey, resSuccess } from "../../utils/shared-functions";
-import { initModels } from "../model/index.model";
+import { ConfigProduct } from "../model/config-product.model";
+import { HeadsData } from "../model/master/attributes/heads.model";
+import { ShanksData } from "../model/master/attributes/shanks.model";
+import { SideSettingStyles } from "../model/master/attributes/side-setting-styles.model";
+import { MetalMaster } from "../model/master/attributes/metal/metal-master.model";
+import { GoldKarat } from "../model/master/attributes/metal/gold-karat.model";
+import { DiamondGroupMaster } from "../model/master/attributes/diamond-group-master.model";
+import { ConfigProductMetals } from "../model/config-product-metal.model";
+import { ConfigProductDiamonds } from "../model/config-product-diamonds.model";
+import { StoneData } from "../model/master/attributes/gemstones.model";
+import { DiamondCaratSize } from "../model/master/attributes/caratSize.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { MMSizeData } from "../model/master/attributes/mmSize.model";
+import { ClarityData } from "../model/master/attributes/clarity.model";
+import { Colors } from "../model/master/attributes/colors.model";
+import { CutsData } from "../model/master/attributes/cuts.model";
+import { ConfigEternityProduct } from "../model/config-eternity-product.model";
+import { ConfigEternityProductMetalDetail } from "../model/config-eternity-product-metals.model";
+import { ConfigEternityProductDiamondDetails } from "../model/config-eternity-product-diamonds.model";
+import { ConfigBraceletProduct } from "../model/config-bracelet-product.model";
+import { ConfigBraceletProductMetals } from "../model/config-bracelet-product-metals.model";
+import { ConfigBraceletProductDiamonds } from "../model/config-bracelet-product-diamond.model";
+import { HookTypeData } from "../model/master/attributes/hook-type.model";
+import { LengthData } from "../model/master/attributes/item-length.model";
+import dbContext from "../../config/db-context";
 
 export const dynamicProductExport = async (req: Request) => {
   try {
   
-    const products = await (req.body.db_connection).query(
+    const products = await dbContext.query(
       `WITH ranked AS (
     SELECT 
         products.id AS product_id,
@@ -61,7 +85,7 @@ export const dynamicProductExport = async (req: Request) => {
 	LEFT JOIN metal_masters AS metal ON metal.id = pmo.id_metal
     LEFT JOIN gold_kts AS karat ON karat.id = pmo.id_karat
 	LEFT JOIN products AS pp ON pp.id = products.parent_id
-    WHERE products.is_deleted = '0' AND products.product_type IN (1,3) AND products.company_info_id = 1
+    WHERE products.is_deleted = '0' AND products.product_type IN (1,3) 
 ),
 diamond_ranked AS (
     SELECT 
@@ -95,7 +119,7 @@ diamond_ranked AS (
     LEFT JOIN colors AS col ON col.id = DGM.id_color
     LEFT JOIN clarities AS cla ON cla.id = DGM.id_clarity
     LEFT JOIN cuts AS cut ON cut.id = DGM.id_cuts
-    WHERE products.is_deleted = '0' AND products.product_type IN (1,3) AND products.company_info_id = 1
+    WHERE products.is_deleted = '0' AND products.product_type IN (1,3) 
 ),
 diamond_totals AS (
     SELECT 
@@ -113,7 +137,7 @@ diamond_totals AS (
         ON DGM.id = pdo.id_diamond_group
     WHERE products.is_deleted = '0' 
       AND products.product_type IN (1,3) 
-      AND products.company_info_id = 1
+      
     GROUP BY products.id
 )
 
@@ -181,7 +205,7 @@ ORDER BY r.product_id, r.pmrn`,
 export const variantProductExport = async (req: Request) => {
   try {
 
-    const products = await (req.body.db_connection).query(
+    const products = await dbContext.query(
       `WITH ranked AS (
     SELECT 
         products.id AS product_id,
@@ -237,7 +261,7 @@ export const variantProductExport = async (req: Request) => {
     LEFT JOIN gold_kts AS karat ON karat.id = pmo.id_karat
 	LEFT JOIN brands as brand ON brand.id = products.id_brand
 	LEFT JOIN metal_tones as metal_tone ON metal_tone.id = PMO.id_m_tone
-    WHERE products.is_deleted = '${DeletedStatus.No}' AND products.product_type = ${SingleProductType.VariantType} AND products.company_info_id = ${req?.body?.session_res?.client_id}
+    WHERE products.is_deleted = '${DeletedStatus.No}' AND products.product_type = ${SingleProductType.VariantType} 
 ),
 diamond_ranked AS (
     SELECT 
@@ -269,7 +293,7 @@ diamond_ranked AS (
     LEFT JOIN colors AS col ON col.id = PDO.id_color
     LEFT JOIN clarities AS cla ON cla.id = PDO.id_clarity
     LEFT JOIN cuts AS cut ON cut.id = PDO.id_cut
-    WHERE products.is_deleted = '${DeletedStatus.No}' AND products.product_type = ${SingleProductType.VariantType} AND products.company_info_id = ${req?.body?.session_res?.client_id}
+    WHERE products.is_deleted = '${DeletedStatus.No}' AND products.product_type = ${SingleProductType.VariantType} 
 ) 
 SELECT 
   CASE WHEN r.meta_title IS NOT NULL THEN r.meta_title ELSE '' END AS meta_title,
@@ -331,9 +355,8 @@ ORDER BY r.product_id, r.pmrn`,
 
 export const ringConfiguratorProductExport = async (req: Request) => {
   try {
-    const {ConfigProduct,HeadsData, ShanksData,SideSettingStyles, MetalMaster, GoldKarat, DiamondGroupMaster, ConfigProductMetals, ConfigProductDiamonds, StoneData, DiamondCaratSize, DiamondShape, MMSizeData, ClarityData, Colors, CutsData} = initModels(req);
 
-    const products = await req.body.db_connection.query(
+    const products = await dbContext.query(
       `WITH ranked AS (
     SELECT 
         config_products.id AS product_id,
@@ -398,7 +421,7 @@ export const ringConfiguratorProductExport = async (req: Request) => {
 	LEFT JOIN cuts as cut ON cut.id = CDGM.id_cuts
 	LEFT JOIN metal_masters AS metal ON metal.id = pmo.metal_id
     LEFT JOIN gold_kts AS karat ON karat.id = pmo.karat_id
-    WHERE config_products.is_deleted = '0' AND config_products.product_type ILIKE 'Ring' AND config_products.company_info_id = 1
+    WHERE config_products.is_deleted = '0' AND config_products.product_type ILIKE 'Ring' 
 ),
 diamond_ranked AS (
     SELECT 
@@ -426,7 +449,7 @@ diamond_ranked AS (
     LEFT JOIN colors AS col ON col.id = DGM.id_color
     LEFT JOIN clarities AS cla ON cla.id = DGM.id_clarity
     LEFT JOIN cuts AS cut ON cut.id = DGM.id_cuts
-     WHERE config_products.is_deleted = '0' AND config_products.product_type ILIKE 'Ring' AND config_products.company_info_id = 1
+     WHERE config_products.is_deleted = '0' AND config_products.product_type ILIKE 'Ring' 
 ),
 product_price AS (
     SELECT 
@@ -447,7 +470,7 @@ product_price AS (
         AND PDO.is_deleted = '0'
     INNER JOIN diamond_group_masters AS DGM 
         ON DGM.id = pdo.id_diamond_group
-   WHERE products.is_deleted = '0' AND products.product_type ILIKE 'Ring' AND products.company_info_id = 1
+   WHERE products.is_deleted = '0' AND products.product_type ILIKE 'Ring' 
     GROUP BY products.id
 ) 
 SELECT 
@@ -515,17 +538,10 @@ ORDER BY r.product_id, r.pmrn`, {type: QueryTypes.SELECT}
 
 export const threeStoneConfiguratorProductExport = async (req: Request) => {
   try {
-        const {ConfigProduct,HeadsData, ShanksData,SideSettingStyles, MetalMaster, GoldKarat, DiamondGroupMaster, ConfigProductMetals, ConfigProductDiamonds, StoneData, DiamondCaratSize, DiamondShape, MMSizeData, ClarityData, Colors, CutsData} = initModels(req);
-
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const products = await ConfigProduct.findAll({
       where: [
         { is_deleted: DeletedStatus.No },
         { product_type: { [Op.iLike]: "%three stone%" } },
-        {company_info_id:company_info_id?.data},
       ], 
       attributes: [
         "id",
@@ -562,24 +578,20 @@ export const threeStoneConfiguratorProductExport = async (req: Request) => {
           model: HeadsData,
           as: "heads",
           attributes: ["name"],
-          where:{ company_info_id:company_info_id?.data},required:false,
         },
         {
           model: ShanksData,
           as: "shanks",
           attributes: ["name"],
-          where:{ company_info_id:company_info_id?.data},required:false
         },
         {
           model: SideSettingStyles,
           as: "side_setting",
           attributes: ["name"],
-          where:{ company_info_id:company_info_id?.data},required:false
         },
         {
           model: DiamondGroupMaster,
           as: "cender_diamond",
-          where:{ company_info_id:company_info_id?.data},required:false,
           attributes: [
             "id",
             [
@@ -616,49 +628,42 @@ export const threeStoneConfiguratorProductExport = async (req: Request) => {
               model: StoneData,
               as: "stones",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false
             },
             {
               model: DiamondShape,
               as: "shapes",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false
             },
             {
               model: MMSizeData,
               as: "mm_size",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false
             },
             {
               model: ClarityData,
               as: "clarity",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false
             },
             {
               model: Colors,
               as: "colors",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false
             },
             {
               model: CutsData,
               as: "cuts",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false
             },
             {
               model: DiamondCaratSize,
               as: "carats",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false
             },
           ],
         },
         {
           model: ConfigProductMetals,
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
           as: "CPMO",
           attributes: [
             "id",
@@ -675,20 +680,17 @@ export const threeStoneConfiguratorProductExport = async (req: Request) => {
               model: MetalMaster,
               as: "metal",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
             },
             {
               model: GoldKarat,
               as: "karat",
-              attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              attributes: [],   
             },
           ],
         },
         {
           model: ConfigProductDiamonds,
           as: "CPDO",
-          where:{ company_info_id:company_info_id?.data},required:false,
           attributes: [
             "id",
             "product_type",
@@ -714,37 +716,34 @@ export const threeStoneConfiguratorProductExport = async (req: Request) => {
               model: StoneData,
               as: "stone",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
             },
             {
               model: DiamondShape,
               as: "shape",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
             },
             {
               model: MMSizeData,
               as: "mm_size",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
             },
             {
               model: ClarityData,
               as: "clarity",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: Colors,
               as: "color",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: CutsData,
               as: "cuts",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
           ],
         },
@@ -759,18 +758,12 @@ export const threeStoneConfiguratorProductExport = async (req: Request) => {
 
 export const eternityBandConfiguratorProductExport = async (req: Request) => {
   try {
-        const {ConfigEternityProduct,SideSettingStyles, MetalMaster, GoldKarat, DiamondGroupMaster, ConfigEternityProductMetalDetail, ConfigEternityProductDiamondDetails, StoneData, DiamondCaratSize, DiamondShape, MMSizeData, ClarityData, Colors, CutsData} = initModels(req);
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const products = await ConfigEternityProduct.findAll({
       order: [["id", "ASC"]],
       where: {
         is_deleted: DeletedStatus.No,
         product_type: { [Op.iLike]: "%Eternity Band%" },
-        company_info_id:company_info_id?.data,
       },
       attributes: [
         "id",
@@ -834,55 +827,55 @@ export const eternityBandConfiguratorProductExport = async (req: Request) => {
           model: SideSettingStyles,
           as: "side_setting",
           attributes: [],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
         },
         {
           model: DiamondGroupMaster,
           as: "DiamondGroupMaster",
           attributes: [],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
           include: [
             {
               model: StoneData,
               as: "stones",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: DiamondShape,
               as: "shapes",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: MMSizeData,
               as: "mm_size",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: ClarityData,
               as: "clarity",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: Colors,
               as: "colors",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: CutsData,
               as: "cuts",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: DiamondCaratSize,
               as: "carats",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
           ],
         },
@@ -890,19 +883,19 @@ export const eternityBandConfiguratorProductExport = async (req: Request) => {
           model: ConfigEternityProductMetalDetail,
           as: "metal",
           attributes: [],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
           include: [
             {
               model: MetalMaster,
               as: "MetalMaster",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: GoldKarat,
               as: "KaratMaster",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
           ],
         },
@@ -910,43 +903,43 @@ export const eternityBandConfiguratorProductExport = async (req: Request) => {
           model: ConfigEternityProductDiamondDetails,
           as: "diamonds",
           attributes: [],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
           include: [
             {
               model: StoneData,
               as: "stone",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: DiamondShape,
               as: "shape",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: ClarityData,
               as: "clarity",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: Colors,
               as: "color",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: CutsData,
               as: "cuts",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: DiamondCaratSize,
               as: "carat",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
           ],
         },
@@ -961,17 +954,11 @@ export const eternityBandConfiguratorProductExport = async (req: Request) => {
 
 export const braceletConfiguratorProductExport = async (req: Request) => {
   try {
-    const { ConfigBraceletProduct, SideSettingStyles, HookTypeData, LengthData, MetalMaster, GoldKarat,MMSizeData,
-      ConfigBraceletProductMetals, ConfigBraceletProductDiamonds, DiamondCaratSize, StoneData,DiamondShape, Colors, ClarityData, CutsData } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     const products = await ConfigBraceletProduct.findAll({
       order: [["id", "ASC"]],
       where: {
         is_deleted: DeletedStatus.No,
-        company_info_id:company_info_id?.data,
       },
       attributes: [
         "id",
@@ -995,30 +982,30 @@ export const braceletConfiguratorProductExport = async (req: Request) => {
           model: SideSettingStyles,
           as: "side_setting",
           attributes: ["name"],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
         },
         {
           model: HookTypeData,
           as: "hook",
           attributes: ["name"],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
         },
         {
           model: LengthData,
           as: "length",
           attributes: ["length"],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
         },
         {
           model: DiamondCaratSize,
           as: "diamond_total_wt",
           attributes: ["value"],
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
         },
         {
           model: ConfigBraceletProductMetals,
           as: "config_product_metal_details",
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
           attributes: [
             "id",
             "id_metal",
@@ -1043,20 +1030,20 @@ export const braceletConfiguratorProductExport = async (req: Request) => {
               model: MetalMaster,
               as: "metal_detail",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: GoldKarat,
               as: "karat_detail",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
           ],
         },
         {
           model: ConfigBraceletProductDiamonds,
           as: "config_product_diamond_details",
-          where:{ company_info_id:company_info_id?.data},required:false,
+          
           attributes: [
             "id",
             "id_stone",
@@ -1110,37 +1097,37 @@ export const braceletConfiguratorProductExport = async (req: Request) => {
               model: StoneData,
               as: "stone",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: DiamondShape,
               as: "shape",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: Colors,
               as: "color",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: ClarityData,
               as: "clarity",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: MMSizeData,
               as: "mm_size",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
             {
               model: CutsData,
               as: "cuts",
               attributes: [],
-              where:{ company_info_id:company_info_id?.data},required:false,
+              
             },
           ],
         },

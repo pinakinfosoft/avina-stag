@@ -21,12 +21,11 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../utils/shared-functions";
-import { initModels } from "../../model/index.model";
+import { CityData } from "../../model/master/city.model";
 
 export const addCity = async (req: Request) => {
   const { name, code, state_id } = req.body;
   try {
-    const {CityData} = initModels(req);
     const payload = {
       city_name: name,
       city_code: code,
@@ -35,14 +34,14 @@ export const addCity = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findSortCode = await  CityData.findOne({
       where: [
         columnValueLowerCase("city_code", code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -50,7 +49,7 @@ export const addCity = async (req: Request) => {
       where: [
         columnValueLowerCase("city_name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -63,7 +62,7 @@ export const addCity = async (req: Request) => {
     }
     
     const cityData = await  CityData.create(payload);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         city_id: cityData?.dataValues?.id, data: {
@@ -80,7 +79,6 @@ export const addCity = async (req: Request) => {
 export const getAllCity = async (req: Request) => {
   try {
     let paginationProps = {};
-    const {CityData} = initModels(req);
 
     let pagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -90,8 +88,8 @@ export const getAllCity = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -99,7 +97,7 @@ export const getAllCity = async (req: Request) => {
               { city_code: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -141,10 +139,9 @@ export const getAllCity = async (req: Request) => {
 
 export const getByIdCity = async (req: Request) => {
   try {
-    const {CityData} = initModels(req);
 
     const city = await  CityData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(city && city.dataValues)) {
@@ -158,12 +155,11 @@ export const getByIdCity = async (req: Request) => {
 
 export const updateCity = async (req: Request) => {
   try {
-    const {CityData} = initModels(req);
 
     const { name, code, state_id } = req.body;
     const id = req.params.id;
     const findCity = await  CityData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCity && findCity.dataValues)) {
       return resNotFound();
@@ -174,7 +170,7 @@ export const updateCity = async (req: Request) => {
         columnValueLowerCase("city_code", code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     const findName = await  CityData.findOne({
@@ -182,7 +178,7 @@ export const updateCity = async (req: Request) => {
         columnValueLowerCase("city_name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -201,14 +197,14 @@ export const updateCity = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
     if (updateCity) {
       const cityData = await  CityData.findOne({
-        where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id: id, is_deleted: DeletedStatus.No, },
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { city_id: findCity?.dataValues?.id, data: {...findCity?.dataValues} },
         new_data: {
           city_id: cityData?.dataValues?.id, data: { ...cityData?.dataValues }
@@ -224,10 +220,9 @@ export const updateCity = async (req: Request) => {
 
 export const deleteCity = async (req: Request) => {
   try {
-    const {CityData} = initModels(req);
 
     const findCity = await  CityData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCity && findCity.dataValues)) {
@@ -239,9 +234,9 @@ export const deleteCity = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findCity.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCity.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { city_id: findCity?.dataValues?.id, data: {...findCity?.dataValues} },
       new_data: {
         city_id: findCity?.dataValues?.id, data: {
@@ -261,10 +256,9 @@ export const deleteCity = async (req: Request) => {
 
 export const statusUpdateForCity = async (req: Request) => {
   try {
-    const {CityData} = initModels(req);
 
     const findCity = await  CityData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCity && findCity.dataValues)) {
       return resNotFound();
@@ -275,9 +269,9 @@ export const statusUpdateForCity = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findCity.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCity.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { city_id: findCity?.dataValues?.id, data: {...findCity?.dataValues} },
       new_data: {
         city_id: findCity?.dataValues?.id, data: {

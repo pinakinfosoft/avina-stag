@@ -26,18 +26,19 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../utils/shared-functions";
-import { initModels } from "../../../model/index.model";
+import { ShanksData } from "../../../model/master/attributes/shanks.model";
+import { Image } from "../../../model/image.model";
+import dbContext from "../../../../config/db-context";
 
 export const addShank = async (req: Request) => {
   try {
-    const {ShanksData} = initModels(req);
     const { name, sort_code } = req.body;
     const slug = createSlug(name);
     const findName = await ShanksData.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -45,7 +46,7 @@ export const addShank = async (req: Request) => {
       where: [
         columnValueLowerCase("sort_code", sort_code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -54,16 +55,16 @@ export const addShank = async (req: Request) => {
     ) {
       return resErrorDataExit();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let idImage = null;
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.shanks,
           req.body.session_res.id_app_user,
           "",
-          req?.body?.session_res?.client_id
+          
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           trn.rollback();
@@ -77,14 +78,14 @@ export const addShank = async (req: Request) => {
         sort_code: sort_code,
         created_date: getLocalDate(),
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
+        
         id_image: idImage,
         is_active: ActiveStatus.Active,
         is_deleted: DeletedStatus.No,
       };
 
       const shank = await ShanksData.create(payload, { transaction: trn });
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           shank_id: shank?.dataValues?.id, data: {
@@ -106,7 +107,6 @@ export const addShank = async (req: Request) => {
 
 export const getShanks = async (req: Request) => {
   try {
-    const {ShanksData,Image} = initModels(req);
 
     let paginationProps = {};
 
@@ -118,8 +118,8 @@ export const getShanks = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -127,7 +127,7 @@ export const getShanks = async (req: Request) => {
               { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -167,7 +167,7 @@ export const getShanks = async (req: Request) => {
         [Sequelize.literal("shank_image.image_path"), "image_path"],
         "is_active",
       ],
-      include: [{ model: Image, as: "shank_image", attributes: [], where: {company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "shank_image", attributes: [], required:false }],
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -178,9 +178,8 @@ export const getShanks = async (req: Request) => {
 
 export const getByIdShank = async (req: Request) => {
   try {
-    const {ShanksData,Image} = initModels(req);
     const findShank = await ShanksData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
       attributes: [
         "id",
         "name",
@@ -199,7 +198,7 @@ export const getByIdShank = async (req: Request) => {
         "is_active",
         "created_by",
       ],
-      include: [{ model: Image, as: "shank_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "shank_image", attributes: [],required:false }],
     });
 
     if (!(findShank && findShank.dataValues)) {
@@ -214,12 +213,11 @@ export const getByIdShank = async (req: Request) => {
 
 export const updateShank = async (req: Request) => {
   try {
-    const {ShanksData,Image} = initModels(req);
     const { name, sort_code, image_delete = "0" } = req.body;
     const id = req.params.id;
     const slug = createSlug(name);
     const findShank = await ShanksData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findShank && findShank.dataValues)) {
       return resNotFound();
@@ -229,7 +227,7 @@ export const updateShank = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -238,7 +236,7 @@ export const updateShank = async (req: Request) => {
         columnValueLowerCase("sort_code", sort_code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -247,23 +245,23 @@ export const updateShank = async (req: Request) => {
     ) {
       return resNotFound();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findShank.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findShank.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: findShank.dataValues.id_image, },
           transaction: trn,
         });
       }
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.shanks,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
+          
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -286,19 +284,19 @@ export const updateShank = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
         },
         {
-          where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: id, is_deleted: DeletedStatus.No, },
           transaction: trn,
         }
       );
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage);
       }
 
       const AfterUpdatefindShank = await ShanksData.findOne({
         where: { id: id, is_deleted: DeletedStatus.No },
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { shank_id: findShank?.dataValues?.id, data: {...findShank?.dataValues} },
         new_data: {
           shank_id: AfterUpdatefindShank?.dataValues?.id, data: { ...AfterUpdatefindShank?.dataValues }
@@ -319,9 +317,8 @@ export const updateShank = async (req: Request) => {
 
 export const deleteShank = async (req: Request) => {
   try {
-    const {ShanksData} = initModels(req);
     const findShank = await ShanksData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findShank && findShank.dataValues)) {
@@ -333,10 +330,10 @@ export const deleteShank = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findShank.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findShank.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { shank_id: findShank?.dataValues?.id, data: {...findShank?.dataValues} },
       new_data: {
         shank_id: findShank?.dataValues?.id, data: {
@@ -356,7 +353,6 @@ export const deleteShank = async (req: Request) => {
 
 export const statusUpdateForShank = async (req: Request) => {
   try {
-    const {ShanksData} = initModels(req);
     const findShank = await ShanksData.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
@@ -369,10 +365,10 @@ export const statusUpdateForShank = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findShank.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findShank.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { shank_id: findShank?.dataValues?.id, data: {...findShank?.dataValues }},
       new_data: {
         shank_id: findShank?.dataValues?.id, data: {

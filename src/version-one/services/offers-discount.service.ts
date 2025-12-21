@@ -4,13 +4,21 @@ import { combineDateTime, ensureArray, getInitialPaginationFromQuery, getLocalDa
 import { BigInt, condition, DaysOfWeek, DeletedStatus, discount_based_on, offerMethod, offerType, product_type } from "../../utils/app-enumeration";
 import { Op, QueryTypes } from "sequelize";
 import { COUPONCODEREGEX } from "../../utils/app-constants";
-import { initModels } from "../model/index.model";
+import { Offers } from "../model/offer-discount/offer.model";
+import { OfferDetails } from "../model/offer-discount/offer-detail.model";
+import { Product } from "../model/product.model";
+import { ProductCategory } from "../model/product-category.model";
+import { Collection } from "../model/master/attributes/collection.model";
+import { SettingTypeData } from "../model/master/attributes/settingType.model";
+import { Tag } from "../model/master/attributes/tag.model";
+import { LookBook } from "../model/offer-discount/look-book.model";
+import { OfferEligibleCustomers } from "../model/offer-discount/offers-eligible-customer.model";
+import dbContext from "../../config/db-context";
 
 export const  generateCouponCode = async(req:Request) => {
   let length = 8;
   req?.body?.length? length =req?.body?.length :"";
   try {
-    const { Offers } = initModels(req);
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'; // Uppercase letters and digits
     let couponCode = '';
     for (let i = 0; i < length; i++) {
@@ -19,7 +27,7 @@ export const  generateCouponCode = async(req:Request) => {
     }
 
     // Query the database with the dynamically built whereConditions
-    const offers = await Offers.findOne({ where: {coupon_code : couponCode,company_info_id : req?.body?.session_res?.client_id } });
+    const offers = await Offers.findOne({ where: {coupon_code : couponCode } });
     
     if(offers){
       generateCouponCode(req);
@@ -131,7 +139,6 @@ export const handleDateValidation = (
 export const handleOfferCreationOrUpdate = async (req: Request, isEdit: boolean = false) => {
   let trn;
     try {
-      const { Offers} = initModels(req)
     const {
       offer_type,
       offer_name,
@@ -175,7 +182,7 @@ export const handleOfferCreationOrUpdate = async (req: Request, isEdit: boolean 
     } = req.body;
     const image = req.file;
     let idImage: number | null | any = null;
-    trn = await (req.body.db_connection).transaction();
+    trn = await dbContext.transaction();
 
     const methodResult = validateEnumValue(offerMethod, method,'method');
       if (methodResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -205,7 +212,6 @@ export const handleOfferCreationOrUpdate = async (req: Request, isEdit: boolean 
       const whereConditions:any = {
         is_deleted: DeletedStatus.No,
         coupon_code: coupon_code,
-        company_info_id: req?.body?.session_res?.client_id
       };
 
       // Add the offer_id condition dynamically if it's provided
@@ -284,7 +290,7 @@ export const handleOfferCreationOrUpdate = async (req: Request, isEdit: boolean 
       const offerId = req.params.offer_id; // Assuming offer ID is passed in params for editing
       offer = await Offers.findByPk(offerId);
 
-      if (!offer || (offer && offer.is_deleted == DeletedStatus.yes) || (offer && offer.company_info_id != req?.body?.session_res?.client_id)) {
+      if (!offer || (offer && offer.is_deleted == DeletedStatus.yes)) {
       await trn.rollback();
         return resNotFound({ message: "Offer not found." });
       }
@@ -369,7 +375,6 @@ export const handleOfferCreationOrUpdate = async (req: Request, isEdit: boolean 
         created_by: req?.body?.session_res?.id_app_user,
         created_at: getLocalDate(),
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id
       }, { transaction: trn });
     }
 
@@ -535,7 +540,6 @@ export const handleOfferDetails = async (
    if (!OfferDetailsData) {
     return resSuccess();
     }
-    const {OfferDetails} = initModels(req);
   for (const OfferDetailData of OfferDetailsData) {
     OfferDetailData.condition = condition
     // Destructure all the relevant fields from OfferDetailData
@@ -552,7 +556,7 @@ export const handleOfferDetails = async (
     } = OfferDetailData;
     OfferDetailData
     // Validate offer details before proceeding
-    const validationError = await validateOfferDetails(OfferDetailData, { dataValues: { id: offer_id, company_info_id: req.body?.session_res?.client_id } }, trn, req);
+    const validationError = await validateOfferDetails(OfferDetailData, { dataValues: { id: offer_id } }, trn, req);
     if (validationError) {
       return validationError;  // Return validation error if any
     }
@@ -602,7 +606,7 @@ export const handleOfferDetails = async (
 
     // Check if the offer detail already exists in the database
     const existingDetail: any = await OfferDetails.findOne({
-      where: {...whereClause, company_info_id: req.body?.session_res?.client_id },
+      where: {...whereClause },
       transaction: trn,
     });
 
@@ -646,7 +650,6 @@ export const handleOfferDetails = async (
           offer_id,
           created_by: req?.body?.session_res?.id_app_user,
           created_at: getLocalDate(),
-          company_info_id: req.body?.session_res?.client_id
         },
         { transaction: trn }
       );
@@ -672,10 +675,9 @@ export const validateOfferDetails = async (
     min_price,
     max_price,
   } = OfferDetailData;
-  const { Product, ProductCategory, Collection, SettingTypeData, Tag, LookBook,  OfferDetails } = initModels(req);
   // Validate individual fields and return error if not found
   if (product_id) {
-    const productData = await Product.findOne({ where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: req.body?.session_res?.client_id } });
+    const productData = await Product.findOne({ where: { id: product_id, is_deleted: DeletedStatus.No } });
     if (!productData) {
       return resNotFound({ message: `Product not found with Id: ${product_id}` });
     }
@@ -689,28 +691,28 @@ export const validateOfferDetails = async (
   }
 
   if (collection_id) {
-    const collectionData = await Collection.findOne({ where: { id: collection_id, is_deleted: DeletedStatus.No, company_info_id: req.body?.session_res?.client_id } });
+    const collectionData = await Collection.findOne({ where: { id: collection_id, is_deleted: DeletedStatus.No } });
     if (!collectionData) {
       return resNotFound({ message: `Collection not found with Id: ${collection_id}` });
     }
   }
 
   if (style_id) {
-    const styleData = await SettingTypeData.findOne({ where: { id: style_id, is_deleted: DeletedStatus.No, company_info_id: req.body?.session_res?.client_id } });
+    const styleData = await SettingTypeData.findOne({ where: { id: style_id, is_deleted: DeletedStatus.No } });
     if (!styleData) {
       return resNotFound({ message: `Style not found with Id: ${style_id}` });
     }
   }
 
   if (event_id) {
-    const eventData = await Tag.findOne({ where: { id: event_id, is_deleted: DeletedStatus.No, company_info_id: req.body?.session_res?.client_id } });
+    const eventData = await Tag.findOne({ where: { id: event_id, is_deleted: DeletedStatus.No } });
     if (!eventData) {
       return resNotFound({ message: `Event not found with Id: ${event_id}` });
     }
   }
 
   if (lookbook_id) {
-    const lookBookData = await LookBook.findOne({ where: { id: lookbook_id, is_deleted: DeletedStatus.No, company_info_id: req.body?.session_res?.client_id } });
+    const lookBookData = await LookBook.findOne({ where: { id: lookbook_id, is_deleted: DeletedStatus.No } });
     if (!lookBookData) {
       return resNotFound({ message: `LookBook not found with Id: ${lookbook_id}` });
     }
@@ -734,7 +736,6 @@ export const validateOfferDetails = async (
   if (min_price !== null || max_price !== null) {
     const existingOffer = await OfferDetails.findOne({
       where: {
-        company_info_id: req.body?.session_res?.client_id,
         offer_id: offers?.dataValues?.id,
         ...(min_price !== null && max_price !== null && {
           [Op.or]: [
@@ -766,7 +767,6 @@ export const handleEligibleCustomers = async (
 ) => {
   try {
     const { specific_user_segments, user_segments, specific_user, user_ids } = data;
-    const { OfferEligibleCustomers } = initModels(req);
     const OfferEligibleCustomersData: any[] = []; // Array to hold all the records to be created
 
     // Process specific_user_segments
@@ -774,7 +774,7 @@ export const handleEligibleCustomers = async (
       for (const segment of user_segments) {
         // Check if the segment exists in the database
         const existingSegment = await OfferEligibleCustomers.findOne({
-          where: { offer_id, user_segment: segment, company_info_id: req.body?.session_res?.client_id },
+          where: { offer_id, user_segment: segment },
           transaction: trn,
         });
 
@@ -798,7 +798,7 @@ export const handleEligibleCustomers = async (
       for (const user of user_ids) {
         // Check if the user exists in the database
         const existingUser = await OfferEligibleCustomers.findOne({
-          where: { offer_id, user_id: user, company_info_id: req.body?.session_res?.client_id },
+          where: { offer_id, user_id: user },
           transaction: trn,
         });
 
@@ -820,7 +820,7 @@ export const handleEligibleCustomers = async (
     // Mark existing data as deleted if not present in the request body
     if ((specific_user_segments && user_segments) || (specific_user && user_ids)) {
       const existingEligibleCustomers: any = await OfferEligibleCustomers.findAll({
-        where: { offer_id, is_deleted: DeletedStatus.No, company_info_id: req.body?.session_res?.client_id },
+        where: { offer_id, is_deleted: DeletedStatus.No },
         transaction: trn,
       });
 
@@ -858,7 +858,7 @@ export const getAllOfferAndDiscount = async (req: Request) => {
     const pagination = getInitialPaginationFromQuery(req.query);
 
     // Initialize the base where condition for filtering offers
-    let whereCondition = `offers.is_deleted = '${DeletedStatus.No}' AND offers.id != 0 AND offers.company_info_id = ${req.body?.session_res?.client_id}`;
+    let whereCondition = `offers.is_deleted = '${DeletedStatus.No}' AND offers.id != 0`;
 
     // Apply filter for active status if provided
     if (pagination.is_active) {
@@ -1038,7 +1038,7 @@ export const getAllOfferAndDiscount = async (req: Request) => {
     `;
 
     // Execute the query with dynamic replacements
-    const result: any = await (req.body.db_connection).query(query, {
+    const result: any = await dbContext.query(query, {
       replacements: {
         is_active: pagination.is_active || null,
         search_text: `%${pagination.search_text}%`, // Wrap search text with `%` for partial matches
@@ -1073,9 +1073,8 @@ export const getAllOfferAndDiscount = async (req: Request) => {
 
 export const deleteOfferAndDiscount = async (req: Request) => {
   try {
-    const { Offers } = initModels(req);
     const offerData = await Offers.findOne({
-      where: { id: req.params.offer_id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.params.offer_id, is_deleted: DeletedStatus.No },
     });
 
     if (!(offerData && offerData.dataValues)) {
@@ -1101,10 +1100,9 @@ export const deleteOfferAndDiscount = async (req: Request) => {
 export const changeStatusOfferAndDiscount = async (req: Request) => {
   try {
     const { is_active } = req.body
-    const { Offers } = initModels(req);
 
     const offerData = await Offers.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(offerData && offerData.dataValues)) {

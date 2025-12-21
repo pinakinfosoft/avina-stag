@@ -22,11 +22,10 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../utils/shared-functions";
-import { initModels } from "../../../model/index.model";
+import { SettingCaratWeight } from "../../../model/master/attributes/settingCaratWeight.model";
 
 export const addSettingCaratWeight = async (req: Request) => {
   try {
-    const {SettingCaratWeight} = initModels(req);
     const { value } = req.body;
     const slug = createSlug(value);
     const payload = {
@@ -36,14 +35,14 @@ export const addSettingCaratWeight = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findValue = await SettingCaratWeight.findOne({
       where: [
         columnValueLowerCase("value", value),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (findValue && findValue.dataValues) {
@@ -51,7 +50,7 @@ export const addSettingCaratWeight = async (req: Request) => {
     }
 
     const settionCaratWeight = await SettingCaratWeight.create(payload);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         setting_carat_weight_id: settionCaratWeight?.dataValues?.id, data: {
@@ -68,7 +67,6 @@ export const addSettingCaratWeight = async (req: Request) => {
 
 export const getSettingCaratWeight = async (req: Request) => {
   try {
-    const {SettingCaratWeight} = initModels(req);
 
     let paginationProps = {};
 
@@ -80,8 +78,8 @@ export const getSettingCaratWeight = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -89,7 +87,8 @@ export const getSettingCaratWeight = async (req: Request) => {
               { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
+
     ];
 
     if (!noPagination) {
@@ -124,10 +123,9 @@ export const getSettingCaratWeight = async (req: Request) => {
 
 export const getByIdSettingCaratWeight = async (req: Request) => {
   try {
-    const {SettingCaratWeight} = initModels(req);
 
     const findSettingCaratWeight = await SettingCaratWeight.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findSettingCaratWeight && findSettingCaratWeight.dataValues)) {
@@ -141,13 +139,12 @@ export const getByIdSettingCaratWeight = async (req: Request) => {
 
 export const updateSettingCaratWeight = async (req: Request) => {
   try {
-    const {SettingCaratWeight} = initModels(req);
 
     const { value } = req.body;
     const id = req.params.id;
     const slug = createSlug(value);
     const findSetting = await SettingCaratWeight.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findSetting && findSetting.dataValues)) {
       return resNotFound();
@@ -158,7 +155,7 @@ export const updateSettingCaratWeight = async (req: Request) => {
         columnValueLowerCase("value", value),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        { company_info_id :req?.body?.session_res?.client_id },
+        {  },
       ],
     });
     if (findValue && findValue.dataValues) {
@@ -172,13 +169,13 @@ export const updateSettingCaratWeight = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No, company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No,  } }
     );
     const afterUpdatefindSetting = await SettingCaratWeight.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { setting_carat_weight_id: findSetting?.dataValues?.id, data: {...findSetting?.dataValues }},
       new_data: {
         setting_carat_weight_id: afterUpdatefindSetting?.dataValues?.id, data: {...afterUpdatefindSetting?.dataValues }
@@ -193,10 +190,9 @@ export const updateSettingCaratWeight = async (req: Request) => {
 
 export const deleteSettingCaratWeight = async (req: Request) => {
   try {
-    const {SettingCaratWeight} = initModels(req);
 
     const findSetting = await SettingCaratWeight.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findSetting && findSetting.dataValues)) {
@@ -208,10 +204,10 @@ export const deleteSettingCaratWeight = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findSetting.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSetting.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { setting_carat_weight_id: findSetting?.dataValues?.id, data: {...findSetting?.dataValues} },
       new_data: {
         setting_carat_weight_id: findSetting?.dataValues?.id, data: {
@@ -231,10 +227,9 @@ export const deleteSettingCaratWeight = async (req: Request) => {
 
 export const statusUpdateForSettingCaratWeight = async (req: Request) => {
   try {
-    const {SettingCaratWeight} = initModels(req);
 
     const findSetting = await SettingCaratWeight.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findSetting && findSetting.dataValues)) {
       return resNotFound();
@@ -246,10 +241,10 @@ export const statusUpdateForSettingCaratWeight = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findSetting.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSetting.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { setting_carat_weight_id: findSetting?.dataValues?.id, data: {...findSetting?.dataValues} },
       new_data: {
         setting_carat_weight_id: findSetting?.dataValues?.id, data: {

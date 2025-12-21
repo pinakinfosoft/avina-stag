@@ -21,11 +21,10 @@ import {
   RECORD_DELETE_SUCCESSFULLY,
   RECORD_UPDATE_SUCCESSFULLY,
 } from "../../../utils/app-messages";
-import { initModels } from "../../model/index.model";
+import { TaxMaster } from "../../model/master/tax.model";
 
 export const addTaxData = async (req: Request) => {
   try {
-    const { TaxMaster} = initModels(req);
     const { name, rate } = req.body;
     const slug = name.replaceAll(" ", "-").replaceAll(/['/|]/g, "-");
     const payload = {
@@ -36,14 +35,14 @@ export const addTaxData = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findName = await TaxMaster.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -52,7 +51,7 @@ export const addTaxData = async (req: Request) => {
     }
     const tax = await TaxMaster.create(payload);
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         tax_id: tax?.dataValues?.id, data: {
@@ -70,7 +69,6 @@ export const addTaxData = async (req: Request) => {
 export const getAllTaxData = async (req: Request) => {
   try {
     let paginationProps = {};
-    const { TaxMaster} = initModels(req);
 
     let pagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -80,15 +78,15 @@ export const getAllTaxData = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
               { name: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -123,10 +121,9 @@ export const getAllTaxData = async (req: Request) => {
 
 export const getByIdTax = async (req: Request) => {
   try {
-    const { TaxMaster} = initModels(req);
 
     const findTaxData = await TaxMaster.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findTaxData && findTaxData.dataValues)) {
@@ -140,14 +137,13 @@ export const getByIdTax = async (req: Request) => {
 
 export const updateTaxData = async (req: Request) => {
   try {
-    const { TaxMaster} = initModels(req);
 
     const { name, rate } = req.body;
     const id = req.params.id;
     const slug = name.replaceAll(" ", "-").replaceAll(/['/|]/g, "-");
 
     const findTax = await TaxMaster.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findTax && findTax.dataValues)) {
@@ -158,7 +154,7 @@ export const updateTaxData = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (findName && findName.dataValues) {
@@ -172,13 +168,13 @@ export const updateTaxData = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
 
     const afterUpdateFindTax = await TaxMaster.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { tax_id: findTax?.dataValues?.id, data:{ ...findTax?.dataValues } },
       new_data: {
         tax_id: afterUpdateFindTax?.dataValues?.id, data: { ...afterUpdateFindTax?.dataValues }
@@ -193,10 +189,9 @@ export const updateTaxData = async (req: Request) => {
 
 export const deleteTax = async (req: Request) => {
   try {
-    const { TaxMaster} = initModels(req);
 
     const findTax = await TaxMaster.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findTax && findTax.dataValues)) {
@@ -208,10 +203,10 @@ export const deleteTax = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findTax.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findTax.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { tax_id: findTax?.dataValues?.id, data: {...findTax?.dataValues} },
       new_data: {
         tax_id: findTax?.dataValues?.id, data: {
@@ -230,10 +225,9 @@ export const deleteTax = async (req: Request) => {
 
 export const statusUpdateForTax = async (req: Request) => {
   try {
-    const { TaxMaster} = initModels(req);
 
     const findTax = await TaxMaster.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findTax && findTax.dataValues)) {
       return resNotFound();
@@ -244,10 +238,10 @@ export const statusUpdateForTax = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findTax.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findTax.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { tax_id: findTax?.dataValues?.id, data: {...findTax?.dataValues} },
       new_data: {
         tax_id: findTax?.dataValues?.id, data: {

@@ -3,11 +3,10 @@ import { addActivityLogs, getCompanyIdBasedOnTheCompanyKey, getInitialPagination
 import { ActiveStatus, DeletedStatus, LogsActivityType, LogsType, Pagination } from "../../utils/app-enumeration";
 import { Op } from "sequelize";
 import { DEFAULT_STATUS_CODE_SUCCESS, RECORD_DELETE_SUCCESSFULLY, RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
-import { initModels } from "../model/index.model";
+import { StoreAddress } from "../model/store-address.model";
 
 export const addStoreAddress = async (req: Request) => {
   try {
-        const { StoreAddress} = initModels(req);
         const { address, map_link, branch_name,phone_number,timing } = req.body;
         
         const data = await StoreAddress.create({
@@ -20,10 +19,9 @@ export const addStoreAddress = async (req: Request) => {
             created_date: getLocalDate(),
             is_deleted: DeletedStatus.No,
             is_active: ActiveStatus.Active,
-            company_info_id: req.body.session_res.client_id
         })
 
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{old_data: null, new_data: {city_id: data?.dataValues?.id,data:{...data.dataValues}}}], data.dataValues.id, LogsActivityType.Add, LogsType.StoreAddress, req?.body?.session_res?.id_app_user)
+        await addActivityLogs([{old_data: null, new_data: {city_id: data?.dataValues?.id,data:{...data.dataValues}}}], data.dataValues.id, LogsActivityType.Add, LogsType.StoreAddress, req?.body?.session_res?.id_app_user)
 
         return resSuccess()
     } catch (error) {
@@ -33,7 +31,6 @@ export const addStoreAddress = async (req: Request) => {
 
 export const getAllStoreAddress = async (req: Request) => {
   try {
-        const { StoreAddress} = initModels(req);
       
         let paginationProps = {};
     
@@ -45,8 +42,7 @@ export const getAllStoreAddress = async (req: Request) => {
     
         let where = [
           { is_deleted: DeletedStatus.No },
-          { company_info_id: req?.body?.session_res?.client_id },
-          pagination.is_active ? { is_active: pagination.is_active } : {},
+          pagination.is_active ? { is_active: pagination.is_active } : 
           pagination.search_text
             ? {
                 [Op.or]: [
@@ -56,7 +52,7 @@ export const getAllStoreAddress = async (req: Request) => {
                   
                 ],
               }
-            : {},
+            : {}
         ];
     
         if (!noPagination) {
@@ -100,12 +96,11 @@ export const getAllStoreAddress = async (req: Request) => {
 
 export const updateStoreAddress = async (req: Request) => {
   try {
-        const { StoreAddress} = initModels(req);
       
         const { id } = req.params;
         const { address, map_link, branch_name,phone_number,timing } = req.body;
 
-        const findStore = await StoreAddress.findOne({ where: { id: id, is_deleted: DeletedStatus.No ,company_info_id: req?.body?.session_res?.client_id} });
+        const findStore = await StoreAddress.findOne({ where: { id: id, is_deleted: DeletedStatus.No } });
         
         if (!(findStore && findStore.dataValues)) {
             return resNotFound();
@@ -119,9 +114,9 @@ export const updateStoreAddress = async (req: Request) => {
             timing,
             modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
-        }, { where: { id: id, company_info_id: req?.body?.session_res?.client_id } });
+        }, { where: { id: id } });
         
-        await addActivityLogs(req,req?.body?.session_res?.client_id,
+        await addActivityLogs(
           [{ 
             old_data: {city_id: findStore?.dataValues?.id,data:{...findStore?.dataValues}}, 
             new_data: { city_id: findStore?.dataValues?.id,data:{...findStore?.dataValues, address, map_link, branch_name, modified_by: req?.body?.session_res?.id_app_user, modified_date: getLocalDate()} }
@@ -135,10 +130,9 @@ export const updateStoreAddress = async (req: Request) => {
 
 export const deleteStoreAddress = async (req: Request) => {
   try {
-        const { StoreAddress} = initModels(req);
       
         const { id } = req.params;
-        const findStore = await StoreAddress.findOne({ where: { id: id, is_deleted: DeletedStatus.No,company_info_id: req?.body?.session_res?.client_id } });
+        const findStore = await StoreAddress.findOne({ where: { id: id, is_deleted: DeletedStatus.No } });
         
         if (!(findStore && findStore.dataValues)) {
             return resNotFound();
@@ -149,9 +143,9 @@ export const deleteStoreAddress = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
           modified_date: getLocalDate(),
         },
-        { where: { id: findStore.dataValues.id,company_info_id: req?.body?.session_res?.client_id } }
+        { where: { id: findStore.dataValues.id } }
       );
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { city_id: findStore?.dataValues?.id, data: {...findStore?.dataValues} },
         new_data: {
           id: findStore?.dataValues?.id, data: {
@@ -171,10 +165,9 @@ export const deleteStoreAddress = async (req: Request) => {
   
   export const statusUpdateForStoreAddress = async (req: Request) => {
     try {
-        const { StoreAddress} = initModels(req);
 
       const findStore = await StoreAddress.findOne({
-        where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id: req?.body?.session_res?.client_id },
+        where: { id: req.params.id, is_deleted: DeletedStatus.No },
       });
       if (!(findStore && findStore.dataValues)) {
         return resNotFound();
@@ -185,9 +178,9 @@ export const deleteStoreAddress = async (req: Request) => {
           modified_date: getLocalDate(),
           modified_by: req.body.session_res.id_app_user,
         },
-        { where: { id: findStore.dataValues.id,company_info_id: req?.body?.session_res?.client_id } }
+        { where: { id: findStore.dataValues.id } }
       );
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { city_id: findStore?.dataValues?.id, data: {...findStore?.dataValues} },
         new_data: {
           id: findStore?.dataValues?.id, data: {
@@ -207,17 +200,11 @@ export const deleteStoreAddress = async (req: Request) => {
 export const getAllStoreAddressForUser = async (req: Request) => {
     try {
         const { search_text } = req.query;
-        const { StoreAddress} = initModels(req);
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
 
     let where = [
       { is_deleted: DeletedStatus.No },
       {is_active: ActiveStatus.Active},
-      { company_info_id: company_info_id?.data},
       {
         [Op.or]: [
           { branch_name: { [Op.iLike]: "%" + search_text + "%" } },

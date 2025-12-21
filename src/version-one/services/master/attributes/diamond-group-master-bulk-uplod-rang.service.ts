@@ -35,14 +35,23 @@ import {
 } from "../../../../utils/app-enumeration";
 import { TResponseReturn } from "../../../../data/interfaces/common/common.interface";
 import { Op } from "sequelize";
-import { initModels } from "../../../model/index.model";
+import { ProductBulkUploadFile } from "../../../model/product-bulk-upload-file.model";
+import { StoneData } from "../../../model/master/attributes/gemstones.model";
+import { CutsData } from "../../../model/master/attributes/cuts.model";
+import { ClarityData } from "../../../model/master/attributes/clarity.model";
+import { Colors } from "../../../model/master/attributes/colors.model";
+import { DiamondShape } from "../../../model/master/attributes/diamondShape.model";
+import { MMSizeData } from "../../../model/master/attributes/mmSize.model";
+import { DiamondCaratSize } from "../../../model/master/attributes/caratSize.model";
+import { SieveSizeData } from "../../../model/master/attributes/seiveSize.model";
+import { DiamondGroupMaster } from "../../../model/master/attributes/diamond-group-master.model";
+import dbContext from "../../../../config/db-context";
 
 const readXlsxFile = require("read-excel-file/node");
 export const addDiamondGroupMasterWithRangeFromCSVFile = async (
   req: Request
 ) => {
   try {
-    const {ProductBulkUploadFile} = initModels(req);
     if (!req.file) {
       return resUnprocessableEntity({
         message: FILE_NOT_FOUND,
@@ -66,7 +75,6 @@ export const addDiamondGroupMasterWithRangeFromCSVFile = async (
       req.file.destination,
       PRODUCT_CSV_FOLDER_PATH,
       req.file.originalname,
-      req
     );
 
     if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -78,7 +86,7 @@ export const addDiamondGroupMasterWithRangeFromCSVFile = async (
       status: FILE_STATUS.Uploaded,
       file_type: FILE_BULK_UPLOAD_TYPE.DiamondGroupUpload,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
       created_date: getLocalDate(),
     });
 
@@ -86,8 +94,6 @@ export const addDiamondGroupMasterWithRangeFromCSVFile = async (
       resPBUF.dataValues.id,
       resMFTL.data,
       req.body.session_res.id_app_user,
-      req?.body?.session_res?.client_id,
-      req
     );
 
     return resPDBUF;
@@ -100,12 +106,9 @@ const processDiamondGroupBulkUploadFile = async (
   id: number,
   path: string,
   idAppUser: number,
-  clientId: any,
-  req: Request
 ) => {
-  const {ProductBulkUploadFile} = initModels(req);
   try {
-    const data = await processCSVFile(path, idAppUser,clientId, req);
+    const data = await processCSVFile(path, idAppUser);
     if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       await ProductBulkUploadFile.update(
         {
@@ -157,7 +160,7 @@ const parseError = (error: any) => {
   return errorDetail;
 };
 
-const processCSVFile = async (path: string, idAppUser: number,client_id:any, req: Request) => {
+const processCSVFile = async (path: string, idAppUser: number) => {
   try {
     const resRows = await getArrayOfRowsFromCSVFile(path);
     if (resRows.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -175,12 +178,12 @@ const processCSVFile = async (path: string, idAppUser: number,client_id:any, req
     //     });
     //   }
 
-    const resProducts = await getDiamondGroupFromRows(resRows.data.results,client_id,req);
+    const resProducts = await getDiamondGroupFromRows(resRows.data.results);
     if (resProducts.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resProducts;
     }
 
-    const resAPTD = await addGroupToDB(resProducts.data, idAppUser,client_id, req);
+    const resAPTD = await addGroupToDB(resProducts.data, idAppUser);
     if (resAPTD.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resAPTD;
     }
@@ -343,11 +346,10 @@ const validateHeaders = async (headers: string[]) => {
   return resSuccess();
 };
 
-const getDiamondGroupFromRows = async (rows: any,client_id:any, req: Request) => {
+const getDiamondGroupFromRows = async (rows: any) => {  
   let currenGroupIndex = -1;
   let diamondGroupList = [];
-  const {StoneData, CutsData, ClarityData, Colors, DiamondShape, MMSizeData, DiamondCaratSize, SieveSizeData, DiamondGroupMaster} = initModels(req);
-  let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, {company_info_id:client_id}];
+  let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }];
 
   const stoneList = await StoneData.findAll({
     where,
@@ -586,7 +588,6 @@ const getDiamondGroupFromRows = async (rows: any,client_id:any, req: Request) =>
           { id_clarity: clarity },
           { id_cuts: cut },
           {id_carat: carat},
-          {company_info_id:client_id}
         ],
       });
 
@@ -599,7 +600,6 @@ const getDiamondGroupFromRows = async (rows: any,client_id:any, req: Request) =>
       //   { id_clarity: clarity },
       //   { id_cuts: cut },
       //   {is_deleted: DeletedStatus.No},
-      //   {company_info_id: client_id},
       //   {[Op.and]: [
       //     {
       //       min_carat_range: { [Op.lt]: row.max_carat_range }
@@ -646,9 +646,8 @@ const getDiamondGroupFromRows = async (rows: any,client_id:any, req: Request) =>
   }
 };
 
-const addGroupToDB = async (list: any, idAppUser: any, client_id: any, req: Request) => {
-  const{DiamondGroupMaster} = initModels(req);
-  const trn = await (req.body.db_connection).transaction();
+const addGroupToDB = async (list: any, idAppUser: any) => {
+  const trn = await dbContext.transaction();
   let pcPayloadAdd: any = [];
   try {
     let editActivityLogs:any = [];
@@ -680,8 +679,8 @@ const addGroupToDB = async (list: any, idAppUser: any, client_id: any, req: Requ
         }
         await DiamondGroupMaster.update(
           data,
-          { where: { id: group.group_id,company_info_id: client_id } }
-        );
+          { where: { id: group.group_id } }
+        );  
         data.id = group.group_id;
         editActivityLogs.push({ old_data: { diamond_group_master_id:group.group_id, data:{...group.old_data}}, new_data: { diamond_group_master_id:data.id, data: {...data} } })
       } else {
@@ -703,19 +702,18 @@ const addGroupToDB = async (list: any, idAppUser: any, client_id: any, req: Requ
           is_active: ActiveStatus.Active,
           created_date: getLocalDate(),
           created_by: idAppUser,
-          company_info_id: client_id
         });
       }
     }
-    await addActivityLogs(req,client_id,editActivityLogs, null, LogsActivityType.Edit, LogsType.DiamondGroupMater, idAppUser,trn);
+    await addActivityLogs(editActivityLogs, null, LogsActivityType.Edit, LogsType.DiamondGroupMater, idAppUser,trn);
     const data = await DiamondGroupMaster.bulkCreate(pcPayloadAdd, { transaction: trn });
     for (let index = 0; index < data.length; index++) {
       const element = data[index].dataValues;
       newAddActivityLogs.push({ old_data: null, new_data: {...element} })
     }
-    await addActivityLogs(req,client_id,newAddActivityLogs, null, LogsActivityType.Add, LogsType.DiamondGroupMater, idAppUser,trn);
+    await addActivityLogs(newAddActivityLogs, null, LogsActivityType.Add, LogsType.DiamondGroupMater, idAppUser,trn);
     await trn.commit();
-    await refreshAllMaterializedView(req.body.db_connection);
+    await refreshAllMaterializedView(dbContext);
     return resSuccess();
   } catch (e) {
     console.log(e);

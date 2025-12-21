@@ -9,11 +9,13 @@ import {
 import { Op, Sequelize } from "sequelize";
 import { RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
 import { LogsActivityType, LogsType, PRODUCT_IMAGE_TYPE } from "../../utils/app-enumeration";
-import { initModels } from "../model/index.model";
+import { Enquiries } from "../model/enquiries.model";
+import { ProductEnquiries } from "../model/product-enquiry.model";
+import { Product } from "../model/product.model";
+import { ProductImage } from "../model/product-image.model";
 
 export const getAllGeneralEnquiries = async (req: Request) => {
   try {
-    const {Enquiries} = initModels(req)
     let paginationProps = {};
 
     let pagination = {
@@ -24,8 +26,7 @@ export const getAllGeneralEnquiries = async (req: Request) => {
 
     let where = [
       { enquirie_type: "1" },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -36,7 +37,7 @@ export const getAllGeneralEnquiries = async (req: Request) => {
               { email: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -81,7 +82,6 @@ export const getAllGeneralEnquiries = async (req: Request) => {
 
 export const getAllProductEnquiries = async (req: Request) => {
   try {
-    const {ProductEnquiries, Product} = initModels(req)
     let paginationProps = {};
 
     let pagination = {
@@ -91,8 +91,7 @@ export const getAllProductEnquiries = async (req: Request) => {
     let noPagination = req.query.no_pagination === "1";
 
     let where = [
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -115,7 +114,7 @@ export const getAllProductEnquiries = async (req: Request) => {
               ),
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -169,7 +168,6 @@ export const getAllProductEnquiries = async (req: Request) => {
           required: false,
           model: Product,
           as: "product",
-          where:{company_info_id :req?.body?.session_res?.client_id},
           attributes: [
             "id",
             "name",
@@ -190,9 +188,8 @@ export const getAllProductEnquiries = async (req: Request) => {
 export const updateProductEnquiries = async (req: Request) => {
   try {
     const { id, action, comments } = req.body;
-    const {ProductEnquiries} = initModels(req)
     const productEnquiries = await ProductEnquiries.findOne({
-      where: { id: id,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id },
     });
     if (productEnquiries) {
       const enquiriesActionInfo = await ProductEnquiries.update(
@@ -202,14 +199,14 @@ export const updateProductEnquiries = async (req: Request) => {
           modified_date: getLocalDate(),
           modified_by: req.body.session_res.id_app_user,
         },
-        { where: { id: productEnquiries.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+        { where: { id: productEnquiries.dataValues.id } }
       );
 
       if (enquiriesActionInfo) {
         const afterupdateproductEnquiries = await ProductEnquiries.findOne({
           where: { id: id },
         });
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: { product_enquiries_id: productEnquiries?.dataValues?.id, app_customer_data: {...productEnquiries?.dataValues}},
           new_data: {
             product_enquiries_id: afterupdateproductEnquiries?.dataValues?.id, data: { ...afterupdateproductEnquiries?.dataValues }
@@ -228,9 +225,8 @@ export const updateProductEnquiries = async (req: Request) => {
 export const productEnquiriesDetails = async (req: Request) => {
   try {
     const { id } = req.body;
-    const {ProductEnquiries,Product,ProductImage} = initModels(req)
     const inquiriesDetails = await ProductEnquiries.findOne({
-      where: { id: id,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id },
       attributes: [
         "id",
         "full_name",
@@ -286,7 +282,6 @@ export const productEnquiriesDetails = async (req: Request) => {
           model: Product,
           as: "product",
           attributes: [],
-          where:{company_info_id :req?.body?.session_res?.client_id},
         },
       ],
     });
@@ -296,7 +291,6 @@ export const productEnquiriesDetails = async (req: Request) => {
         id_product: inquiriesDetails?.dataValues.product_id,
         image_type: PRODUCT_IMAGE_TYPE.Feature,
         id_metal_tone: inquiriesDetails?.dataValues.product_json.metal_tone_id,
-        company_info_id :req?.body?.session_res?.client_id
       },
       attributes: ["image_path"],
     });

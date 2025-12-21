@@ -1,6 +1,9 @@
 import { BOOLEAN, DATE, DECIMAL, INTEGER, STRING } from "sequelize";
-export const MenuItem = (dbContext: any) => {
-  let menuItem = dbContext.define("menu_items", {
+import dbContext from "../../config/db-context";
+import { RolePermission } from "./role-permission.model";
+import { RoleApiPermission } from "./role-api-permission.model";
+
+export const MenuItem = dbContext.define("menu_items", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -42,13 +45,15 @@ export const MenuItem = (dbContext: any) => {
   icon: {
     type: STRING,
   },
-  company_info_id :{ 
-    type:INTEGER
-  },
   is_for_super_admin: {
     type: BOOLEAN
   }
 });
 
-  return menuItem;
-}
+// Associations
+MenuItem.belongsTo(MenuItem, {
+  as: 'parent_menu',
+  foreignKey: 'id_parent_menu',
+});
+MenuItem.hasMany(RolePermission, { foreignKey: "id_menu_item", as: "RP" });
+MenuItem.hasMany(RoleApiPermission, { as: "rap", foreignKey: "id_menu_item" });

@@ -11,7 +11,10 @@ import {
 import { Op, Sequelize } from "sequelize";
 import { ADDRESS_NOT_EXITS, DEFAULT_STATUS_CODE_SUCCESS, Id_IS_REQUIRED } from "../../../utils/app-messages";
 import { ActiveStatus, DeletedStatus, LogsActivityType, LogsType } from "../../../utils/app-enumeration";
-import { initModels } from "../../model/index.model";
+import { CityData } from "../../model/master/city.model";
+import { UserAddress } from "../../model/address.model";
+import { StateData } from "../../model/master/state.model";
+import { CountryData } from "../../model/master/country.model";
 
 export const addUserAddress = async (req: Request) => {
   const {
@@ -27,14 +30,9 @@ export const addUserAddress = async (req: Request) => {
     default_addres,
     phone_number,
   } = req.body;
-    const {CityData, UserAddress} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
 
   const cityNameExistes = await CityData.findOne({
-    where: [columnValueLowerCase("city_name", city_id), { is_deleted: DeletedStatus.No },{company_info_id:company_info_id?.data}],
+    where: [columnValueLowerCase("city_name", city_id), { is_deleted: DeletedStatus.No }],
   });
 
   let cityCreateId: any;
@@ -48,7 +46,6 @@ export const addUserAddress = async (req: Request) => {
       created_date: getLocalDate(),
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id:company_info_id?.data
     });
     cityCreateId = created.dataValues.id;
   }
@@ -67,13 +64,12 @@ export const addUserAddress = async (req: Request) => {
       address_type: address_type || 1,
       default_addres: default_addres,
       is_deleted: 0,
-      company_info_id : company_info_id?.data,
       created_date: getLocalDate(),
     };
 
     const UserAddressData = await UserAddress.create(payload);
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           address_id: UserAddressData?.dataValues?.id, data: {
@@ -91,19 +87,12 @@ export const addUserAddress = async (req: Request) => {
 export const getUserAddress = async (req: Request) => {
   try {
     if (req.body.user_id != null) {
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-      const {CityData, StateData, CountryData, UserAddress} = initModels(req);
-      
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
       const userAddress = await UserAddress.findAll({
         where: {
           user_id: {
             [Op.eq]: req.body.user_id,
           },
           is_deleted: DeletedStatus.No,
-          company_info_id:company_info_id?.data
         },
         attributes: [
           "id",
@@ -126,22 +115,19 @@ export const getUserAddress = async (req: Request) => {
           {
             model: CityData,
             as: "city",
-            attributes: [],
-            where: {company_info_id:company_info_id?.data}
+            attributes: []
             ,required:false
           },
           {
             model: StateData,
             as: "state",
-            attributes: [],
-            where: {company_info_id:company_info_id?.data}
+            attributes: []
             ,required:false
           },
           {
             model: CountryData,
             as: "country",
-            attributes: [],
-            where: {company_info_id:company_info_id?.data}
+            attributes: []
             ,required:false
           },
         ],
@@ -170,17 +156,12 @@ export const updateUserAddress = async (req: Request) => {
     phone_number,
   } = req.body;
   try {
-    const {CityData, UserAddress} = initModels(req);
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
     const addressId = await UserAddress.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No ,company_info_id:company_info_id?.data},
+      where: { id: id, is_deleted: DeletedStatus.No },
     });
     const cityNameExistes = await CityData.findOne({
-      where: [columnValueLowerCase("city_name", city_id), { is_deleted: DeletedStatus.No },{company_info_id:company_info_id?.data}],
+      where: [columnValueLowerCase("city_name", city_id), { is_deleted: DeletedStatus.No }],
     });
 
     let cityCreateId: any;
@@ -194,7 +175,6 @@ export const updateUserAddress = async (req: Request) => {
         created_date: getLocalDate(),
         is_active: ActiveStatus.Active,
         is_deleted: DeletedStatus.No,
-        company_info_id:company_info_id?.data,
       });
       cityCreateId = created.dataValues.id;
     }
@@ -214,11 +194,11 @@ export const updateUserAddress = async (req: Request) => {
           default_addres: default_addres,
           modified_date: getLocalDate(),
         },
-        { where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No, company_info_id:company_info_id?.data} }
+        { where: { id: addressId.dataValues.id, is_deleted: DeletedStatus.No } }
       );
       if (addressInfo) {
         const CityInformation = await UserAddress.findOne({
-          where: { id: id, is_deleted: DeletedStatus.No, company_info_id:company_info_id?.data },
+            where: { id: id, is_deleted: DeletedStatus.No },
           attributes: [
             "id",
             "full_name",
@@ -239,14 +219,13 @@ export const updateUserAddress = async (req: Request) => {
               model: CityData,
               as: "city",
               attributes: [],
-              where:{company_info_id:company_info_id?.data},
               required:false
             },
           ],
         });
 
         
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { address_id: addressId?.dataValues?.id, data: {...addressId?.dataValues},city_name_existes_id : cityNameExistes?.dataValues?.id, cityNameExistedata: {...cityNameExistes?.dataValues} },
         new_data: {
           address_id: CityInformation?.dataValues?.id, data: { ...CityInformation.dataValues }
@@ -265,7 +244,6 @@ export const updateUserAddress = async (req: Request) => {
 
 export const deleteUserAddress = async (req: Request) => {
   try {
-    const {UserAddress} = initModels(req);
 
     const addressExists = await UserAddress.findOne({
       where: { id: req.body.id, is_deleted: DeletedStatus.No },
@@ -282,7 +260,7 @@ export const deleteUserAddress = async (req: Request) => {
       { where: { id: addressExists.dataValues.id } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { address_id: addressExists?.dataValues?.id, data: addressExists?.dataValues },
       new_data: {
         address_id: addressExists?.dataValues?.id, data: {

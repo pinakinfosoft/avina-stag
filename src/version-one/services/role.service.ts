@@ -33,35 +33,34 @@ import {
 } from "../../utils/app-enumeration";
 import { fetchConfigurationByKey } from "./auth.service";
 import { APP_KEY, APP_MENU, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY, TEMPLATE_MENU, THEME_SECTION_TYPE_LIST } from "../../utils/app-constants";
-import { initModels } from "../model/index.model";
+import { AppUser } from "../model/app-user.model";
+import { Role } from "../model/role.model";
+import { BusinessUser } from "../model/business-user.model";
+import { CustomerUser } from "../model/customer-user.model";
+import { Image } from "../model/image.model";
+import { Action } from "../model/action.model";
+import { MenuItem } from "../model/menu-items.model";
+import { RolePermission } from "../model/role-permission.model";
+import { RolePermissionAccess } from "../model/role-permission-access.model";
+import { Themes } from "../model/theme/themes.model";
+import { CompanyInfo } from "../model/companyinfo.model";
+import { RolePermissionAccessAuditLog } from "../model/role-permission-access-audit-log.model";
+import dbContext from "../../config/db-context";
 
 export const getAllRoles = async (req: Request) => {
   try {
     let paginationProps = {};
     let pagination = getInitialPaginationFromQuery(req.query);
-    const {AppUser,Role, BusinessUser, CustomerUser,Image} = initModels(req);
     const updateRoleserdata =  await AppUser.findOne({where:{id:req?.body?.session_res?.id_app_user}});
 
     if(!updateRoleserdata){
       return resNotFound();
     }
 
-const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
 
     let where = [
-      ...(isSuperAdmin
-      ? [
-          {company_info_id: {
-            [Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY],
-          }}
-        ]
-      : [
-          {company_info_id: req?.body?.session_res?.client_id},
-          {is_super_admin: false},
-          {is_sub_admin: false},
-        ]),
       {is_deleted:DeletedStatus.No, id: { [Op.ne]: 0 } },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : {}
     ];
     let noPagination = req.query.no_pagination === "1";
     if (!noPagination) {
@@ -121,16 +120,6 @@ const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
             FROM app_users AS u
             WHERE u.id_role = roles.id
               AND u.is_deleted = '${DeletedStatus.No}'
-              ${
-                !isSuperAdmin
-                  ? `AND roles.is_super_admin = false
-                    AND roles.is_sub_admin = false
-                    AND u.company_info_id = ${req.body.session_res.client_id}`
-                  : `AND u.company_info_id IN (${[
-                      req.body.session_res.client_id,
-                      SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
-                    ].join(", ")})`
-              }
           )`),
           "user_count",
         ],
@@ -142,16 +131,6 @@ const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
             WHERE u.id_role = roles.id
               AND u.is_deleted = '${DeletedStatus.No}'
               AND u.is_active = '${ActiveStatus.Active}'
-              ${
-                !isSuperAdmin
-                  ? `AND roles.is_super_admin = false
-                     AND roles.is_sub_admin = false
-                    AND u.company_info_id = ${req.body.session_res.client_id}`
-                  : `AND u.company_info_id IN (${[
-                      req.body.session_res.client_id,
-                      SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
-                    ].join(", ")})`
-              }
           )`),
           "active_user_count",
         ],
@@ -216,7 +195,6 @@ const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
     });
 
     result = result.map((role:any) => {
-     console.log(role.dataValues);
       let data = { ...role.dataValues, app_user: role.dataValues.role_app_user };
       delete data.role_app_user;
       return data
@@ -230,16 +208,11 @@ const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
 const roleWithSameNameValidation = async (
   role_name: string,
   id: number | null = null,
-  client_id:  number | number[] = null,
-  req: Request
 ) => {
-  const { Role } = initModels(req);
-    const clientIds = Array.isArray(client_id) ? client_id : [client_id];
-
   const findRoleWithSameName = await Role.findOne({
     where: [
-      { role_name: { [Op.iLike]: role_name },is_deleted:DeletedStatus.No,company_info_id : { [Op.in]: clientIds }},
-      id ? { id: { [Op.ne]: id } } : {},
+      { role_name: { [Op.iLike]: role_name },is_deleted:DeletedStatus.No},
+      id ? { id: { [Op.ne]: id } } :  {}
     ],
   });
   if (findRoleWithSameName && findRoleWithSameName.dataValues) {
@@ -255,8 +228,7 @@ const roleWithSameNameValidation = async (
 
 export const addRole = async (req: Request) => {
   try {
-    const { Role } = initModels(req);
-    const nameValidaton = await roleWithSameNameValidation(req.body.role_name,null,req?.body?.session_res?.client_id, req);
+    const nameValidaton = await roleWithSameNameValidation(req.body.role_name,null);
     if (nameValidaton.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return nameValidaton;
     }
@@ -265,11 +237,11 @@ export const addRole = async (req: Request) => {
       role_name: req.body.role_name,
       is_active: req.body.is_active,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
       created_date: getLocalDate(),
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         role_id: RoleData?.dataValues?.id, data: {
@@ -286,7 +258,6 @@ export const addRole = async (req: Request) => {
 
 export const updateRole = async (req: Request) => {
   try {
-    const { Role, AppUser } = initModels(req);
     const idRole = parseInt(req.params.id);
 
     const updateRoleserdata =  await AppUser.findOne({where:{id:req?.body?.session_res?.id_app_user}});
@@ -294,18 +265,9 @@ export const updateRole = async (req: Request) => {
     if(!updateRoleserdata){
       return resNotFound();
     }
-    const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
-    const companyFilter = isSuperAdmin
-    ? {
-        company_info_id: {
-          [Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY],
-        },
-      }
-    : {
-        company_info_id: req?.body?.session_res?.client_id,
-      };
+
     const roleToUpdate = await Role.findOne({
-      where: { id: idRole,is_deleted:DeletedStatus.No,...companyFilter },
+      where: { id: idRole,is_deleted:DeletedStatus.No },
     });
 
     if (!(roleToUpdate && roleToUpdate.dataValues)) {
@@ -319,9 +281,9 @@ export const updateRole = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
           modified_date: getLocalDate(),
         },
-        { where: { id: roleToUpdate.dataValues.id,...companyFilter } }
+        { where: { id: roleToUpdate.dataValues.id } }
       );
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { role_id: roleToUpdate?.dataValues?.id, data: roleToUpdate?.dataValues},
         new_data: {
           role_id: roleToUpdate?.dataValues?.id, data: {
@@ -338,8 +300,6 @@ export const updateRole = async (req: Request) => {
     const nameValidaton = await roleWithSameNameValidation(
       req.body.role_name,
       idRole,
-      req?.body?.session_res?.client_id,
-      req
     );
     if (nameValidaton.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return nameValidaton;
@@ -352,14 +312,14 @@ export const updateRole = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: roleToUpdate.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: roleToUpdate.dataValues.id, } }
     );
 
     const afterUpdateRoleToUpdate = await Role.findOne({
       where: { id: idRole,is_deleted:DeletedStatus.No },
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { role_id: roleToUpdate?.dataValues?.id, data: {...roleToUpdate?.dataValues}},
       new_data: {
         role_id: afterUpdateRoleToUpdate?.dataValues?.id, data: { ...afterUpdateRoleToUpdate?.dataValues }
@@ -374,7 +334,6 @@ export const updateRole = async (req: Request) => {
 
 export const deleteRole = async (req: Request) => {
   try {
-    const { Role, AppUser } = initModels(req);
     const idRole = parseInt(req.params.id);
 
     if (idRole === 0) {
@@ -386,27 +345,14 @@ export const deleteRole = async (req: Request) => {
       return resNotFound();
     }
 
-    const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
-    const companyCondition = isSuperAdmin
-    ? `${req?.body?.session_res?.client_id} OR app_users.company_info_id = '${SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY}'`
-    : `${req?.body?.session_res?.client_id}`;
-  
-  const companyFilter = isSuperAdmin
-  ? {
-      company_info_id: {
-        [Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY],
-      },
-    }
-  : {
-      company_info_id: req?.body?.session_res?.client_id,
-    };
+
     const roleToDelete = await Role.findOne({
-      where: { id: idRole,is_deleted:DeletedStatus.No,...companyFilter },
+      where: { id: idRole,is_deleted:DeletedStatus.No },
       attributes: [
         "id",
         [
           Sequelize.literal(
-            `(SELECT COUNT(*) FROM app_users WHERE app_users.company_info_id = ${companyCondition} AND app_users.id_role = roles.id AND app_users.is_deleted = '0')`
+            `(SELECT COUNT(*) FROM app_users WHERE app_users.id_role = roles.id AND app_users.is_deleted = '0')`
           ),
           "user_count",
         ],
@@ -427,9 +373,9 @@ export const deleteRole = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: roleToDelete.dataValues.id,...companyFilter } }
+        { where: { id: roleToDelete.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { role_id: roleToDelete?.dataValues?.id, data: {...roleToDelete?.dataValues}},
       new_data: {
         role_id: roleToDelete?.dataValues?.id, data: {
@@ -448,12 +394,11 @@ export const deleteRole = async (req: Request) => {
 
 export const getAllActions = async (req: Request) => {
   try {
-    const { Action } = initModels(req);
     let paginationProps = {};
     let pagination = getInitialPaginationFromQuery(req.query);
     let where = [
       {is_deleted:DeletedStatus.No },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : {}
     ];
 
     let noPagination = req.query.no_pagination === "1";
@@ -488,20 +433,11 @@ export const getAllActions = async (req: Request) => {
 
 export const getAllMenuItems = async (req: Request) => {
   try {
-    const { MenuItem,AppUser,RolePermission,RolePermissionAccess,Action,Themes,CompanyInfo } = initModels(req);
     let paginationProps = {};
     let pagination = getInitialPaginationFromQuery(req.query);
     const appUser = await AppUser.findOne({
       where: { id:req?.body?.session_res?.id_app_user, is_deleted: DeletedStatus.No, user_type: [USER_TYPE.Administrator, USER_TYPE.BusinessUser] , 
-        [Op.or]: [
-        { is_super_admin: true },
-        {
-          [Op.and]: [
-            { company_info_id: req?.body?.session_res?.client_id },
-            { is_super_admin: false }
-          ]
-        }
-      ]},
+        },
     });
 
     
@@ -510,7 +446,7 @@ export const getAllMenuItems = async (req: Request) => {
     const idAction = configData.data.dataValues.config_value;
 
     const findHomePage = await CompanyInfo.findOne({
-      where: { id: req.body.session_res.client_id },
+      where: { id: 1  },
       attributes: ["id_home_page"],
     });
 
@@ -554,7 +490,6 @@ export const getAllMenuItems = async (req: Request) => {
             where: {
               id_role: appUser.dataValues.id_role,
               is_active: ActiveStatus.Active,
-              company_info_id: SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
             },
             include: [
               {
@@ -562,7 +497,6 @@ export const getAllMenuItems = async (req: Request) => {
                 as: "RPA",
                 where: {
                   access: AccessRolePermission.Yes,
-                  company_info_id: SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
                 },
                 include: [
                   {
@@ -581,32 +515,7 @@ export const getAllMenuItems = async (req: Request) => {
           ];
           applyIdFilter = accessibleMenuIds.length > 0;
         }
-    let condition: any = {};
 
-    if (isSuperAdmin) {
-      // For super admin business users, allow all is_for_super_admin: false items, and apply id filter only for is_for_super_admin: true
-      condition[Op.or] = [
-        {
-          is_for_super_admin: false,
-          company_info_id: {
-            [Op.in]: [
-              req?.body?.session_res?.client_id,
-              SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
-            ],
-          },
-        },
-        ...(applyIdFilter ? [{
-          is_for_super_admin: true,
-          company_info_id: SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
-          id: {
-            [Op.in]: accessibleMenuIds,
-          },
-        }] : [{
-          is_for_super_admin: true,
-          company_info_id: SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
-        }])
-      ];
-    }
 
     let where: any[] = [];
 
@@ -626,24 +535,7 @@ export const getAllMenuItems = async (req: Request) => {
           ]
         }
       ];
-    if (!skipAllRestrictions) {
-      if (isSuperAdmin) {
-        where.push(condition);
-        if (!applyIdFilter) {
-          where.push({ is_for_super_admin: false });
-        } else {
-          where.push({ is_for_super_admin: { [Op.in]: [true, false] } });
-        }
-      } else {
-        where.push({
-          company_info_id: req?.body?.session_res?.client_id,
-          is_for_super_admin: false,
-        });
-      }
-    }else{
-      where.push({company_info_id: {[Op.or]:[req?.body?.session_res?.client_id ,0]}})
-    }
-
+  
     let noPagination = req.query.no_pagination === "1";
     if (!noPagination) {
       const totalItems = await MenuItem.count({
@@ -684,7 +576,6 @@ export const getAllMenuItems = async (req: Request) => {
 
 export const fetchRoleConfiguration = async (req: Request) => {
   try {
-    const { Role, RolePermission,AppUser, RolePermissionAccess } = initModels(req);
     const idRole = parseInt(req.params.id);
 
     const updateRoleserdata =  await AppUser.findOne({where:{id:req?.body?.session_res?.id_app_user}});
@@ -694,28 +585,9 @@ export const fetchRoleConfiguration = async (req: Request) => {
     }
 const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
 
-    const companyFilter = isSuperAdmin
-  ? {
-      company_info_id: {
-        [Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY],
-      },
-    }
-  : {
-      is_super_admin : false,
-      is_sub_admin : false,
-      company_info_id: req?.body?.session_res?.client_id,
-    };
-    const companyFilterOtherthenRole = isSuperAdmin
-  ? {
-      company_info_id: {
-        [Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY],
-      },
-    }
-  : {
-      company_info_id: req?.body?.session_res?.client_id,
-    };
+
     const roleToFetch = await Role.findOne({
-      where: { id: idRole,is_deleted:DeletedStatus.No, ...companyFilter },
+      where: { id: idRole,is_deleted:DeletedStatus.No },
     });
 
     if (!(roleToFetch && roleToFetch.dataValues)) {
@@ -723,7 +595,7 @@ const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
     }
 
     const result = await RolePermission.findAll({
-      where: { id_role: idRole, is_active: ActiveStatus.Active,...companyFilterOtherthenRole},
+      where: { id_role: idRole, is_active: ActiveStatus.Active},
       group: ['"role_permissions"."id"'],
       attributes: [
         "id_menu_item",
@@ -737,7 +609,7 @@ const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
           required:false,
           model: RolePermissionAccess,
           as: "RPA",
-          where: [{ access: AccessRolePermission.Yes,...companyFilterOtherthenRole}],
+          where: [{ access: AccessRolePermission.Yes}],
           attributes: [],
         },
       ],
@@ -759,16 +631,12 @@ const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
 const validateMenuItemAndAction = async (
   rolePermissionAccessList: IRolePermissionAccess[],
   trn: Transaction | null = null,
-  req: Request,
-  client_id: number
 ) => {
-  const { MenuItem, Action } = initModels(req);
   const findMenuItems = await MenuItem.findAll({
     attributes: ["id"],
     where: {
      is_deleted:DeletedStatus.No,
       // is_active: ActiveStatus.Active,
-      company_info_id: client_id,
     },
     ...(trn ? { transaction: trn } : {}),
   });
@@ -801,20 +669,15 @@ const validateMenuItemAndAction = async (
 
 export const addRoleConfiguration = async (req: Request) => {
   try {
-    const { Role, RolePermission,AppUser, RolePermissionAccess } = initModels(req);
     const {is_super_admin,is_sub_admin} = req.body;
     const updateRoleserdata =  await AppUser.findOne({where:{id:req?.body?.session_res?.id_app_user}});
 
     if(!updateRoleserdata){
       return resNotFound();
     }
-
-    let client_id = req?.body?.session_res?.client_id
-    if(is_super_admin == true){
-      client_id = [req?.body?.session_res?.client_id,SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY]
-    }
+   
     
-    const nameValidaton = await roleWithSameNameValidation(req.body.role_name,null,client_id, req);
+    const nameValidaton = await roleWithSameNameValidation(req.body.role_name,null);
     if (nameValidaton.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return nameValidaton;
     }
@@ -823,14 +686,10 @@ export const addRoleConfiguration = async (req: Request) => {
     const validateMenuAction = await validateMenuItemAndAction(
       req.body.role_permission_access,
       null,
-      req,
-      client_id,
     );
     if (validateMenuAction.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validateMenuAction;
     }
-
-     client_id = is_super_admin == true ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : req?.body?.session_res?.client_id;
 
     let rolePermissionAccessList = [];
     for (const rpa of req.body.role_permission_access) {
@@ -839,7 +698,7 @@ export const addRoleConfiguration = async (req: Request) => {
       }
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       const roleResult = await Role.create(
         {
@@ -848,7 +707,6 @@ export const addRoleConfiguration = async (req: Request) => {
           created_by: req.body.session_res.id_app_user,
           is_super_admin: is_super_admin,
           is_sub_admin: is_sub_admin,
-          company_info_id : client_id,
           created_date: getLocalDate(),
         },
         { transaction: trn }
@@ -863,7 +721,6 @@ export const addRoleConfiguration = async (req: Request) => {
               id_menu_item: rolePermissionAccess.id_menu_item,
               is_active: ActiveStatus.Active,
               created_by: req.body.session_res.id_app_user,
-              company_info_id : client_id,
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -875,8 +732,7 @@ export const addRoleConfiguration = async (req: Request) => {
               id_action: idAction,
               access: AccessRolePermission.Yes,
               created_by: req.body.session_res.id_app_user,
-              company_info_id : client_id,
-              created_date: getLocalDate(),
+              created_date: getLocalDate(), 
             });
           }
         }
@@ -885,7 +741,7 @@ export const addRoleConfiguration = async (req: Request) => {
         transaction: trn,
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           role_config_id: roleResult?.dataValues?.id, data: {
@@ -908,8 +764,7 @@ export const addRoleConfiguration = async (req: Request) => {
 };
 
 export const updateRoleConfiguration = async (req: Request) => {
-  const { Role, AppUser, BusinessUser } = initModels(req);
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
   try {
     const idRole = parseInt(req.params.id);
     const {is_super_admin,is_sub_admin} = req.body;
@@ -923,7 +778,6 @@ export const updateRoleConfiguration = async (req: Request) => {
       where: {
         id: idRole,
         is_deleted: DeletedStatus.No,
-        company_info_id: {[Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY]},
       },
       attributes: {
         include: [
@@ -944,15 +798,11 @@ export const updateRoleConfiguration = async (req: Request) => {
     if (!(roleToUpdate && roleToUpdate.dataValues)) {
       return resNotFound({ message: ROLE_NOT_FOUND });
     }
-    let client_id = req?.body?.session_res?.client_id
-    if(is_super_admin == true){
-      client_id = [roleToUpdate?.dataValues?.company_info_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY];
-    }
+    
     const nameValidaton = await roleWithSameNameValidation(
       req.body.role_name,
       idRole,
-      client_id,
-      req
+    
     );
     if (nameValidaton.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       await trn.rollback();
@@ -962,14 +812,12 @@ export const updateRoleConfiguration = async (req: Request) => {
     const validateMenuAction = await validateMenuItemAndAction(
       req.body.role_permission_access,
       trn,
-      req,
-      client_id
+    
     );
     if (validateMenuAction.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       await trn.rollback();
       return validateMenuAction;
     }
-    client_id = is_super_admin == true ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : req?.body?.session_res?.client_id; 
 
     await Role.update(
       {
@@ -978,7 +826,6 @@ export const updateRoleConfiguration = async (req: Request) => {
         role_name: req.body.role_name,
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
-        company_info_id : client_id,
       },
       { where: { id: idRole}, transaction: trn }
     );
@@ -995,53 +842,7 @@ export const updateRoleConfiguration = async (req: Request) => {
       rolePermissionAccessList,
       req.body.session_res.id_app_user,
       trn,
-      client_id,
-      req
     );
-// Update AppUser table
-await AppUser.update(
-  {
-    is_super_admin: is_super_admin,
-    company_info_id: is_super_admin
-      ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY
-      : req?.body?.session_res?.client_id,
-  },
-  {
-    where: {
-      id_role: idRole,
-      is_deleted: DeletedStatus.No,
-    },
-    transaction: trn,
-  }
-);
-
-    //  Update BusinessUser table using related AppUsers
-    const affectedAppUsers = await AppUser.findAll({
-      where: {
-        id_role: idRole,
-        is_deleted: DeletedStatus.No,
-      },
-      attributes: ['id'],
-      transaction: trn,
-    });
-
-    const appUserIds = affectedAppUsers.map(user => user.id);
-
-    if (appUserIds.length > 0) {
-      await BusinessUser.update(
-        {
-          company_info_id: is_super_admin
-            ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY
-            : req?.body?.session_res?.client_id,
-        },
-        {
-          where: {
-            id_app_user: { [Op.in]: appUserIds },
-          },
-          transaction: trn,
-        }
-      );
-    }
 
     await trn.commit();
     return resSuccess();
@@ -1052,8 +853,7 @@ await AppUser.update(
 };
 
 export const changeStatusRoleConfiguration = async (req: Request) => {
-  const { Role, AppUser } = initModels(req);
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
   try {
     const idRole = parseInt(req.params.id);
     const updateRoleserdata =  await AppUser.findOne({where:{id:req?.body?.session_res?.id_app_user}});
@@ -1061,19 +861,12 @@ export const changeStatusRoleConfiguration = async (req: Request) => {
     if(!updateRoleserdata){
       return resNotFound();
     }
-    const isSuperAdmin = updateRoleserdata?.getDataValue('is_super_admin') === true;
 
     const whereClause: any = {
       id: idRole,
       is_deleted: DeletedStatus.No,
     };
-    if (isSuperAdmin) {
-      whereClause.company_info_id = {
-        [Op.or]: [req?.body?.session_res?.client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY],
-      };
-    } else {
-      whereClause.company_info_id = req?.body?.session_res?.client_id;
-    }
+
     const roleToUpdate = await Role.findOne({
       where:whereClause 
     });
@@ -1090,7 +883,7 @@ export const changeStatusRoleConfiguration = async (req: Request) => {
       },
       { where: whereClause, transaction: trn }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { role_id: roleToUpdate?.dataValues?.id, data: {...roleToUpdate?.dataValues}},
       new_data: {
         role_id: roleToUpdate?.dataValues?.id, data: {
@@ -1113,13 +906,10 @@ const updateRolePermission = async (
   idRole: number,
   rolePermissionAccessList: IRolePermissionAccess[],
   idAppUser: number,
-  trn: Transaction,
-  client_id: number,
-  req: Request
+  trn: Transaction
 ) => {
-  const { RolePermission } = initModels(req);
   let availableRP = await RolePermission.findAll({
-    where: { id_role: idRole,company_info_id :client_id },
+    where: { id_role: idRole },
     transaction: trn,
   });
   const updateRolePermission = [];
@@ -1150,7 +940,6 @@ const updateRolePermission = async (
         {
           id_role: idRole,
           id_menu_item: rolePermissionAccess.id_menu_item,
-          company_info_id :client_id,
           is_active: ActiveStatus.Active,
           created_by: idAppUser,
           created_date: getLocalDate(),
@@ -1165,15 +954,13 @@ const updateRolePermission = async (
       rolePermissionAccess.access,
       idAppUser,
       trn,
-      client_id,
-      req
     );
   }
   await RolePermission.bulkCreate(updateRolePermission, {
     transaction: trn,
     updateOnDuplicate: ["is_active", "modified_by", "modified_date"],
   });
-  await updateUnavailableMenuPermission(availableRP, idAppUser, trn,client_id, req);
+  await updateUnavailableMenuPermission(availableRP, idAppUser, trn);
 };
 
 const updateRolePermissionAccess = async (
@@ -1181,15 +968,12 @@ const updateRolePermissionAccess = async (
   rolePermissionAccessActions: IRolePermissionAccess["access"],
   idAppUser: number,
   trn: Transaction,
-  client_id: number,
-  req: Request
 ) => {
-  const { RolePermissionAccess,RolePermissionAccessAuditLog } = initModels(req);
   let auditLogPayload = [];
   const updateRolePermission = [];
   const addRolePermission = [];
   let availableRPA = await RolePermissionAccess.findAll({
-    where: { id_role_permission: idRP ,company_info_id :client_id},
+    where: { id_role_permission: idRP },     
     transaction: trn,
   });
   for (const idAction of rolePermissionAccessActions) {
@@ -1208,7 +992,6 @@ const updateRolePermissionAccess = async (
           old_value: "0",
           new_value: "1",
           changed_by: idAppUser,
-          company_info_id :client_id,
           changed_date: getLocalDate(),
         });
         updateRolePermission.push({
@@ -1224,7 +1007,7 @@ const updateRolePermissionAccess = async (
         id_action: idAction,
         access: AccessRolePermission.Yes,
         created_by: idAppUser,
-        company_info_id :client_id,
+        
         created_date: getLocalDate(),
       });
     }
@@ -1237,7 +1020,7 @@ const updateRolePermissionAccess = async (
         old_value: "1",
         new_value: "0",
         changed_by: idAppUser,
-        company_info_id :client_id,
+        
         changed_date: getLocalDate(),
       });
       updateRolePermission.push({
@@ -1270,10 +1053,7 @@ const updateUnavailableMenuPermission = async (
   unavailableRolePermission: Model<any, any>[],
   idAppUser: number,
   trn: Transaction,
-  client_id: number,
-  req: Request
 ) => {
-  const { RolePermissionAccess, RolePermission,RolePermissionAccessAuditLog } = initModels(req);
   let auditLogPayload = [];
   const updateRolePermission = [];
   const updateRolePermissionAccess = [];
@@ -1287,7 +1067,7 @@ const updateUnavailableMenuPermission = async (
       });
 
       let availableRPA = await RolePermissionAccess.findAll({
-        where: { id_role_permission: rp.dataValues.id ,company_info_id :client_id},
+        where: { id_role_permission: rp.dataValues.id },
         transaction: trn,
       });
 
@@ -1298,7 +1078,7 @@ const updateUnavailableMenuPermission = async (
             old_value: "1",
             new_value: "0",
             changed_by: idAppUser,
-            company_info_id :client_id,
+            
             changed_date: getLocalDate(),
           });
           updateRolePermissionAccess.push({
@@ -1332,17 +1112,8 @@ const updateUnavailableMenuPermission = async (
 
 export const getUserAccessMenuItems = async (req: Request) => {
   try {
-    const {
-      AppUser,
-      MenuItem,
-      RolePermission,
-      RolePermissionAccess,
-      Action,
-      CompanyInfo,
-      Themes,
-    } = initModels(req);
-
-    const { id_app_user, client_id, id_role, user_type, client_key } = req.body.session_res;
+  
+    const { id_app_user, client_id, id_role, user_type } = req.body.session_res;
 
     const findUser = await AppUser.findOne({
       where: { id: id_app_user, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
@@ -1375,32 +1146,14 @@ export const getUserAccessMenuItems = async (req: Request) => {
       templateList = Object.values(deletedList);
     }
 
-    const decryptedAppKey = JSON.parse(await decryptRequestData(APP_KEY));
-    const decryptedAppMenu = JSON.parse(await decryptRequestData(APP_MENU));
-    const isClientKeyMatched = client_key === decryptedAppKey;
-    const isSuperAdmin = findUser?.dataValues?.is_super_admin === true;
     const isAdministrator = user_type === USER_TYPE.Administrator;
-    const isBusinessUser = user_type === USER_TYPE.BusinessUser;
 
     // Case 1: Admin Super Admin - Full access
-    if (isAdministrator && isSuperAdmin && id_role === 0) {
+    if (isAdministrator && id_role === 0) {
       const allMenus = await MenuItem.findAll({
         where: {
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
-          company_info_id: {
-            [Op.in]: [client_id, SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY],
-          },
-          [Op.and]: [
-            Sequelize.where(
-              Sequelize.fn("LOWER", Sequelize.col("name")),
-              { [Op.ne]: isClientKeyMatched ? "" : decryptedAppMenu }
-            ),
-            Sequelize.where(
-              Sequelize.fn("LOWER", Sequelize.col("name")),
-              { [Op.notIn]: isClientKeyMatched ? "" : templateList }
-            ),
-          ],
         },
         order: [["sort_order", "ASC"]],
         attributes: [
@@ -1416,7 +1169,6 @@ export const getUserAccessMenuItems = async (req: Request) => {
       where: {
         id_role,
         is_active: ActiveStatus.Active,
-        company_info_id: isSuperAdmin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : client_id,
       },
       include: [
         {
@@ -1424,7 +1176,6 @@ export const getUserAccessMenuItems = async (req: Request) => {
           as: "RPA",
           where: {
             access: AccessRolePermission.Yes,
-            company_info_id: isSuperAdmin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : client_id,
           },
           include: [
             {
@@ -1438,47 +1189,11 @@ export const getUserAccessMenuItems = async (req: Request) => {
       ],
     });
 
-    const accessibleMenuIds = [
-      ...new Set(
-        permissionedIdsRaw.map((rpa: any) => rpa.id_menu_item)
-        )
-    ];
+
     const whereConditions: any = {
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      [Op.and]: [
-        Sequelize.where(
-          Sequelize.fn("LOWER", Sequelize.col("name")),
-          { [Op.ne]: isClientKeyMatched ? "" : decryptedAppMenu }
-        ),
-        Sequelize.where(
-          Sequelize.fn("LOWER", Sequelize.col("name")),
-          { [Op.notIn]: isClientKeyMatched ? "" : templateList }
-        ),
-      ],
     };
-
-    if (isBusinessUser && isSuperAdmin) {
-      whereConditions[Op.or] = [
-        {
-          is_for_super_admin: false,
-          company_info_id: client_id,
-        },
-        {
-          is_for_super_admin: true,
-          company_info_id: SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
-          id: { [Op.in]: accessibleMenuIds },
-        },
-      ];
-    }
-
-    if (!isSuperAdmin) {
-      whereConditions[Op.and].push({
-        is_for_super_admin: false,
-        company_info_id: client_id,
-        id: { [Op.in]: accessibleMenuIds },
-      });
-    }
 
     const resultAllData = await MenuItem.findAll({
       where: whereConditions,
@@ -1495,7 +1210,6 @@ export const getUserAccessMenuItems = async (req: Request) => {
           where: {
             id_role,
             is_active: ActiveStatus.Active,
-            company_info_id: isSuperAdmin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : client_id,
           },
           include: [
             {
@@ -1504,8 +1218,7 @@ export const getUserAccessMenuItems = async (req: Request) => {
               required: false,
               where: {
                 access: AccessRolePermission.Yes,
-                company_info_id: isSuperAdmin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY : client_id,
-              },
+              },  
               include: [
                 {
                   model: Action,
@@ -1530,7 +1243,6 @@ export const getUserAccessMenuItems = async (req: Request) => {
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
           name: { [Op.iLike]: "%dashboard%" },
-          company_info_id: client_id,
         },
       });
       return resSuccess({ data: result });
@@ -1546,34 +1258,6 @@ export const getUserAccessMenuItems = async (req: Request) => {
             name_action: rpa.action?.action_name,
           }));
         }) || [];
-
-        // If user is super admin and menu item is for regular users (is_for_super_admin: false)
-        // Give access if they have any permissions OR if no permissions found but they are super admin
-        if (isSuperAdmin && !menuItem.is_for_super_admin) {
-          if (permissions.length > 0) {
-            return {
-              id: menuItem.id,
-              name: menuItem.name,
-              id_parent_menu: menuItem.id_parent_menu,
-              nav_path: menuItem.nav_path,
-              sort_order: menuItem.sort_order,
-              icon: menuItem.icon,
-              menu_location: menuItem.menu_location,
-              permission: permissions,
-            };
-          }
-          // If no permissions found but user is super admin with regular menu, still give access
-          return {
-            id: menuItem.id,
-            name: menuItem.name,
-            id_parent_menu: menuItem.id_parent_menu,
-            nav_path: menuItem.nav_path,
-            sort_order: menuItem.sort_order,
-            icon: menuItem.icon,
-            menu_location: menuItem.menu_location,
-            permission: [],
-          };
-        }
 
         // For super admin with super admin menus OR non-super admin with regular menus
         // Check proper permissions
@@ -1605,9 +1289,8 @@ export const getUserAccessMenuItems = async (req: Request) => {
 };
 export const addMenuItems = async (req: Request) => {
   try {
-    const { MenuItem } = initModels(req);
     const { menu } = req.body;
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let menuItemData = [];
       let SubMenuItemData = [];
@@ -1626,7 +1309,7 @@ export const addMenuItems = async (req: Request) => {
             is_deleted: DeletedStatus.No,
             created_by: 1,
             created_date: getLocalDate(),
-            company_info_id :req?.body?.session_res?.client_id,
+            
             icon: element.icon,
           },
           { transaction: trn }
@@ -1638,7 +1321,7 @@ export const addMenuItems = async (req: Request) => {
             const subMenuItem = await MenuItem.create(
               {
                 name: subElement.title,
-                id_parent_menu: MenuItem.dataValues.id,
+                id_parent_menu: menuItem.dataValues.id,
                 nav_path: subElement.nav_path,
                 menu_location: subElement.menu_location,
                 sort_order: subElement.sort_order,
@@ -1646,7 +1329,7 @@ export const addMenuItems = async (req: Request) => {
                 is_deleted: DeletedStatus.No,
                 created_by: 1,
                 created_date: getLocalDate(),
-                company_info_id :req?.body?.session_res?.client_id,
+                
                 icon: subElement.icon,
               },
               { transaction: trn }
@@ -1668,7 +1351,7 @@ export const addMenuItems = async (req: Request) => {
                     is_deleted: DeletedStatus.No,
                     created_by: 1,
                     created_date: getLocalDate(),
-                    company_info_id :req?.body?.session_res?.client_id,
+                    
                     icon: subSubElement.icon,
                   },
                   { transaction: trn }
@@ -1680,7 +1363,7 @@ export const addMenuItems = async (req: Request) => {
         }
       }
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           menu_item_data: menuItemData,

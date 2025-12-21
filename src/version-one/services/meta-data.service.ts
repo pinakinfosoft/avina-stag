@@ -21,11 +21,11 @@ import {
   RECORD_DELETE_SUCCESSFULLY,
   RECORD_UPDATE_SUCCESSFULLY,
 } from "../../utils/app-messages";
-import { initModels } from "../model/index.model";
+import { MetaDataDetails } from "../model/metadata-details.model";
+import { PageData } from "../model/pages.model";
 
 export const addMetaData = async (req: Request) => {
   const { title, description, key_word, id_page, other_meta_data } = req.body;
-  const {MetaDataDetails} = initModels(req)
   try {
     const payload = {
       title,
@@ -37,11 +37,10 @@ export const addMetaData = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
     };
 
     const metadta= await MetaDataDetails.create(payload);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         mega_menu_id: metadta?.dataValues?.id, data: {
@@ -58,7 +57,6 @@ export const addMetaData = async (req: Request) => {
 
 export const getMetaData = async (req: Request) => {
   try {
-    const {MetaDataDetails,PageData} = initModels(req)
     let paginationProps = {};
 
     let pagination = {
@@ -69,8 +67,7 @@ export const getMetaData = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -83,13 +80,13 @@ export const getMetaData = async (req: Request) => {
               
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
       const totalItems = await MetaDataDetails.count({
         where,
-        include: [{ model: PageData, as: "page", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+        include: [{ model: PageData, as: "page", attributes: [],required:false }],
       });
 
       if (totalItems === 0) {
@@ -120,7 +117,7 @@ export const getMetaData = async (req: Request) => {
         [Sequelize.literal(`"page"."name"`), "page_name"],
         [Sequelize.literal(`"page"."url"`), "page_url"],
       ],
-      include: [{ model: PageData, as: "page", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: PageData, as: "page", attributes: [],required:false }],
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -131,9 +128,8 @@ export const getMetaData = async (req: Request) => {
 
 export const getByIdMetaData = async (req: Request) => {
   try {
-    const {MetaDataDetails} = initModels(req)
     const findMetaData = await MetaDataDetails.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findMetaData && findMetaData.dataValues)) {
@@ -147,11 +143,10 @@ export const getByIdMetaData = async (req: Request) => {
 
 export const updateMetaData = async (req: Request) => {
   try {
-    const {MetaDataDetails} = initModels(req)
     const { title, description, key_word, id_page,other_meta_data } = req.body;
     const id = req.params.id;
     const findMetaData = await MetaDataDetails.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No },
     });
     if (!(findMetaData && findMetaData.dataValues)) {
       return resNotFound();
@@ -167,14 +162,14 @@ export const updateMetaData = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No } }
     );
     if (updateMetaData) {
       const findUpdatedPage = await MetaDataDetails.findOne({
-        where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id: id, is_deleted: DeletedStatus.No },
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { mega_menu_id: findMetaData?.dataValues?.id, data: {...findMetaData?.dataValues}},
         new_data: {
           mega_menu_id: findUpdatedPage?.dataValues?.id, data: { ...findUpdatedPage?.dataValues }
@@ -190,9 +185,8 @@ export const updateMetaData = async (req: Request) => {
 
 export const deleteMetaData = async (req: Request) => {
   try {
-    const {MetaDataDetails} = initModels(req)
     const findMetaData = await MetaDataDetails.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findMetaData && findMetaData.dataValues)) {
@@ -204,9 +198,9 @@ export const deleteMetaData = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findMetaData.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findMetaData.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { mega_menu_id: findMetaData?.dataValues?.id, data: {...findMetaData?.dataValues}},
       new_data: {
         mega_menu_id: findMetaData?.dataValues?.id, data: {
@@ -226,9 +220,8 @@ export const deleteMetaData = async (req: Request) => {
 
 export const statusUpdateForMetaData = async (req: Request) => {
   try {
-    const {MetaDataDetails} = initModels(req)
     const findMetaData = await MetaDataDetails.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
     if (!(findMetaData && findMetaData.dataValues)) {
       return resNotFound();
@@ -239,9 +232,9 @@ export const statusUpdateForMetaData = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findMetaData.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findMetaData.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { mega_menu_id: findMetaData?.dataValues?.id, data: {...findMetaData?.dataValues}},
       new_data: {
         mega_menu_id: findMetaData?.dataValues?.id, data: {
@@ -258,15 +251,10 @@ export const statusUpdateForMetaData = async (req: Request) => {
   }
 };
 
-export const getMetaDataListForUser = async (req: Request) => {
+export const getMetaDataListForUser = async () => {
   try {
-    const {MetaDataDetails,PageData} = initModels(req)
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const findMetaData = await MetaDataDetails.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active,company_info_id:company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       attributes: [
         "id",
         "title",
@@ -279,7 +267,7 @@ export const getMetaDataListForUser = async (req: Request) => {
         [Sequelize.literal(`"page"."name"`), "page_name"],
         [Sequelize.literal(`"page"."url"`), "page_url"],
       ],
-      include: [{ model: PageData, as: "page", attributes: [],where:{company_info_id:company_info_id?.data} }],
+      include: [{ model: PageData, as: "page", attributes: [] }],
     });
 
     return resSuccess({ data: findMetaData });

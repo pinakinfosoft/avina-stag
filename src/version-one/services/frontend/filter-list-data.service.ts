@@ -3,16 +3,23 @@ import { Sequelize } from "sequelize";
 import { getCompanyIdBasedOnTheCompanyKey, resSuccess } from "../../../utils/shared-functions";
 import { ActiveStatus, DeletedStatus } from "../../../utils/app-enumeration";
 import { DEFAULT_STATUS_CODE_SUCCESS } from "../../../utils/app-messages";
-import { initModels } from "../../model/index.model";
+import { DiamondCaratSize } from "../../model/master/attributes/caratSize.model";
+import { ClarityData } from "../../model/master/attributes/clarity.model";
+import { Colors } from "../../model/master/attributes/colors.model";
+import { ProductDiamondOption } from "../../model/product-diamond-option.model";
+import { DiamondGroupMaster } from "../../model/master/attributes/diamond-group-master.model";
+import { DiamondShape } from "../../model/master/attributes/diamondShape.model";
+import { SettingTypeData } from "../../model/master/attributes/settingType.model";
+import { MetalTone } from "../../model/master/attributes/metal/metalTone.model";
+import { CategoryData } from "../../model/category.model";
+import { Collection } from "../../model/master/attributes/collection.model";
+import { BrandData } from "../../model/master/attributes/brands.model";
+import { Image } from "../../model/image.model";
+import { ShanksData } from "../../model/master/attributes/shanks.model";
 
 export const diamondFilterListAPI = async (req: Request) => {
   try {
-    const { DiamondCaratSize, ClarityData, Colors, ProductDiamondOption, DiamondGroupMaster } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }   
-    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active },{ company_info_id: company_info_id?.data }];
+    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }];
     const caratWeightData = await DiamondCaratSize.findAll({
       where,
       order: [["value", "ASC"]],
@@ -32,7 +39,7 @@ export const diamondFilterListAPI = async (req: Request) => {
     });
 
     const price = await ProductDiamondOption.findAll({
-      where: { is_deleted: DeletedStatus.No,company_info_id: company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No },
       attributes: [
         "id",
         "id_product",
@@ -47,7 +54,7 @@ export const diamondFilterListAPI = async (req: Request) => {
           model: DiamondGroupMaster,
           as: "rate",
           attributes: [],
-          where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active,company_info_id: company_info_id?.data },
+          where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
         },
       ],
     });
@@ -70,26 +77,11 @@ export const diamondFilterListAPI = async (req: Request) => {
 
 export const metalFilterListAPI = async (req: Request) => {
   try {
-    const {DiamondShape, SettingTypeData, MetalTone,CategoryData, Collection,BrandData,Image} = initModels(req);
     
-    let company_info_id: any = {};
-
-    if (req?.body?.session_res?.client_id) {
-      company_info_id.data = req.body.session_res.client_id;
-    } else {
-      const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-      if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return decrypted;
-      }
-
-      company_info_id = decrypted;
-    }
-
+    
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
-      { company_info_id:company_info_id?.data },
     ];
 
     const diamondShapeData = await DiamondShape.findAll({
@@ -169,16 +161,10 @@ export const metalFilterListAPI = async (req: Request) => {
 
 export const categoryFilterListApI = async (req: Request) => {
   try {
-    const { CategoryData } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { is_searchable: "1" },
-      { company_info_id:company_info_id?.data },
     ];
 
     const category = await CategoryData.findAll({
@@ -194,15 +180,14 @@ export const categoryFilterListApI = async (req: Request) => {
 
 export const configMasterDropDown = async (req: Request) => {
   try {
-    const { DiamondShape, ShanksData } = initModels(req);
 
     const diamondShapeList = await DiamondShape.findAll({
-      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id: req?.body?.session_res?.client_id },
+      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
       attributes: ["id", "name", "slug", "sort_code", "is_diamond"],
     });
 
     const shankList = await ShanksData.findAll({
-      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id: req?.body?.session_res?.client_id },
+      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
       attributes: ["id", "name", "slug", "sort_code"],
     });
 

@@ -1,6 +1,7 @@
 import { DATE, INTEGER, SMALLINT, STRING } from "sequelize";
-export const StockChangeLog = (dbContext: any) => {
-  let stockChangeLog = dbContext.define("stock_change_logs", {
+import dbContext from "../../config/db-context";
+
+export const StockChangeLog = dbContext.define("stock_change_logs", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -35,11 +36,5 @@ export const StockChangeLog = (dbContext: any) => {
   },
   change_date: {
     type: DATE,
-  },
-   company_info_id :{ 
-      type:INTEGER
-    }
+  }
 });
-
-  return stockChangeLog;
-}

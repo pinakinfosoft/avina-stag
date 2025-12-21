@@ -1,7 +1,7 @@
 import { DATE, DOUBLE, INTEGER, STRING } from "sequelize";
+import dbContext from "../../../config/db-context";
 
-export const LookBook = (dbContext: any) => {
-const lookBook = dbContext.define("look_books", {
+export const LookBook = dbContext.define("look_books", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -36,7 +36,7 @@ const lookBook = dbContext.define("look_books", {
   },
   is_deleted: {
     type: STRING,
-    defaultValue:"0"
+    defaultValue: "0"
   },
   created_by: {
     type: INTEGER,
@@ -50,13 +50,7 @@ const lookBook = dbContext.define("look_books", {
   updated_at: {
     type: DATE,
   },
-  condition:{
-    type:STRING
-  },
-  company_info_id: {
-    type: INTEGER,
+  condition: {
+    type: STRING
   }
 });
-
-  return lookBook;
-}

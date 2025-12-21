@@ -29,16 +29,17 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../utils/shared-functions";
-import { initModels } from "../../../model/index.model";
+import { StoneData } from "../../../model/master/attributes/gemstones.model";
+import { Image } from "../../../model/image.model";
+import dbContext from "../../../../config/db-context";
 
 export const addStone = async (req: Request) => {
   try {
-    const { StoneData } = initModels(req);
     const { name, sort_code, is_diamond } = req.body;
     const slug = createSlug(name);
     if (IS_DIAMOND_TYPE.Diamond == is_diamond) {
       const isDiamondFind = await StoneData.findAll({
-        where: { is_diamond: is_diamond, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { is_diamond: is_diamond, is_deleted: DeletedStatus.No, },
       });
 
       if (isDiamondFind && isDiamondFind.length >= 1) {
@@ -50,7 +51,7 @@ export const addStone = async (req: Request) => {
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -58,7 +59,7 @@ export const addStone = async (req: Request) => {
       where: [
         columnValueLowerCase("sort_code", sort_code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -69,17 +70,16 @@ export const addStone = async (req: Request) => {
       return resErrorDataExit();
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       let idImage = null;
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.gemstones,
           req.body.session_res.id_app_user,
-          "",
-          req?.body?.session_res?.client_id
+          ""
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           console.log("----------------", imageData)
@@ -94,7 +94,7 @@ export const addStone = async (req: Request) => {
         sort_code: sort_code,
         created_date: getLocalDate(),
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
+        
         id_image: idImage,
         is_active: ActiveStatus.Active,
         is_deleted: DeletedStatus.No,
@@ -102,7 +102,7 @@ export const addStone = async (req: Request) => {
       };
 
       const stoneData = await StoneData.create(payload, { transaction: trn });
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           gem_stone_id: stoneData?.dataValues?.id, data: {
@@ -126,7 +126,6 @@ export const addStone = async (req: Request) => {
 
 export const getStones = async (req: Request) => {
   try {
-    const { StoneData,Image } = initModels(req);
 
     let paginationProps = {};
 
@@ -138,8 +137,8 @@ export const getStones = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -147,7 +146,7 @@ export const getStones = async (req: Request) => {
               { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -192,10 +191,9 @@ export const getStones = async (req: Request) => {
 
 export const getByIdStone = async (req: Request) => {
   try {
-    const { StoneData,Image } = initModels(req);
 
     const GemstonesInfo = await StoneData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id},
+      where: { id: req.params.id, is_deleted: DeletedStatus.No ,},
       attributes: [
         "id",
         "name",
@@ -208,7 +206,7 @@ export const getByIdStone = async (req: Request) => {
         "is_active",
         "created_by",
       ],
-      include: [{ model: Image, as: "stone_image", attributes: [] ,where:{company_info_id :req?.body?.session_res?.client_id},required:false}],
+      include: [{ model: Image, as: "stone_image", attributes: [] ,required:false}],
     });
 
     if (!(GemstonesInfo && GemstonesInfo.dataValues)) {
@@ -223,14 +221,13 @@ export const getByIdStone = async (req: Request) => {
 
 export const updateStone = async (req: Request) => {
   try {
-    const { StoneData,Image } = initModels(req);
 
     const { name, sort_code, is_diamond, image_delete = "0" } = req.body;
     const id = req.params.id;
     const slug = createSlug(name);
 
     const findStone = await StoneData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findStone && findStone.dataValues)) {
       return resNotFound();
@@ -242,7 +239,7 @@ export const updateStone = async (req: Request) => {
           is_diamond: is_diamond,
           id: { [Op.ne]: id },
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id,
+          
         },
       });
 
@@ -255,7 +252,7 @@ export const updateStone = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -264,7 +261,7 @@ export const updateStone = async (req: Request) => {
         columnValueLowerCase("sort_code", sort_code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -274,23 +271,22 @@ export const updateStone = async (req: Request) => {
       return resErrorDataExit();
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findStone.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findStone.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: findStone.dataValues.id_image, },
           transaction: trn,
         });
       }
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.gemstones,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -315,19 +311,19 @@ export const updateStone = async (req: Request) => {
         },
 
         {
-          where: { id: id, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: id, is_deleted: DeletedStatus.No , },
           transaction: trn,
         }
       );
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage);
       }
 
       const afterUpdatefindStone = await StoneData.findOne({
         where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn
       },);
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { gem_stone_id: afterUpdatefindStone?.dataValues?.id, data: {...afterUpdatefindStone?.dataValues} },
         new_data: {
           gem_stone_id: afterUpdatefindStone?.dataValues?.id, data: {...afterUpdatefindStone?.dataValues }
@@ -349,9 +345,8 @@ export const updateStone = async (req: Request) => {
 
 export const deleteStone = async (req: Request) => {
   try {
-    const { StoneData } = initModels(req);
     const findStone = await StoneData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id},
+      where: { id: req.params.id, is_deleted: DeletedStatus.No ,},
     });
 
     if (!(findStone && findStone.dataValues)) {
@@ -363,9 +358,9 @@ export const deleteStone = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findStone.dataValues.id ,company_info_id :req?.body?.session_res?.client_id} }
+      { where: { id: findStone.dataValues.id ,} }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { gem_stone_id: findStone?.dataValues?.id, data: {...findStone?.dataValues} },
       new_data: {
         gem_stone_id: findStone?.dataValues?.id, data: {
@@ -384,9 +379,8 @@ export const deleteStone = async (req: Request) => {
 
 export const statusUpdateForStone = async (req: Request) => {
   try {
-    const { StoneData } = initModels(req);
     const findStone = await StoneData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findStone && findStone.dataValues)) {
       return resNotFound();
@@ -397,9 +391,9 @@ export const statusUpdateForStone = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findStone.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findStone.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { gem_stone_id: findStone?.dataValues?.id, data: {...findStone?.dataValues} },
       new_data: {
         gem_stone_id: findStone?.dataValues?.id, data: {
@@ -417,12 +411,11 @@ export const statusUpdateForStone = async (req: Request) => {
   }
 };
 
-export const getStoneListAPI = async (req: Request) => {
+export const getStoneListAPI = async () => {
   try {
-    const { StoneData } = initModels(req);
     
     const stoneList = await StoneData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active,company_info_id: req?.body?.session_res?.client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       attributes: ["id", "name", "slug", "sort_code"],
     });
 

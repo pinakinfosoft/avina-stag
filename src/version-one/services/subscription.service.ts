@@ -18,17 +18,12 @@ import {
 } from "../../utils/app-messages";
 import { LogsActivityType, LogsType, SubscriptionStatus } from "../../utils/app-enumeration";
 import { Op } from "sequelize";
-import { initModels } from "../model/index.model";
+import { SubscriptionData } from "../model/subscription.model";
 
 export const addSubscriptions = async (req: Request) => {
   try {
-    const {SubscriptionData} = initModels(req)
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const emailExits = await SubscriptionData.findOne({
-      where: { email: req.body.email ,company_info_id:company_info_id?.data},
+      where: { email: req.body.email },
     });
 
     if (emailExits && emailExits.dataValues) {
@@ -50,12 +45,11 @@ export const addSubscriptions = async (req: Request) => {
       email: req.body.email,
       is_subscribe: SubscriptionStatus.Subscribe,
       created_date: getLocalDate(),
-      company_info_id:company_info_id?.data,
       user_ip: IP,
       user_country: country,
       user_location: locationData
     });
-    await addActivityLogs(req,company_info_id?.data,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         subscription_id: subscription?.dataValues?.id, data: {
@@ -75,7 +69,6 @@ export const addSubscriptions = async (req: Request) => {
 
 export const getAllSubscriptionList = async (req: Request) => {
   try {
-    const {SubscriptionData} = initModels(req)
 
     let paginationProps = {};
 
@@ -92,8 +85,7 @@ export const getAllSubscriptionList = async (req: Request) => {
               { email: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
-        {company_info_id :req?.body?.session_res?.client_id}
+        : {}
     ];
 
     if (!noPagination) {
@@ -129,9 +121,8 @@ export const getAllSubscriptionList = async (req: Request) => {
 export const subscriptionStatusUpdate = async (req: Request) => {
   try {
     const { id, is_subscribe } = req.body;
-    const {SubscriptionData} = initModels(req)
 
-    const emailExits = await SubscriptionData.findOne({ where: { id: id,company_info_id :req?.body?.session_res?.client_id } });
+    const emailExits = await SubscriptionData.findOne({ where: { id: id } });
 
     if (!(emailExits && emailExits.dataValues)) {
       return resNotFound({ message: SUBSCRIPTION_NOT_FOUND });
@@ -143,10 +134,10 @@ export const subscriptionStatusUpdate = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: emailExits.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: emailExits.dataValues.id } }
     );
     if (subscribeInfo) {
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { subscription_id: emailExits?.dataValues?.id, data:{...emailExits?.dataValues}},
         new_data: {
           subscription_id: emailExits?.dataValues?.id,data:{...emailExits?.dataValues,is_subscribe: is_subscribe},

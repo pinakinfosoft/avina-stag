@@ -1,10 +1,12 @@
 import { Request } from "express";
-import { initModels } from "../../model/index.model";
+import { TemplateEightData } from "../../model/template-eight.model";
+import { Image } from "../../model/image.model";
 import { addActivityLogs, resNotFound, resSuccess, getLocalDate, imageAddAndEditInDBAndS3, statusUpdateValue, getCompanyIdBasedOnTheCompanyKey } from "../../../utils/shared-functions";
 import { ActiveStatus, DeletedStatus, IMAGE_TYPE, LogsActivityType, LogsType } from "../../../utils/app-enumeration";
 import { DEFAULT_STATUS_CODE_SUCCESS, NOT_FOUND_MESSAGE, RECORD_DELETE_SUCCESSFULLY, RECORD_UPDATE_SUCCESSFULLY, SECTION_TYPE_NOT_FOUND_MESSAGE } from "../../../utils/app-messages";
 import { Op, QueryTypes, Sequelize } from "sequelize";
 import { SINGLE_ENTRY_SECTION_TYPES, TEMPLATE_EIGHT_SECTION_TYPES } from "../../../utils/app-constants";
+import dbContext from "../../../config/db-context";
 
 function buildSectionPayload(reqBody: any) {
   return {
@@ -32,13 +34,11 @@ function buildSectionPayload(reqBody: any) {
         : JSON.parse(reqBody.product_ids),
     start_date: reqBody?.start_date,
     end_date: reqBody?.end_date,
-    company_info_id: reqBody?.session_res?.client_id,
   };
 }
 
 export const upsertSection = async (req: Request) => {
   try {
-    const { TemplateEightData, Image } = initModels(req);
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     let idTitleImage = null;
     let findTitleImage = null;
@@ -58,12 +58,10 @@ export const upsertSection = async (req: Request) => {
     // Handle image upload/edit
     if (files && files["title_image"]) {
       const imageData = await imageAddAndEditInDBAndS3(
-        req,
         files["title_image"][0],
         IMAGE_TYPE.templateEight, // Use your enum value for templateEight
         req.body.session_res.id_app_user,
-        findTitleImage,
-        req?.body?.session_res?.client_id
+        findTitleImage
       );
 
       if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -79,7 +77,7 @@ export const upsertSection = async (req: Request) => {
     if (!(TEMPLATE_EIGHT_SECTION_TYPES.includes(payload.section_type))) {
         return resNotFound({ message: SECTION_TYPE_NOT_FOUND_MESSAGE });
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
     
 
@@ -99,7 +97,7 @@ export const upsertSection = async (req: Request) => {
             where: { id: section.dataValues.id, is_deleted: DeletedStatus.No },
             transaction: trn,
           });
-          await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+          await addActivityLogs([{
             old_data: { section_id: oldData.id, data: oldData },
             new_data: { section_id: updatedSection?.dataValues?.id, data: { ...updatedSection?.dataValues } }
           }], oldData.id, LogsActivityType.Edit, LogsType.section, req?.body?.session_res?.id_app_user, trn);
@@ -110,7 +108,7 @@ export const upsertSection = async (req: Request) => {
             { ...payload, created_date: getLocalDate() },
             { transaction: trn }
           );
-          await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+          await addActivityLogs([{
             old_data: null,
             new_data: { section_id: newSection?.dataValues?.id, data: { ...newSection?.dataValues } }
           }], newSection?.dataValues?.id, LogsActivityType.Add, LogsType.section, req?.body?.session_res?.id_app_user, trn);
@@ -136,7 +134,7 @@ export const upsertSection = async (req: Request) => {
             where: { id: section.dataValues.id, is_deleted: DeletedStatus.No },
             transaction: trn,
           });
-          await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+          await addActivityLogs([{
             old_data: { section_id: oldData.id, data: oldData },
             new_data: { section_id: updatedSection?.dataValues?.id, data: { ...updatedSection?.dataValues } }
           }], oldData.id, LogsActivityType.Edit, LogsType.section, req?.body?.session_res?.id_app_user, trn);
@@ -147,7 +145,7 @@ export const upsertSection = async (req: Request) => {
             { ...payload, created_date: getLocalDate() },
             { transaction: trn }
           );
-          await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+          await addActivityLogs([{
             old_data: null,
             new_data: { section_id: newSection?.dataValues?.id, data: { ...newSection?.dataValues } }
           }], newSection?.dataValues?.id, LogsActivityType.Add, LogsType.section, req?.body?.session_res?.id_app_user, trn);
@@ -167,7 +165,6 @@ export const upsertSection = async (req: Request) => {
 
 export const activateInactiveSection = async (req: Request) => {
   try {
-    const { TemplateEightData } = initModels(req);
 
     const section = await TemplateEightData.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No },
@@ -182,7 +179,7 @@ export const activateInactiveSection = async (req: Request) => {
       modified_date: getLocalDate(),
     }, { where: { id: section.dataValues.id } });
 
-    await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+    await addActivityLogs([{
       old_data: { section_id: section?.dataValues?.id, data: { ...section?.dataValues } },
       new_data: { section_id: section?.dataValues?.id, data: { ...section?.dataValues, is_active: statusUpdateValue(section), modified_date: getLocalDate() } }
     }], section?.dataValues?.id, LogsActivityType.Delete, LogsType.section, req?.body?.session_res?.id_app_user);
@@ -196,7 +193,6 @@ export const activateInactiveSection = async (req: Request) => {
 
 export const deleteSection = async (req: Request) => {
   try {
-    const { TemplateEightData } = initModels(req);
 
     const section = await TemplateEightData.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No },
@@ -212,7 +208,7 @@ export const deleteSection = async (req: Request) => {
       modified_date: getLocalDate(),
     }, { where: { id: section.dataValues.id } });
 
-    await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+    await addActivityLogs([{
       old_data: { section_id: section?.dataValues?.id, data: { ...section?.dataValues } },
       new_data: { section_id: section?.dataValues?.id, data: { ...section?.dataValues, is_deleted: DeletedStatus.yes, is_active: ActiveStatus.InActive, modified_date: getLocalDate() } }
     }], section?.dataValues?.id, LogsActivityType.Delete, LogsType.section, req?.body?.session_res?.id_app_user);
@@ -225,10 +221,9 @@ export const deleteSection = async (req: Request) => {
 
 export const getAllSections = async (req: Request) => {
   try {
-    const { TemplateEightData, Image } = initModels(req);
 
     const sections = await TemplateEightData.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { is_deleted: DeletedStatus.No },
         attributes: [
                 "id",
                 "title",
@@ -256,7 +251,7 @@ export const getAllSections = async (req: Request) => {
                 [Sequelize.literal("eight_title_image.image_path"), "title_image_path"],
             ],
             include: [
-                { model: Image, as: "eight_title_image", attributes: [], where:{company_info_id :req?.body?.session_res?.client_id},required:false },
+                { model: Image, as: "eight_title_image", attributes: [], required:false },
             ],
     });
 
@@ -268,7 +263,7 @@ export const getAllSections = async (req: Request) => {
         let products = [];
         for (let index = 0; index < section.dataValues.product_ids.length; index++) {
           const element = section.dataValues.product_ids[index];
-          const productData = await (req.body.db_connection).query(
+          const productData:any = await dbContext.query(
             `(WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
@@ -295,7 +290,6 @@ export const getAllSections = async (req: Request) => {
             pmo.center_diamond_price,
             karats.name,
             karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -307,7 +301,7 @@ export const getAllSections = async (req: Request) => {
             product_images.id_metal_tone,
             product_images.image_type
            FROM product_images
-             LEFT JOIN web_config_setting ON web_config_setting.company_info_id = product_images.company_info_id
+             LEFT JOIN web_config_setting ON true  
           WHERE product_images.is_deleted = '0'::"bit" AND (product_images.image_type = ANY (ARRAY[1, 4]))
         ), sum_price AS (
          SELECT pdo_1.id_product,
@@ -390,13 +384,8 @@ export const getAllSections = async (req: Request) => {
 
 export const getAllSectionsUser = async (req: any) => {
   try {
-    const { TemplateEightData, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const sections = await TemplateEightData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id: company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
         attributes: [
             "id",
             "title",
@@ -423,7 +412,7 @@ export const getAllSectionsUser = async (req: any) => {
             [Sequelize.literal("eight_title_image.image_path"), "title_image_path"],
         ],
         include: [
-            { model: Image, as: "eight_title_image", attributes: [], where:{company_info_id :company_info_id?.data},required:false },
+            { model: Image, as: "eight_title_image", attributes: [], required:false },
         ],
     });
 
@@ -435,7 +424,7 @@ export const getAllSectionsUser = async (req: any) => {
         let products = [];
         for (let index = 0; index < section.dataValues.product_ids.length; index++) {
           const element = section.dataValues.product_ids[index];
-          const productData = await (req.body.db_connection).query(
+          const productData:any = await dbContext.query(
             `(WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
@@ -461,8 +450,7 @@ export const getAllSectionsUser = async (req: any) => {
             pmo.id_m_tone,
             pmo.center_diamond_price,
             karats.name,
-            karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
+            karats.calculate_rate AS karat_calculate_rate
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -474,7 +462,7 @@ export const getAllSectionsUser = async (req: any) => {
             product_images.id_metal_tone,
             product_images.image_type
            FROM product_images
-             LEFT JOIN web_config_setting ON web_config_setting.company_info_id = product_images.company_info_id
+             LEFT JOIN web_config_setting ON true  
           WHERE product_images.is_deleted = '0'::"bit" AND (product_images.image_type = ANY (ARRAY[1, 4]))
         ), sum_price AS (
          SELECT pdo_1.id_product,

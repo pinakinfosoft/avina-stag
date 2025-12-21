@@ -30,14 +30,28 @@ import { mailNewOrderAdminReceived } from "./mail.service";
 import { mailNewOrderReceived } from "./mail.service";
 import { DEFAULT_STATUS_CODE_SUCCESS, SUCCESS_SUBSCRIPTION_LIST } from "../../utils/app-messages";
 import getSubSequelize from "../../utils/sub-db-connector";
-import { initModels } from "../model/index.model";
+import { OrderTransaction } from "../model/order-transaction.model";
+import { Orders } from "../model/order.model";
+import { Invoices } from "../model/invoices.model";
+import { OrdersDetails } from "../model/order-details.model";
+import { CouponData } from "../model/coupon.model";
+import { CurrencyData } from "../model/master/currency.model";
+import { CartProducts } from "../model/cart-product.model";
+import { CustomerUser } from "../model/customer-user.model";
+import { CompanyInfo } from "../model/companyinfo.model";
+import { Image } from "../model/image.model";
+import { LooseDiamondGroupMasters } from "../model/loose-diamond-group-master.model";
+import { StockChangeLog } from "../model/stock-change-log.model";
+import { ProductMetalOption } from "../model/product-metal-option.model";
+import { Product } from "../model/product.model";
+import dbContext from "../../config/db-context";
 
 export const webhookForStripe = async (req: Request) => {
   try {
     const event = req.body;
-    const dbConnection = await getSubSequelize(event.data.object.metadata.company_key);
-   const reqBody = {...req, body: {...req.body, company_key: event.data.object.metadata.company_key, db_connection: dbConnection}}
-    await addActivityLogs(reqBody,LOG_FOR_SUPER_ADMIN,[{
+    const dbContext = await getSubSequelize(event.data.object.metadata.company_key);
+   const reqBody = {...req, body: {...req.body, company_key: event.data.object.metadata.company_key, db_connection: dbContext}}
+    await addActivityLogs([{
       old_data: null,
       new_data:event
     }], null, LogsActivityType.StripeEvent, LogsType.Stripe, null);
@@ -50,8 +64,7 @@ export const webhookForStripe = async (req: Request) => {
         event,
         Number(event.data.object.metadata.order_id),
         event.data.object.payment_intent,
-        dbConnection,
-        reqBody
+        dbContext,
       );
       return PaymentSucceed;
     } else if (event.type === STRIPE_PAYMENT_EVENT_TYPE.PaymentFailed) {
@@ -59,7 +72,6 @@ export const webhookForStripe = async (req: Request) => {
         event,
         Number(event.data.object.metadata.order_id),
         event.data.object.payment_intent,
-        reqBody,
       );
       return PaymentFailed;
     } else if (event.type === STRIPE_PAYMENT_EVENT_TYPE.PaymentExpired) {
@@ -67,7 +79,7 @@ export const webhookForStripe = async (req: Request) => {
         event,
         Number(event.data.object.metadata.order_id),
         event.data.object.payment_intent,
-        reqBody
+        
       );
       return PaymentFailed;
     } else {
@@ -84,13 +96,12 @@ export const webhookForPaypal = async (req: any) => {
     const event = req.body;
 
     console.log("----------------------------------++++++++++++++++++++++++++++++", JSON.stringify(event));
-    const dbConnection = await getSubSequelize(event.resource?.purchase_units?.[0]?.description);
+    const dbContext = await getSubSequelize(event.resource?.purchase_units?.[0]?.description);
     
-    const reqBody = {...req, body: {...req.body, company_key: event.resource?.purchase_units?.[0]?.description, db_connection: dbConnection}}
+    const reqBody = {...req, body: {...req.body, company_key: event.resource?.purchase_units?.[0]?.description, db_connection: dbContext}}
     
-    const { OrderTransaction } = await initModels(reqBody);
     
-    await addActivityLogs(reqBody,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: null,
       new_data:event
     }], null, LogsActivityType.PayPalEvent, LogsType.PayPal, null);
@@ -106,8 +117,7 @@ export const webhookForPaypal = async (req: any) => {
         event,
         findOrderTransaction.dataValues.order_id,
         findOrderTransaction.dataValues.payment_transaction_id,
-        dbConnection,
-        reqBody
+        dbContext,
       );
       return PaymentSucceed;
     } else if (
@@ -124,8 +134,7 @@ export const webhookForPaypal = async (req: any) => {
           event,
           findOrderTransaction.dataValues.order_id,
           findOrderTransaction.dataValues.payment_transaction_id,
-          dbConnection,
-          reqBody
+          dbContext,
         );
         return PaymentFailed;
       }
@@ -134,7 +143,6 @@ export const webhookForPaypal = async (req: any) => {
         event,
         findOrderTransaction.dataValues.order_id,
         findOrderTransaction.dataValues.payment_transaction_id,
-        reqBody
       );
       return PaymentFailed;
     } else if (
@@ -145,7 +153,7 @@ export const webhookForPaypal = async (req: any) => {
         event,
         findOrderTransaction.dataValues.order_id,
         findOrderTransaction.dataValues.payment_transaction_id,
-        reqBody
+        
       );
       return PaymentFailed;
     } else if (event.event_type === PAYPAL_PAYMENT_EVENT_TYPE.PaymentFailed) {
@@ -154,7 +162,6 @@ export const webhookForPaypal = async (req: any) => {
         event,
         findOrderTransaction.dataValues.order_id,
         findOrderTransaction.dataValues.payment_transaction_id,
-        reqBody
       );
       return PaymentFailed;
     } else {
@@ -176,12 +183,9 @@ export const webhookForAffirm = async (req: Request) => {
 export const webhookForRazorpay = async (req: Request) => {
   try {
     const { event, payload } = req.body;
-    const dbConnection = await getSubSequelize(payload.payment.entity.notes.company_key);
 
-   const reqBody = {...req, body: {...req.body, company_key: payload.payment.entity.notes.company_key, db_connection: dbConnection}}
     
-    const {OrderTransaction,Orders} = await initModels(reqBody);
-    await addActivityLogs(reqBody,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: null,
       new_data:event
     }], null, LogsActivityType.RazorpayEvent, LogsType.RazorPay, null);
@@ -205,12 +209,11 @@ export const webhookForRazorpay = async (req: Request) => {
         payment_source_type: "visa",
         payment_json: payload,
         payment_transaction_id: payload.payment.entity.id,
-        company_info_id:findOrder?.dataValues?.company_info_id,
         created_date: getLocalDate(),
       };
      findOrderTransaction =  await OrderTransaction.create(order_transactions);
     }
-    await addActivityLogs(reqBody,findOrderTransaction?.dataValues?.company_info_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         Order_transaction_id: findOrderTransaction?.dataValues?.id, wishlist_data: {
@@ -234,8 +237,7 @@ export const webhookForRazorpay = async (req: Request) => {
           req.body,
           payload.payment ? payload.payment.entity.notes.order_id : payload.order.entity.notes.order_id,
           findOrderTransaction.dataValues.payment_transaction_id,
-          dbConnection,
-          reqBody
+          dbContext,
         );
         return PaymentSucceed;
       case RAZORPAY_PAYMENT_EVENT_TYPE.Failed:
@@ -244,7 +246,7 @@ export const webhookForRazorpay = async (req: Request) => {
           req.body,
           payload.payment ? payload.payment.entity.notes.order_id : payload.order.entity.notes.order_id,
           findOrderTransaction.dataValues.payment_transaction_id,
-          reqBody
+          
         );
         return failedPayment;
       case RAZORPAY_PAYMENT_EVENT_TYPE.Cancelled:
@@ -253,7 +255,7 @@ export const webhookForRazorpay = async (req: Request) => {
           req.body,
           payload.payment ? payload.payment.entity.notes.order_id : payload.order.entity.notes.order_id,
           findOrderTransaction.dataValues.payment_transaction_id,
-          reqBody
+          
         );
         return cancelledPayment;
       default:
@@ -267,7 +269,6 @@ export const webhookForRazorpay = async (req: Request) => {
 
 const createTransactionForStripe = async (webhookResponse: any, req: any) => {
   try {
-    const {Orders,OrderTransaction} = await initModels(req);
     const findOrder:any = await Orders.findOne({
       where: { id: Number(webhookResponse.data.object.metadata.order_id) },
     });
@@ -283,11 +284,10 @@ const createTransactionForStripe = async (webhookResponse: any, req: any) => {
       payment_json: webhookResponse,
       payment_transaction_id: webhookResponse.data.object.id,
       created_by: findOrder.dataValues.created_by,
-      company_info_id:findOrder?.dataValues?.company_info_id,
       created_date: getLocalDate(),
     };
     const orders = await OrderTransaction.create(order_transactions);
-    await addActivityLogs(req,findOrder?.dataValues?.company_info_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         Order_transaction_id: orders?.dataValues?.id, wishlist_data: {
@@ -301,9 +301,8 @@ const createTransactionForStripe = async (webhookResponse: any, req: any) => {
   }
 };
 
-const createTransactionForRazorPay = async (webhookResponse: any, dbConnection: any) => {
+const createTransactionForRazorPay = async (webhookResponse: any, dbContext: any) => {
   try {
-    const {Orders,OrderTransaction} = await initModels(dbConnection);
     const findOrder = await Orders.findOne({
       where: { id: Number(webhookResponse.notes.order_id) },
     });
@@ -327,7 +326,7 @@ const createTransactionForRazorPay = async (webhookResponse: any, dbConnection: 
         created_date: getLocalDate(),
       };
       const orders = await OrderTransaction.create(order_transactions);
-      await addActivityLogs(dbConnection,findOrder?.dataValues?.company_info_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           Order_transaction_id: orders?.dataValues?.id, wishlist_data: {
@@ -347,13 +346,11 @@ const successTransaction = async (
   webhookResponse: any,
   order_id: any,
   payment_transaction_id: any,
-  dbConnection: any,
-  req:any
+  dbContext: any,
 ) => {
-  const { Orders,OrderTransaction,Invoices,OrdersDetails, CouponData, CurrencyData, CartProducts,CustomerUser,CompanyInfo,Image } = await initModels(req);
   let i = (await Invoices.count()) + 1;
 
-  const trn = await dbConnection.transaction();
+  const trn = await dbContext.transaction();
 
   try {
     const findOrder = await Orders.findOne({
@@ -361,12 +358,12 @@ const successTransaction = async (
       transaction: trn,
     });
 
-    const configData = await getWebSettingData(dbConnection,findOrder?.dataValues?.company_info_id);
+      const configData = await getWebSettingData();
     const invoice_number = i.toString().padStart(configData.invoice_number_generate_digit_count, "0");
 
     const findOrderTransaction = await OrderTransaction.findOne({
       where: {
-        payment_transaction_id: payment_transaction_id,company_info_id:findOrder?.dataValues?.company_info_id
+        payment_transaction_id: payment_transaction_id
       },
       transaction: trn,
     });
@@ -376,7 +373,7 @@ const successTransaction = async (
         payment_status: PaymentStatus.paid,
         payment_json: webhookResponse,
       },
-      { where: { id: findOrderTransaction.dataValues.id,company_info_id:findOrder?.dataValues?.company_info_id }, transaction: trn }
+      { where: { id: findOrderTransaction.dataValues.id }, transaction: trn }
     );
     await Orders.update(
       {
@@ -384,7 +381,7 @@ const successTransaction = async (
         modified_date: getLocalDate(),
         modified_by: findOrder.dataValues.created_by,
       },
-      { where: { id: findOrder.dataValues.id,company_info_id:findOrder?.dataValues?.company_info_id }, transaction: trn }
+      { where: { id: findOrder.dataValues.id }, transaction: trn }
     );
     const findOrderDetailTransaction = await OrderTransaction.findAll({
       where: { order_id: order_id },
@@ -394,7 +391,7 @@ const successTransaction = async (
       {
         payment_status: PaymentStatus.paid,
       },
-      { where: { order_id: findOrder.dataValues.id,company_info_id:findOrder?.dataValues?.company_info_id }, transaction: trn }
+      { where: { order_id: findOrder.dataValues.id }, transaction: trn }
     );
     const invoiceData = {
       invoice_number: `${configData.order_invoice_number_identity}-${invoice_number}`,
@@ -406,13 +403,12 @@ const successTransaction = async (
       transaction_id: findOrderTransaction.dataValues.id,
       created_date: getLocalDate(),
       created_by: findOrder.dataValues.created_by,
-      company_info_id:findOrder?.dataValues?.company_info_id
     };
     const invoiceDetails = await Invoices.create(invoiceData, {
       transaction: trn,
     });
     const result: any = await Invoices.findOne({
-      where: { order_id: invoiceDetails.dataValues.order_id,company_info_id:findOrder?.dataValues?.company_info_id },
+      where: { order_id: invoiceDetails.dataValues.order_id },
       transaction: trn,
       attributes: [
         "id",
@@ -464,7 +460,6 @@ const successTransaction = async (
         {
           required:false,
           model: OrderTransaction,
-          where:{company_info_id:findOrder?.dataValues?.company_info_id},
           as: "order_transaction",
           attributes: ["id", "payment_transaction_id"]
         },
@@ -472,7 +467,6 @@ const successTransaction = async (
           required:false,
           model: Orders,
           as: "order_invoice",
-          where:{company_info_id:findOrder?.dataValues?.company_info_id},
           attributes: [
             "id",
             "order_number",
@@ -500,7 +494,6 @@ const successTransaction = async (
               required:false,
               model: CouponData,
               as: "coupon",
-              where:{company_info_id:findOrder?.dataValues?.company_info_id},
               attributes: [
                 "id",
                 "coupon_code",
@@ -515,7 +508,6 @@ const successTransaction = async (
               required:false,
               model: OrdersDetails,
               as: "order",
-              where:{company_info_id:findOrder?.dataValues?.company_info_id},
               attributes: [
                 "quantity",
                 "diamond_rate",
@@ -630,9 +622,9 @@ const successTransaction = async (
 
     let findCurrency 
     if (result.dataValues.order_invoice.currency_id && result.dataValues.order_invoice.currency_id != null) {
-      findCurrency = await CurrencyData.findOne({where: {id: result.dataValues.order_invoice.currency_id, company_info_id:findOrder?.dataValues?.company_info_id}})
+      findCurrency = await CurrencyData.findOne({where: {id: result.dataValues.order_invoice.currency_id }})
     } else {
-      findCurrency = await CurrencyData.findOne({where: {is_default: "1", company_info_id:findOrder?.dataValues?.company_info_id}})
+      findCurrency = await CurrencyData.findOne({where: {is_default: "1" }})
     }
         let taxData = JSON.parse(result.dataValues.order_invoice.order_taxs);
         taxData = taxData.map((data: any) => {
@@ -640,7 +632,6 @@ const successTransaction = async (
         });
         const productData: any = [];
         const companyInfo = await (<any>CompanyInfo.findOne({
-          where: { id: findOrder?.dataValues?.company_info_id },
           attributes: [
             "id",
             "company_name",
@@ -888,7 +879,7 @@ const successTransaction = async (
         }
         
             const userData = await CustomerUser.findOne({
-              where: { id_app_user: result.dataValues.order_invoice.user_id || 0,company_info_id:findOrder?.dataValues?.company_info_id},
+              where: { id_app_user: result.dataValues.order_invoice.user_id || 0 },
             });
             let pdfLogo = configData.image_base_url + findLogo.dataValues.image_path
             const logoBase64:any = await convertImageUrlToDataURL(pdfLogo)
@@ -896,8 +887,7 @@ const successTransaction = async (
             if (logoBase64.code == DEFAULT_STATUS_CODE_SUCCESS) {
               pdfLogo = logoBase64.data
             }
-            const findCompanyDetails = await CompanyInfo.findOne({where: {id: findOrder?.dataValues?.company_info_id}})
-            let attachmentContent = await getEmailTemplateContent(req, true);
+            let attachmentContent = await getEmailTemplateContent(true);
             if(attachmentContent.code !== DEFAULT_STATUS_CODE_SUCCESS){
               trn.rollback();
               return attachmentContent
@@ -968,7 +958,7 @@ const successTransaction = async (
               id:result?.dataValues?.id,
               invoice_number: result?.dataValues?.invoice_number,          
             }
-            const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments,findOrder?.dataValues?.company_info_id,req);
+            const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments);
               
             const mailNewOrderPayload = {
               toEmailAddress: result.dataValues.order_invoice.email,
@@ -976,8 +966,8 @@ const successTransaction = async (
                 name: userData?.dataValues.full_name
                   ? userData?.dataValues.full_name
                   : result.dataValues.billing_address.full_name,
-                company_number: findCompanyDetails.dataValues.company_phone,
-                company_address: findCompanyDetails.dataValues.company_address,
+                // company_number: findCompanyDetails.dataValues.company_phone,
+                // company_address: findCompanyDetails.dataValues.company_address,
                 toBeReplace: {
                   invoice_number: result.dataValues.invoice_number,
                   invoice_date: new Date(
@@ -1103,26 +1093,26 @@ const successTransaction = async (
       },
     };
 
-    await mailNewOrderAdminReceived(admin,findOrder?.dataValues?.company_info_id, {body: {db_connection: dbConnection}});
-    await mailNewOrderReceived(mailNewOrderPayload, findOrder?.dataValues?.company_info_id, { body: { db_connection: dbConnection } });
+    await mailNewOrderAdminReceived(admin);
+    await mailNewOrderReceived(mailNewOrderPayload);
     if(findOrder.dataValues.cart_ids && findOrder.dataValues.cart_ids != undefined && findOrder.dataValues.cart_ids != null) {
        await CartProducts.destroy({
         where: {
-          id: findOrder.dataValues.cart_ids.split(","),company_info_id:findOrder?.dataValues?.company_info_id
+          id: findOrder.dataValues.cart_ids.split(",")
         },
       });
     } else if(findOrder.dataValues.user_id) {
       await CartProducts.destroy({
         where: {
-          user_id: findOrder.dataValues.user_id,company_info_id:findOrder?.dataValues?.company_info_id
+          user_id: findOrder.dataValues.user_id
         },
       });
     }
 
     const cart_list_count = await CartProducts.sum("quantity", {
-      where: { user_id: findOrder.dataValues.user_id,company_info_id:findOrder?.dataValues?.company_info_id },
+      where: { user_id: findOrder.dataValues.user_id },
     });
-    await addActivityLogs(req,findOrder?.dataValues?.company_info_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         order_transaction_id: findOrderTransaction?.dataValues?.id, order_transaction_data: {
@@ -1146,7 +1136,7 @@ const successTransaction = async (
     }}], findOrderTransaction?.dataValues?.id, LogsActivityType.Add, LogsType.WebhookTransactionSuccess, null,trn)
   
     await trn.commit();
-    // await refreshMaterializedProductListView(dbConnection);
+    // await refreshMaterializedProductListView(dbContext);
     return resSuccess({ data: cart_list_count });
   } catch (error) {
     console.log(error);
@@ -1159,13 +1149,11 @@ export const failedTransaction = async (
   webhookResponse: any,
   order_id: any,
   payment_transaction_id: any,
-  req: any
 ) => {
-  const dbConnection = req.body.db_connection;
-  const trn = await dbConnection.transaction();
+  
+  const trn = await dbContext.transaction();
 
   try {
-    const {Orders,OrderTransaction, OrdersDetails} = await initModels(dbConnection);
     const findOrder = await Orders.findOne({
       where: { id: order_id },
       transaction: trn,
@@ -1173,7 +1161,7 @@ export const failedTransaction = async (
 
     const findOrderTransaction = await OrderTransaction.findOne({
       where: {
-        payment_transaction_id: payment_transaction_id,company_info_id:findOrder?.dataValues?.company_info_id
+        payment_transaction_id: payment_transaction_id
       },
       transaction: trn,
     });
@@ -1183,7 +1171,7 @@ export const failedTransaction = async (
         payment_status: PaymentStatus.Failed,
         payment_json: webhookResponse,
       },
-      { where: { id: findOrderTransaction.dataValues.id,company_info_id:findOrder?.dataValues?.company_info_id }, transaction: trn }
+      { where: { id: findOrderTransaction.dataValues.id }, transaction: trn }
     );
     await Orders.update(
       {
@@ -1191,7 +1179,7 @@ export const failedTransaction = async (
         modified_date: getLocalDate(),
         modified_by: findOrder.dataValues.created_by,
       },
-      { where: { id: findOrder.dataValues.id,company_info_id:findOrder?.dataValues?.company_info_id }, transaction: trn }
+      { where: { id: findOrder.dataValues.id }, transaction: trn }
     );
     const findOrderDetailTransaction = await OrderTransaction.findAll({
       where: {
@@ -1203,12 +1191,12 @@ export const failedTransaction = async (
       {
         payment_status: PaymentStatus.Failed,
       },
-      { where: { order_id: findOrder.dataValues.id,company_info_id:findOrder?.dataValues?.company_info_id }, transaction: trn }
+      { where: { order_id: findOrder.dataValues.id }, transaction: trn }
     );
 
-    await handlePaymentFailedQuantity(findOrder.dataValues.id, trn,findOrder?.dataValues?.company_info_id, req);
+    await handlePaymentFailedQuantity(findOrder.dataValues.id, trn);
 
-    await addActivityLogs(req,findOrder?.dataValues?.company_info_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         order_transaction_id: findOrderTransaction?.dataValues?.id, order_transaction_data: {
@@ -1229,7 +1217,7 @@ export const failedTransaction = async (
     }}], findOrderTransaction?.dataValues?.id, LogsActivityType.Add, LogsType.WebhookTransactionFailed, null,trn)
   
     await trn.commit();
-    // await refreshMaterializedProductListView(dbConnection);
+    // await refreshMaterializedProductListView(dbContext);
     return resSuccess({ data: findOrderTransaction });
   } catch (error) {
     await trn.rollback();
@@ -1240,10 +1228,7 @@ export const failedTransaction = async (
 const handlePaymentFailedQuantity = async (
   orderId: number,
   trn: Transaction,
-  client_id: number,
-  req: any
 ) => {
-  const {OrdersDetails, LooseDiamondGroupMasters, StockChangeLog,ProductMetalOption, Product} = await initModels(req);
   const quantityOrderDetails = await OrdersDetails.findAll({
     where: [
       {
@@ -1259,7 +1244,6 @@ const handlePaymentFailedQuantity = async (
           ],
         }
       ),
-      {company_info_id:client_id},
     ],
   });
 
@@ -1302,7 +1286,7 @@ const handlePaymentFailedQuantity = async (
 
   for (const key in diamondDetails) {
     const looseDiamond = await LooseDiamondGroupMasters.findOne({
-      where: { id: diamondDetails[key].id,company_info_id:client_id },
+      where: { id: diamondDetails[key].id },
     });
     if (looseDiamond) {
       await LooseDiamondGroupMasters.update(
@@ -1311,7 +1295,7 @@ const handlePaymentFailedQuantity = async (
             looseDiamond.dataValues.remaining_quantity_count +
             diamondDetails[key].quantity,
         },
-        { where: { id: diamondDetails[key].id,company_info_id:client_id }, transaction: trn }
+        { where: { id: diamondDetails[key].id }, transaction: trn }
       );
 
       const AfterUpdateLooseDiamond = await LooseDiamondGroupMasters.findOne({
@@ -1330,13 +1314,12 @@ const handlePaymentFailedQuantity = async (
           transaction_type: STOCK_TRANSACTION_TYPE.OrderFailed,
           changed_by: null,
           email: null,
-          change_date: getLocalDate(),
-          company_info_id:client_id
+          change_date: getLocalDate()
         },
         { transaction: trn }
       );
 
-      await addActivityLogs(req,client_id,[{
+      await addActivityLogs([{
         old_data: {loose_diamond_id : looseDiamond?.dataValues?.id, loose_diamond_data:looseDiamond?.dataValues},
         new_data:{stoke_id : stokeChangesLog?.dataValues?.id, stoke_data:stokeChangesLog?.dataValues,loose_diamond_id : AfterUpdateLooseDiamond?.dataValues?.id, loose_diamond_data:AfterUpdateLooseDiamond?.dataValues}
       }], stokeChangesLog?.dataValues?.id, LogsActivityType.FailedPaymentQuentityManageDiamond, LogsType.Webhook, null,trn);
@@ -1355,11 +1338,10 @@ const handlePaymentFailedQuantity = async (
         ],
         "remaing_quantity_count",
       ],
-      where: { id: variantDetails[key].id_variant,company_info_id:client_id },
+      where: { id: variantDetails[key].id_variant },
       include: {
         model: Product,
         as: "product",
-        where:{company_info_id:client_id},
       },
     });
 
@@ -1370,7 +1352,7 @@ const handlePaymentFailedQuantity = async (
             pmoData.dataValues.remaing_quantity_count +
             variantDetails[key].quantity,
         },
-        { where: { id: variantDetails[key].id_variant,company_info_id:client_id }, transaction: trn }
+        { where: { id: variantDetails[key].id_variant }, transaction: trn }
       );
       const AfterUpdatepmoData = await ProductMetalOption.findOne({
         attributes: [
@@ -1403,12 +1385,11 @@ const handlePaymentFailedQuantity = async (
           transaction_type: STOCK_TRANSACTION_TYPE.OrderFailed,
           changed_by: null,
           email: null,
-          change_date: getLocalDate(),
-          company_info_id:client_id
+          change_date: getLocalDate()
         },
         { transaction: trn }
       );
-      await addActivityLogs(req,client_id,[{
+      await addActivityLogs([{
         old_data: {pmo_data_id : pmoData?.dataValues?.id, pmo_data_data:pmoData?.dataValues},
         new_data:{stoke_id : stokeChangesLog?.dataValues?.id, stoke_data:stokeChangesLog?.dataValues,pmo_data_id : AfterUpdatepmoData?.dataValues?.id, pmo_data_data:AfterUpdatepmoData?.dataValues}
       }], stokeChangesLog?.dataValues?.id, LogsActivityType.FailedPaymentQuentityManageMetal, LogsType.Webhook, null,trn);

@@ -35,10 +35,25 @@ import {
 } from "../../utils/app-enumeration";
 import axios from "axios";
 import { Sequelize } from "sequelize";
-import { initModels } from "../model/index.model";
+import { Orders } from "../model/order.model";
+import { OrdersDetails } from "../model/order-details.model";
+import { OrderTransaction } from "../model/order-transaction.model";
+import { Invoices } from "../model/invoices.model";
+import { ProductMetalOption } from "../model/product-metal-option.model";
+import { CurrencyData } from "../model/master/currency.model";
+import { CustomerUser } from "../model/customer-user.model";
+import { CartProducts } from "../model/cart-product.model";
+import { StoreAddress } from "../model/store-address.model";
+import { GiftSetProductOrder } from "../model/gift-set-product/gift_set_product_order.model";
+import { GiftSetOrdersDetails } from "../model/gift-set-product/git_set_product_order_details.model";
+import { GiftSetProductInvoice } from "../model/gift-set-product/gift_set_product_invoice.model";
+import { GiftSetProductOrderTransaction } from "../model/gift-set-product/gift_set_product_transaction.model";
+import { ConfigOrdersDetails } from "../model/config-order-details.model";
+import { CompanyInfo } from "../model/companyinfo.model";
+import { ConfigCartProduct } from "../model/config-cart-product.model";
 import { PAYMENT_METHOD_ID_FROM_LABEL } from "../../utils/app-constants";
+import dbContext from "../../config/db-context";
 export const PaymentTransaction = async (req: Request) => {
-  const {Orders, OrdersDetails, OrderTransaction, Invoices, ProductMetalOption, CurrencyData,CustomerUser,CartProducts} = initModels(req);
   const { order_id, order_number, amount, token } = req.body;
   let invoiceDetails: any;
   let errors: {
@@ -46,7 +61,7 @@ export const PaymentTransaction = async (req: Request) => {
     error_message: any;
   }[] = [];
 
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
 
   const orderValidate = await Orders.findOne({
     where: {
@@ -86,7 +101,7 @@ export const PaymentTransaction = async (req: Request) => {
   });
 
   let i = (await Invoices.count()) + 1;
-  const configData =  await getWebSettingData(req.body.db_connection,orderAmontValidate?.dataValues?.company_info_id);
+  const configData =  await getWebSettingData();
 
   const invoice_number = i.toString().padStart(configData.invoice_number_generate_digit_count, "0");
 
@@ -190,7 +205,7 @@ export const PaymentTransaction = async (req: Request) => {
           transaction: trn,
         });
 
-        await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -270,7 +285,7 @@ export const PaymentTransaction = async (req: Request) => {
           { where: { order_id: order_id }, transaction: trn }
         );
 
-        await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -496,11 +511,11 @@ export const PaymentTransaction = async (req: Request) => {
   let findCurrency
   if (result.dataValues.order_invoice.currency_id && result.dataValues.order_invoice.currency_id != null) {
     findCurrency = await CurrencyData.findOne({
-      where: { id: result.dataValues.order_invoice.currency_id, company_info_id: orderAmontValidate.dataValues.company_info_id },
+      where: { id: result.dataValues.order_invoice.currency_id },
     });
   } else {
     findCurrency = await CurrencyData.findOne({
-      where: { is_default: "1", company_info_id: orderAmontValidate.dataValues.company_info_id },
+      where: { is_default: "1" },
     });
    }
 
@@ -616,7 +631,7 @@ export const PaymentTransaction = async (req: Request) => {
       invoice_number: result?.dataValues?.invoice_number,          
     }
   
-    const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments,userData?.dataValues?.company_info_id, req);
+    const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments);
   
 
   const mailNewOrderPayload = {
@@ -748,7 +763,7 @@ export const PaymentTransaction = async (req: Request) => {
     where: { user_id: orderAmontValidate.dataValues.user_id },
   });
 
-  await addActivityLogs(req,userData?.dataValues?.company_info_id,[{
+  await addActivityLogs([{
     old_data: { data: removeCartData}, 
     new_data: null
   }], null, LogsActivityType.Delete, LogsType.PaymentTransaction, req?.body?.session_res?.id_app_user,trn)
@@ -758,10 +773,9 @@ export const PaymentTransaction = async (req: Request) => {
 
 export const invoivesDetailsApi = async (req: Request) => {
   try {
-    const { Invoices,Orders, CurrencyData,StoreAddress,OrdersDetails } = initModels(req);
     const { order_id } = req.body;
 
-    const configData =  await getWebSettingData(req.body.db_connection,req?.body?.session_res?.client_id);
+    const configData =  await getWebSettingData();
     const result = await Invoices.findOne({
       where: { order_id: order_id },
       attributes: [
@@ -847,7 +861,6 @@ export const invoivesDetailsApi = async (req: Request) => {
               required:false,
               model: StoreAddress,
               as: "store_address",
-              where:{company_info_id:req?.body?.session_res?.client_id},
               attributes: [
                 "id",
                 "address",
@@ -1050,8 +1063,7 @@ export const giftProductPaymentTransaction = async (req: Request) => {
     error_status: number;
     error_message: any;
   }[] = [];
-  const {GiftSetProductOrder,GiftSetOrdersDetails, GiftSetProductInvoice, GiftSetProductOrderTransaction,OrdersDetails,CustomerUser} = initModels(req);
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
 
   const orderValidate = await GiftSetProductOrder.findOne({
     where: {
@@ -1091,7 +1103,7 @@ export const giftProductPaymentTransaction = async (req: Request) => {
   });
 
   let i = (await GiftSetProductInvoice.count()) + 1;
-  const configData =  await getWebSettingData(req.body.db_connection,orderAmontValidate?.dataValues?.company_info_id);
+  const configData =  await getWebSettingData();
 
   const invoice_number = i.toString().padStart(configData.invoice_number_generate_digit_count, "0");
 
@@ -1170,7 +1182,7 @@ export const giftProductPaymentTransaction = async (req: Request) => {
           transaction: trn,
         });
 
-        await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -1253,7 +1265,7 @@ export const giftProductPaymentTransaction = async (req: Request) => {
           { where: { order_id: order_id }, transaction: trn }
         );
 
-        await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -1536,7 +1548,6 @@ export const giftProductPaymentTransaction = async (req: Request) => {
 
 export const giftsetInvoivesDetailsApi = async (req: Request) => {
   try {
-  const {GiftSetProductOrder,GiftSetOrdersDetails, GiftSetProductInvoice, GiftSetProductOrderTransaction} = initModels(req);
 
     const { order_id } = req.body;
 
@@ -1650,7 +1661,6 @@ export const giftsetInvoivesDetailsApi = async (req: Request) => {
 };
 
 export const configProductPaymentTransaction = async (req: Request) => {
-  const {Orders, OrdersDetails, OrderTransaction, Invoices,ConfigOrdersDetails, CompanyInfo, ConfigCartProduct, CurrencyData,CustomerUser,CartProducts} = initModels(req);
   const { order_id, order_number, amount, token } = req.body;
   let invoiceDetails: any;
   let errors: {
@@ -1658,7 +1668,7 @@ export const configProductPaymentTransaction = async (req: Request) => {
     error_message: any;
   }[] = [];
 
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
 
   const orderValidate = await Orders.findOne({
     where: {
@@ -1702,7 +1712,7 @@ export const configProductPaymentTransaction = async (req: Request) => {
   });
 
   let i = (await Invoices.count()) + 1;
-  const configData =  await getWebSettingData(req.body.db_connection,orderAmontValidate?.dataValues?.company_info_id);
+  const configData =  await getWebSettingData();
 
   const invoice_number = i.toString().padStart(configData.invoice_number_generate_digit_count, "0");
 
@@ -1785,7 +1795,7 @@ export const configProductPaymentTransaction = async (req: Request) => {
           transaction: trn,
         });
 
-        await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -1877,7 +1887,7 @@ export const configProductPaymentTransaction = async (req: Request) => {
           { where: { order_id: order_id }, transaction: trn }
         );
 
-        await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -2216,19 +2226,16 @@ export const configProductPaymentTransaction = async (req: Request) => {
     findCurrency = await CurrencyData.findOne({
       where: {
         id: result?.dataValues?.order_invoice?.currency_id,
-        company_if_id: orderAmontValidate?.dataValues?.company_info_id,
       },
     });
   } else {
     findCurrency = await CurrencyData.findOne({
       where: {
         is_default: "1",
-        company_if_id: orderAmontValidate?.dataValues?.company_info_id,
       },
     });
   }
   const findCompanyDetails = await CompanyInfo.findOne({
-    where: { id: orderAmontValidate?.dataValues?.company_info_id },
   });
   let productData = [];
 
@@ -2305,7 +2312,7 @@ export const configProductPaymentTransaction = async (req: Request) => {
     invoice_number: result?.dataValues?.invoice_number,          
   }
 
-  const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments,userData?.dataValues?.company_info_id,req);
+    const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments);
 
   const mailNewOrderPayload = {
     toEmailAddress: userData?.dataValues.email,
@@ -2342,7 +2349,6 @@ export const configProductPaymentTransaction = async (req: Request) => {
 };
 
 export const PaymentTransactionWithPaypal = async (req: Request) => {
-  const {Orders, OrdersDetails, OrderTransaction, Invoices, CustomerUser,CompanyInfo,CartProducts, CurrencyData} = initModels(req);
   const {
     order_id,
     order_number,
@@ -2358,7 +2364,7 @@ export const PaymentTransactionWithPaypal = async (req: Request) => {
   //   error_message: any;
   // }[] = [];
 
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
 
   const orderValidate = await Orders.findOne({
     where: {
@@ -2400,7 +2406,7 @@ export const PaymentTransactionWithPaypal = async (req: Request) => {
   });
 
   let i = (await Invoices.count()) + 1;
-  const configData =  await getWebSettingData(req.body.db_connection,orderAmontValidate?.dataValues?.company_info_id);
+  const configData =  await getWebSettingData();
   const invoice_number = i.toString().padStart(configData.invoice_number_generate_digit_count, "0");
 
   if (status == "SUCCESS") {
@@ -2456,7 +2462,7 @@ export const PaymentTransactionWithPaypal = async (req: Request) => {
       };
       invoiceDetails = await Invoices.create(invoiceData, { transaction: trn });
 
-      await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -2522,7 +2528,7 @@ export const PaymentTransactionWithPaypal = async (req: Request) => {
         { where: { order_id: order_id }, transaction: trn }
       );
 
-      await addActivityLogs(req,order?.dataValues?.company_info_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           order_transaction_id: orders?.dataValues?.id, order_transaction_data: {
@@ -2735,11 +2741,11 @@ export const PaymentTransactionWithPaypal = async (req: Request) => {
   let findCurrency
   if (result.dataValues.order_invoice.currency_id && result.dataValues.order_invoice.currency_id != null) {
     findCurrency = await CurrencyData.findOne({
-      where: { id: result.dataValues.order_invoice.currency_id, company_info_id: orderAmontValidate.dataValues.company_info_id },
+      where: { id: result.dataValues.order_invoice.currency_id },
     });
   } else {
     findCurrency = await CurrencyData.findOne({
-      where: { is_default: "1", company_info_id: orderAmontValidate.dataValues.company_info_id },
+      where: { is_default: "1" },
     });
    }
   let logo_image = configData.image_base_url;
@@ -2764,7 +2770,6 @@ export const PaymentTransactionWithPaypal = async (req: Request) => {
     return attachmentContent
   }
   const findCompanyDetails = await CompanyInfo.findOne({
-    where: { id: orderAmontValidate.dataValues.company_info_id },
   });
   const attachments:any = {
       invoice_number: result.dataValues.invoice_number,
@@ -2810,7 +2815,7 @@ export const PaymentTransactionWithPaypal = async (req: Request) => {
     invoice_number: result?.dataValues?.invoice_number,          
   }
 
-  const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments,null,req);
+  const invoiceFromS3 = await generateInvoicePDF(data,attachmentContent.data,attachments);
 
   const mailNewOrderPayload = {
     toEmailAddress: result.dataValues.order_invoice.email,

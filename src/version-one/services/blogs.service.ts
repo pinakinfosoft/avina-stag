@@ -16,7 +16,6 @@ import {
 import {
   addActivityLogs,
   createSlug,
-  getCompanyIdBasedOnTheCompanyKey,
   getInitialPaginationFromQuery,
   getLocalDate,
   imageDeleteInDBAndS3,
@@ -26,7 +25,10 @@ import {
   resSuccess,
 } from "../../utils/shared-functions";
 import { Op, Sequelize } from "sequelize";
-import { initModels } from "../model/index.model";
+import { BlogsData } from "../model/blogs.model";
+import { Image } from "../model/image.model";
+import { BlogCategoryData } from "../model/blog-category.model";
+import dbContext from "../../config/db-context";
 
 export const addBlogs = async (req: Request) => {
   const {
@@ -41,18 +43,15 @@ export const addBlogs = async (req: Request) => {
     id_category = null,
     sort_des = null,
   } = req.body;
-  const {BlogsData,Image} = initModels(req);
   try {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     let imagePath = null;
     let bannerImagePath = null;
 
     if (files["images"] != null) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         files["images"][0],
         IMAGE_TYPE.blog,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -63,11 +62,9 @@ export const addBlogs = async (req: Request) => {
     }
 
     if (files["banner_image"] != null) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         files["banner_image"][0],
         IMAGE_TYPE.blog,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -77,7 +74,7 @@ export const addBlogs = async (req: Request) => {
       bannerImagePath = moveFileResult.data;
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       let idImage = null;
@@ -87,7 +84,6 @@ export const addBlogs = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.blog,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -102,7 +98,6 @@ export const addBlogs = async (req: Request) => {
             image_path: bannerImagePath,
             image_type: IMAGE_TYPE.blog,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -135,10 +130,9 @@ export const addBlogs = async (req: Request) => {
         is_deleted: DeletedStatus.No,
         id_category: id_category,
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
         created_date: getLocalDate(),
       });
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           blog_id: bogsInfo?.dataValues?.id, data: {
@@ -160,7 +154,6 @@ export const addBlogs = async (req: Request) => {
 
 export const getAllBlogsData = async (req: Request) => {
   try {
-  const {BlogsData,Image,BlogCategoryData} = initModels(req);
 
     let paginationProps = {};
 
@@ -172,8 +165,7 @@ export const getAllBlogsData = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -186,7 +178,7 @@ export const getAllBlogsData = async (req: Request) => {
         ? {
             id_category: req.query.category,
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -230,9 +222,9 @@ export const getAllBlogsData = async (req: Request) => {
         [Sequelize.literal("banner_image.image_path"), "banner_image_path"],
       ],
       include: [
-        { model: Image, as: "blog_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false },
-        { model: BlogCategoryData, as: "category", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false },
-        { model: Image, as: "banner_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false },
+        { model: Image, as: "blog_image", attributes: [],required:false },
+        { model: BlogCategoryData, as: "category", attributes: [],required:false },
+        { model: Image, as: "banner_image", attributes: [],required:false },
       ],
     });
 
@@ -244,10 +236,9 @@ export const getAllBlogsData = async (req: Request) => {
 
 export const getByIdBlogsData = async (req: Request) => {
   try {
-  const {BlogsData,Image, BlogCategoryData} = initModels(req);
 
     const result = await BlogsData.findOne({
-      where: { is_deleted: DeletedStatus.No, id: req.body.id,company_info_id :req?.body?.session_res?.client_id },
+      where: { is_deleted: DeletedStatus.No, id: req.body.id },
       attributes: [
         "id",
         "meta_title",
@@ -268,9 +259,9 @@ export const getByIdBlogsData = async (req: Request) => {
         [Sequelize.literal("category.slug"), "category_slug"],
       ],
       include: [
-        { model: Image, as: "blog_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false },
-        { model: BlogCategoryData, as: "category", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false },
-        { model: Image, as: "banner_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false },
+        { model: Image, as: "blog_image", attributes: [],required:false },
+        { model: BlogCategoryData, as: "category", attributes: [],required:false },
+        { model: Image, as: "banner_image", attributes: [],required:false },
       ],
     });
 
@@ -296,10 +287,9 @@ export const updateBlogs = async (req: Request) => {
     id_category = null,
     sort_des = null,
   } = req.body;
-  const {BlogsData,Image} = initModels(req);
   try {
     const blogInfo = await BlogsData.findOne({
-      where: { id: id,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id },
     });
 
     if (!(blogInfo && blogInfo.dataValues)) {
@@ -314,11 +304,9 @@ export const updateBlogs = async (req: Request) => {
     let bannerImagePath = null;
 
     if (files["images"] != null) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         files["images"][0],
         IMAGE_TYPE.blog,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -329,11 +317,9 @@ export const updateBlogs = async (req: Request) => {
     }
 
     if (files["banner_image"] != null) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         files["banner_image"][0],
         IMAGE_TYPE.blog,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -345,15 +331,15 @@ export const updateBlogs = async (req: Request) => {
 
     const findImage = await Image.findOne({
       where: {
-        id: blogInfo.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id
+        id: blogInfo.dataValues.id_image
       },
     });
     const findBannerImage = await Image.findOne({
       where: {
-        id: blogInfo.dataValues.id_banner_image,company_info_id :req?.body?.session_res?.client_id
+        id: blogInfo.dataValues.id_banner_image
       },
     });
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       let idImage = null;
@@ -363,7 +349,6 @@ export const updateBlogs = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.blog,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -378,7 +363,6 @@ export const updateBlogs = async (req: Request) => {
             image_path: bannerImagePath,
             image_type: IMAGE_TYPE.blog,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -387,7 +371,7 @@ export const updateBlogs = async (req: Request) => {
       }
 
       const nameExists = await BlogsData.findOne({
-        where: { name: name, id: { [Op.ne]: id }, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { name: name, id: { [Op.ne]: id }, is_deleted: DeletedStatus.No },
       });
 
       const slug = createSlug(name);
@@ -416,22 +400,22 @@ export const updateBlogs = async (req: Request) => {
             modified_date: getLocalDate(),
           },
 
-          { where: { id: blogInfo.dataValues.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: blogInfo.dataValues.id }, transaction: trn }
         );
 
         const updatedData = await BlogsData.findOne({
-          where: { id: blogUpdateInfo,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: blogUpdateInfo },
           transaction: trn,
         });
 
         if (image_delete && image_delete == "1") {
-          await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+          await imageDeleteInDBAndS3(findImage);
         }
         if (banner_image_delete && banner_image_delete == "1") {
-          await imageDeleteInDBAndS3(req,findBannerImage,req.body.session_res.client_id);
+          await imageDeleteInDBAndS3(findBannerImage);
         }
   
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: { blog_id: blogInfo?.dataValues?.id, data:{...blogInfo?.dataValues}},
           new_data: {
             blog_id: updatedData?.dataValues?.id, data: { ...updatedData?.dataValues }
@@ -476,20 +460,20 @@ export const updateBlogs = async (req: Request) => {
               modified_date: getLocalDate(),
             },
 
-            { where: { id: blogInfo.dataValues.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: blogInfo.dataValues.id }, transaction: trn }
           );
 
           if (image_delete && image_delete == "1") {
-            await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+            await imageDeleteInDBAndS3(findImage);
           }
           if (banner_image_delete && banner_image_delete == "1") {
-            await imageDeleteInDBAndS3(req,findBannerImage,req.body.session_res.client_id);
+            await imageDeleteInDBAndS3(findBannerImage);
           }
           const updatedData = await BlogsData.findOne({
-            where: { id: blogUpdateInfo,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: blogUpdateInfo },
             transaction: trn,
           });
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{ 
             old_data: { blog_id: blogInfo?.dataValues?.id, data: {...blogInfo?.dataValues}},
             new_data: {
               blog_id: updatedData?.dataValues?.id, data: { ...updatedData?.dataValues }
@@ -535,20 +519,20 @@ export const updateBlogs = async (req: Request) => {
               modified_date: getLocalDate(),
             },
 
-            { where: { id: blogInfo.dataValues.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: blogInfo.dataValues.id }, transaction: trn }
           );
           const updatedData = await BlogsData.findOne({
-            where: { id: blogUpdateInfo,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: blogUpdateInfo },
             transaction: trn,
           });
 
           if (image_delete && image_delete == "1") {
-            await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+            await imageDeleteInDBAndS3(findImage);
           }
           if (banner_image_delete && banner_image_delete == "1") {
-            await imageDeleteInDBAndS3(req,findBannerImage,req.body.session_res.client_id);
+            await imageDeleteInDBAndS3(findBannerImage);
           }
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{ 
             old_data: { blog_id: blogInfo?.dataValues?.id, data: {...blogInfo?.dataValues}},
             new_data: {
               blog_id: updatedData?.dataValues?.id, data: {...updatedData?.dataValues }
@@ -598,17 +582,17 @@ export const updateBlogs = async (req: Request) => {
             { where: { id: blogInfo.dataValues.id }, transaction: trn }
           );
           const updatedData = await BlogsData.findOne({
-            where: { id: blogUpdateInfo,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: blogUpdateInfo },
             transaction: trn,
           });
           if (image_delete && image_delete == "1") {
-            await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+            await imageDeleteInDBAndS3(findImage);
           }
           if (banner_image_delete && banner_image_delete == "1") {
-            await imageDeleteInDBAndS3(req,findBannerImage,req.body.session_res.client_id);
+            await imageDeleteInDBAndS3(findBannerImage);
           }
 
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{
             old_data: { blog_id: blogInfo?.dataValues?.id, data: {...blogInfo?.dataValues}},
             new_data: {
               blog_id: updatedData?.dataValues?.id, data: { ...updatedData?.dataValues }
@@ -633,9 +617,8 @@ export const updateBlogs = async (req: Request) => {
 
 export const deleteBlogs = async (req: Request) => {
   try {
-    const {BlogsData} = initModels(req);
     const blogExists = await BlogsData.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No },
     });
 
     console.log(blogExists);
@@ -649,9 +632,9 @@ export const deleteBlogs = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: blogExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: blogExists.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { blog_id: blogExists?.dataValues?.id, data: {...blogExists?.dataValues}},
       new_data: {
         blog_id: blogExists?.dataValues?.id, data: {
@@ -669,12 +652,7 @@ export const deleteBlogs = async (req: Request) => {
 
 export const getBlogsDataUser = async (req: Request) => {
   try {
-    const {BlogsData,Image,BlogCategoryData} = initModels(req);
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const blogsList = await BlogsData.findAll({
       order: [
         ["publish_date", "DESC"],
@@ -683,7 +661,6 @@ export const getBlogsDataUser = async (req: Request) => {
       where: {
         is_deleted: DeletedStatus.No,
         is_status: "2",
-        company_info_id:company_info_id?.data,
       },
       attributes: [
         "id",
@@ -704,7 +681,7 @@ export const getBlogsDataUser = async (req: Request) => {
         [Sequelize.literal("banner_image.image_path"), "banner_image_path"],
       ],
       include: [
-        { model: Image, as: "blog_image", attributes: [],where:{company_info_id:company_info_id?.data},required:false },
+        { model: Image, as: "blog_image", attributes: [],required:false },
         {
           model: BlogCategoryData,
           as: "category",
@@ -713,10 +690,9 @@ export const getBlogsDataUser = async (req: Request) => {
           where: {
             is_deleted: DeletedStatus.No,
             is_active: ActiveStatus.Active,
-            company_info_id:company_info_id?.data,
           },
         },
-        { model: Image, as: "banner_image", attributes: [],where:{company_info_id:company_info_id?.data},required:false },
+        { model: Image, as: "banner_image", attributes: [],required:false },
       ],
     });
 
@@ -728,13 +704,8 @@ export const getBlogsDataUser = async (req: Request) => {
 
 export const bolgDetailAPI = async (req: Request) => {
   try {
-    const {BlogsData,Image,BlogCategoryData} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const result = await BlogsData.findOne({
-      where: { is_deleted: DeletedStatus.No, slug: req.body.slug,company_info_id :company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No, slug: req.body.slug },
       attributes: [
         "id",
         "meta_title",
@@ -755,9 +726,9 @@ export const bolgDetailAPI = async (req: Request) => {
         [Sequelize.literal("banner_image.image_path"), "banner_image_path"],
       ],
       include: [
-        { model: Image, as: "blog_image", attributes: [],where:{company_info_id :company_info_id?.data},required:false },
-        { model: BlogCategoryData, as: "category", attributes: [],where:{company_info_id :company_info_id?.data},required:false },
-        { model: Image, as: "banner_image", attributes: [],where:{company_info_id :company_info_id?.data},required:false },
+        { model: Image, as: "blog_image", attributes: [],required:false },
+        { model: BlogCategoryData, as: "category", attributes: [],required:false },
+        { model: Image, as: "banner_image", attributes: [],required:false },
       ],
     });
 
@@ -770,10 +741,9 @@ export const bolgDetailAPI = async (req: Request) => {
 
 export const defaultBlogs = async (req: Request) => {
   try {
-    const {BlogsData} = initModels(req);
 
     const blogExists = await BlogsData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     const defaultBlogsblogExists = await BlogsData.findOne({
@@ -788,21 +758,21 @@ export const defaultBlogs = async (req: Request) => {
       {
         is_default: "0",
       },
-      { where: { id: { [Op.ne]: blogExists.dataValues.id },company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: { [Op.ne]: blogExists.dataValues.id } } }
     );
 
     await BlogsData.update(
       {
         is_default: "1",
       },
-      { where: { id: blogExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: blogExists.dataValues.id } }
     );
 
     const afterupdateblogExists = await BlogsData.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { blog_id: blogExists?.dataValues?.id, data: {...blogExists?.dataValues}},
       new_data: {
         blog_id: afterupdateblogExists?.dataValues?.id, data: {

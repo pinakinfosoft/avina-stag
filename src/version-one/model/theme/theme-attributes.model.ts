@@ -1,8 +1,9 @@
 import { BIGINT, DATE, INTEGER, STRING } from "sequelize";
-import {Themes} from "./themes.model";
+import dbContext from "../../../config/db-context";
+import { Themes } from "./themes.model";
+import { Image } from "../../image.model";
 
-export const ThemeAttributes = (dbContext: any) => {
-  const themeAttributes = dbContext.define("theme_attributes", {
+export const ThemeAttributes = dbContext.define("theme_attributes", {
   id: {
     type: BIGINT,
     primaryKey: true,
@@ -49,5 +50,6 @@ export const ThemeAttributes = (dbContext: any) => {
   }
 });
 
-  return themeAttributes;
-}
+// Associations
+ThemeAttributes.belongsTo(Themes, { foreignKey: "id_theme", as: "theme" });
+ThemeAttributes.hasOne(Image, { as: "theme_attribute_image", foreignKey: "id", sourceKey: "id_image" });

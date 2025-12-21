@@ -1,98 +1,39 @@
 import crypto from "crypto";
-import { RequestHandler } from "express";
-import { PUBLIC_AUTHORIZATION_TOKEN, SECURE_COMMUNICATION } from "../config/env.var";
-import {
-  CIPHER_ALGORITHM,
-  SIGNATURE_ALGORITHM,
-} from "../utils/app-constants";
-import {
-  DEFAULT_STATUS_CODE_ERROR,
-  UNAUTHORIZED_ACCESS_CODE,
-} from "../utils/app-messages";
-import {
-  decryptRequestData,
-  generateRandomString,
-  resSuccess,
-  resUnauthorizedAccess,
-  resUnknownError,
-} from "../utils/shared-functions";
-import getSubSequelize from "../utils/sub-db-connector";
+import { Request, RequestHandler, Response } from "express";
+import { PUBLIC_AUTHORIZATION_TOKEN } from "../config/env.var";
+import { CIPHER_ALGORITHM } from "../utils/app-constants";
+import { DEFAULT_STATUS_CODE_ERROR } from "../utils/app-messages";
+import { decryptRequestData, resUnknownError } from "../utils/shared-functions";
 
-export const bodyDecipher: RequestHandler = (req, res, next) => {
-  if (req.body) {
-    try {
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
 
-      // -- ** -- ** -- ** -- ** -- ** -- ** -- ** -- ** --
-      // const data = encryptResData(req.body);
-      // // -- ** -- ** -- ** -- ** -- ** -- ** -- ** -- ** --
-      // const originalObject = req.body;
+/**
+ * Extended Request interface with company key in params
+ */
+interface ICompanyKeyRequest extends Request {
+  params: {
+    company_key?: string;
+    [key: string]: string | undefined;
+  };
+  body: {
+    db_connection?: unknown;
+    [key: string]: unknown;
+  };
+}
 
-      //   const { session_res, ...newObject } = originalObject;
+// ============================================================================
+// ENCRYPTION/DECRYPTION UTILITIES
+// ============================================================================
 
-
-
-      // if (!SECURE_COMMUNICATION) {
-
-      //   const result = JSON.parse(decryptRequestData(req.body));
-      //   if (result.code === UNAUTHORIZED_ACCESS_CODE) {
-      //     return res.status(result.code).send(result);
-      //   }
-      //   req.body = result.data;
-      // }
-
-      return next();
-    } catch (e) {
-      return res
-        .status(DEFAULT_STATUS_CODE_ERROR)
-        .send(resUnknownError({ data: e }));
-    }
-  }
-};
-
-// export const encryptResData = (payload: any) => {
-//   const stringifyPayload = JSON.stringify(payload);
-//   const cipherKeyString = generateRandomString(16);
-//   const cipherKey = Buffer.from(cipherKeyString);
-//   const key = encryptKeyUsingPublicKey(cipherKey);
-//   const cipherIv = crypto.randomBytes(16);
-//   const encryptedBody = encryptData(stringifyPayload, cipherKey, cipherIv);
-//   const signature = signDataWithPrivateKey(stringifyPayload);
-//   return {
-//     key,
-//     iv: cipherIv.toString("base64"),
-//     signature,
-//     data: encryptedBody,
-//   };
-// };
-
-// export const decryptReqBody = (payload: any) => {
-//   const { key, iv, signature, data } = payload;
-//   const decipherKey = decryptKeyUsingPrivateKey(Buffer.from(key, "base64"));
-//   const decipherIv = Buffer.from(iv, "utf-8");
-//   const decryptedBody = decryptData(data, decipherKey, decipherIv);
-//   if (verifyDataWithPublicKey(decryptedBody, signature)) {
-//     return resSuccess({ data: JSON.parse(decryptedBody) });
-//   } else {
-//     throw resUnauthorizedAccess();
-//   }
-// };
-
-// const encryptKeyUsingPublicKey = (key: Buffer): String => {
-//   return crypto
-//     .publicEncrypt(
-//       { key: PUBLIC_KEY, padding: crypto.constants.RSA_PKCS1_PADDING },
-//       key
-//     )
-//     .toString("base64");
-// };
-
-// const decryptKeyUsingPrivateKey = (key: Buffer): Buffer => {
-//   return crypto.privateDecrypt(
-//     { key: PRIVATE_KEY, padding: crypto.constants.RSA_PKCS1_PADDING },
-//     key
-//   );
-// };
-
+/**
+ * Encrypts data using AES cipher
+ * @param data - Data string to encrypt
+ * @param cipherKey - Encryption key buffer
+ * @param cipherIv - Initialization vector buffer
+ * @returns Encrypted data as base64 string
+ */
 const encryptData = (
   data: string,
   cipherKey: Buffer,
@@ -105,7 +46,18 @@ const encryptData = (
   return encrypted;
 };
 
-const decryptData = (data: string, decipherKey: Buffer, decipherIv: Buffer) => {
+/**
+ * Decrypts data using AES cipher
+ * @param data - Encrypted data as base64 string
+ * @param decipherKey - Decryption key buffer
+ * @param decipherIv - Initialization vector buffer
+ * @returns Decrypted data as UTF-8 string
+ */
+const decryptData = (
+  data: string,
+  decipherKey: Buffer,
+  decipherIv: Buffer
+): string => {
   const decipher = crypto.createDecipheriv(
     CIPHER_ALGORITHM,
     decipherKey,
@@ -117,26 +69,107 @@ const decryptData = (data: string, decipherKey: Buffer, decipherIv: Buffer) => {
   return decrypted;
 };
 
-// const signDataWithPrivateKey = (data: string): string => {
-//   const sign = crypto.createSign(SIGNATURE_ALGORITHM);
-//   sign.update(data);
-//   return sign.sign(PRIVATE_KEY, "base64");
-// };
+// ============================================================================
+// REQUEST BODY DECODER MIDDLEWARE
+// ============================================================================
 
-// const verifyDataWithPublicKey = (data: string, signature: string): Boolean => {
-//   const verify = crypto.createVerify(SIGNATURE_ALGORITHM);
-//   verify.update(data);
-//   return verify.verify(PUBLIC_KEY, signature, "base64");
-// };
-
-// decrypt company info key from params
-export const decryptCompanyInfoKeyForParams: RequestHandler = async(req, res, next) => {
-  if(req?.params?.company_key){
-    req.params.company_key = JSON.parse(decryptRequestData(req?.params?.company_key))
-    if(req.headers.authorization === PUBLIC_AUTHORIZATION_TOKEN){
-      const dbConnection = req.baseUrl.includes("/api/v4") ? await getSubSequelize(req.params.company_key) : null
-      req.body.db_connection = dbConnection
-    }
-     next()
+/**
+ * Request body decoder middleware
+ * Currently a pass-through middleware that can be extended for future decryption needs
+ * 
+ * @example
+ * ```typescript
+ * app.use(bodyDecipher);
+ * ```
+ */
+export const bodyDecipher: RequestHandler = (
+  req: Request,
+  res: Response,
+  next
+) => {
+  try {
+    // Future: Add request body decryption logic here if needed
+    // Currently, decryption is handled in the authenticate middleware
+    return next();
+  } catch (error) {
+    return res
+      .status(DEFAULT_STATUS_CODE_ERROR)
+      .send(resUnknownError({ data: error }));
   }
-}
+};
+
+// ============================================================================
+// COMPANY KEY DECRYPTION MIDDLEWARE
+// ============================================================================
+
+/**
+ * Decrypts company key from URL parameters
+ * 
+ * This middleware:
+ * - Extracts company_key from request parameters
+ * - Decrypts the company key if present
+ * - Sets db_connection to null for public API access (single database instance)
+ * 
+ * @example
+ * ```typescript
+ * app.use('/api/:company_key', decryptCompanyInfoKeyForParams);
+ * ```
+ */
+export const decryptCompanyInfoKeyForParams: RequestHandler = async (
+  req: ICompanyKeyRequest,
+  res: Response,
+  next
+) => {
+  try {
+    // Check if company_key exists in params
+    if (!req?.params?.company_key) {
+      return next();
+    }
+
+    // Decrypt company key from params
+    const encryptedCompanyKey = req.params.company_key;
+    const decryptedCompanyKey = decryptRequestData(encryptedCompanyKey);
+
+    // Validate decrypted company key
+    if (!decryptedCompanyKey || decryptedCompanyKey === "") {
+      return res
+        .status(DEFAULT_STATUS_CODE_ERROR)
+        .send(resUnknownError({ data: "Invalid company key" }));
+    }
+
+    // Parse decrypted company key (assuming it's JSON)
+    let companyKey: string;
+    try {
+      companyKey = JSON.parse(decryptedCompanyKey);
+    } catch {
+      // If not JSON, use as-is
+      companyKey = decryptedCompanyKey;
+    }
+
+    // Update params with decrypted company key
+    req.params.company_key = companyKey;
+
+    // For public API access, set db_connection to null (single database instance)
+    const authHeader = req.headers.authorization;
+    if (
+      authHeader &&
+      typeof authHeader === "string" &&
+      authHeader === PUBLIC_AUTHORIZATION_TOKEN
+    ) {
+      dbContext = null;
+    }
+
+    return next();
+  } catch (error) {
+    return res
+      .status(DEFAULT_STATUS_CODE_ERROR)
+      .send(resUnknownError({ data: error }));
+  }
+};
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+// Export encryption/decryption utilities for potential future use
+export { encryptData, decryptData };

@@ -1,7 +1,8 @@
 import { INTEGER, STRING, DATE, JSON } from "sequelize";
-import {Image} from "../../image.model";
-export const DiamondCaratSize = (dbContext: any) => {
-  let diamondCaratSize = dbContext.define("carat_sizes", {
+import dbContext from "../../../../config/db-context";
+import { Image } from "../../image.model";
+
+export const DiamondCaratSize = dbContext.define("carat_sizes", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -65,16 +66,12 @@ export const DiamondCaratSize = (dbContext: any) => {
   },
   is_earring: {
     type: STRING,
-  },
-  company_info_id :{ 
-      type:INTEGER
   }
 });
 
-diamondCaratSize.hasOne(Image(dbContext), {
-  as: "image",
+// Associations
+DiamondCaratSize.hasOne(Image, {
+  as: "diamond_carat_image",
   foreignKey: "id",
   sourceKey: "id_image",
 });
-  return diamondCaratSize;
-}

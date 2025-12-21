@@ -20,11 +20,10 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../utils/shared-functions";
-import { initModels } from "../../../model/index.model";
+import { SieveSizeData } from "../../../model/master/attributes/seiveSize.model";
 
 export const addSieveSize = async (req: Request) => {
   try {
-    const {SieveSizeData} = initModels(req);
     const { sort_code, value } = req.body;
     const slug = value.replaceAll(" ", "-").replaceAll(/['/|]/g, "-");
     const payload = {
@@ -35,15 +34,15 @@ export const addSieveSize = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findValue = await SieveSizeData.findOne({
-      where: { value: value, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { value: value, is_deleted: DeletedStatus.No, },
     });
 
     const findSortCode = await SieveSizeData.findOne({
-      where: { sort_code: sort_code, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { sort_code: sort_code, is_deleted: DeletedStatus.No, },
     });
     if (
       (findValue && findValue.dataValues) ||
@@ -52,7 +51,7 @@ export const addSieveSize = async (req: Request) => {
       return resErrorDataExit();
     }
     const SieveSize = await SieveSizeData.create(payload);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         sieve_size_id: SieveSize?.dataValues?.id, data: {
@@ -69,7 +68,6 @@ export const addSieveSize = async (req: Request) => {
 
 export const getSieveSizes = async (req: Request) => {
   try {
-    const {SieveSizeData} = initModels(req);
 
     let paginationProps = {};
 
@@ -81,8 +79,8 @@ export const getSieveSizes = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -90,7 +88,7 @@ export const getSieveSizes = async (req: Request) => {
               { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -125,10 +123,9 @@ export const getSieveSizes = async (req: Request) => {
 
 export const getByIdSieveSize = async (req: Request) => {
   try {
-    const {SieveSizeData} = initModels(req);
 
     const findSieveSize = await SieveSizeData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findSieveSize && findSieveSize.dataValues)) {
@@ -144,11 +141,10 @@ export const updateSieveSize = async (req: Request) => {
   try {
     const { sort_code, value } = req.body;
     const id = req.body.id;
-    const {SieveSizeData} = initModels(req);
 
     const slug = value.replaceAll(" ", "-").replaceAll(/['/|]/g, "-");
     const findSieveSize = await SieveSizeData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findSieveSize && findSieveSize.dataValues)) {
@@ -159,7 +155,7 @@ export const updateSieveSize = async (req: Request) => {
         value: value,
         id: { [Op.ne]: id },
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
+        
       },
     });
 
@@ -168,7 +164,7 @@ export const updateSieveSize = async (req: Request) => {
         sort_code: sort_code,
         id: { [Op.ne]: id },
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
+        
       },
     });
     if (
@@ -186,12 +182,12 @@ export const updateSieveSize = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
     const AfterUpdatefindSieveSize = await SieveSizeData.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { sieve_size_id: findSieveSize?.dataValues?.id, data: {...findSieveSize?.dataValues} },
       new_data: {
         sieve_size_id: AfterUpdatefindSieveSize?.dataValues?.id, data: { ...AfterUpdatefindSieveSize?.dataValues }
@@ -206,10 +202,9 @@ export const updateSieveSize = async (req: Request) => {
 
 export const deleteSieveSize = async (req: Request) => {
   try {
-    const {SieveSizeData} = initModels(req);
 
     const findSieveSize = await SieveSizeData.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findSieveSize && findSieveSize.dataValues)) {
@@ -221,10 +216,10 @@ export const deleteSieveSize = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findSieveSize.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSieveSize.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { sieve_size_id: findSieveSize?.dataValues?.id, data: {...findSieveSize?.dataValues} },
       new_data: {
         sieve_size_id: findSieveSize?.dataValues?.id, data: {
@@ -243,10 +238,9 @@ export const deleteSieveSize = async (req: Request) => {
 
 export const statusUpdateForSieveSize = async (req: Request) => {
   try {
-    const {SieveSizeData} = initModels(req);
 
     const findSieveSize = await SieveSizeData.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findSieveSize && findSieveSize.dataValues)) {
       return resNotFound();
@@ -257,9 +251,9 @@ export const statusUpdateForSieveSize = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findSieveSize.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSieveSize.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { sieve_size_id: findSieveSize?.dataValues?.id, data: {...findSieveSize?.dataValues} },
       new_data: {
         sieve_size_id: findSieveSize?.dataValues?.id, data: {

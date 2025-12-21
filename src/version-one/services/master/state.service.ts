@@ -22,11 +22,10 @@ import {
   statusUpdateValue,
 } from "../../../utils/shared-functions";
 import { init } from "wtfnode";
-import { initModels } from "../../model/index.model";
+import { StateData } from "../../model/master/state.model";
 
 export const addState = async (req: Request) => {
   try {
-    const {StateData} = initModels(req);
     const { name, code, country_id } = req.body;
 
     const payload = {
@@ -37,14 +36,14 @@ export const addState = async (req: Request) => {
       id_country: country_id,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findSortCode = await StateData.findOne({
       where: [
         columnValueLowerCase("state_code", code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -52,7 +51,7 @@ export const addState = async (req: Request) => {
       where: [
         columnValueLowerCase("state_name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -65,7 +64,7 @@ export const addState = async (req: Request) => {
     }
     const state = await StateData.create(payload);
     
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         state_id: state?.dataValues?.id, data: {
@@ -82,7 +81,6 @@ export const addState = async (req: Request) => {
 
 export const getAllState = async (req: Request) => {
   try {
-    const {StateData} = initModels(req);
 
     let paginationProps = {};
 
@@ -94,8 +92,8 @@ export const getAllState = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -107,7 +105,7 @@ export const getAllState = async (req: Request) => {
               },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -149,10 +147,9 @@ export const getAllState = async (req: Request) => {
 
 export const getByIdState = async (req: Request) => {
   try {
-    const {StateData} = initModels(req);
 
     const findState = await StateData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findState && findState.dataValues)) {
@@ -166,12 +163,11 @@ export const getByIdState = async (req: Request) => {
 
 export const updateState = async (req: Request) => {
   try {
-    const {StateData} = initModels(req);
 
     const { name, code, country_id } = req.body;
     const id = req.params.id;
     const findState = await StateData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findState && findState.dataValues)) {
@@ -182,7 +178,7 @@ export const updateState = async (req: Request) => {
         columnValueLowerCase("state_name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     const findSortCode = await StateData.findOne({
@@ -190,7 +186,7 @@ export const updateState = async (req: Request) => {
         columnValueLowerCase("state_code", code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -209,14 +205,14 @@ export const updateState = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
 
     const afterUpdateFindState = await StateData.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { state_id: findState?.dataValues?.id, data: {...findState?.dataValues} },
       new_data: {
         state_id: afterUpdateFindState?.dataValues?.id, data: {  ...afterUpdateFindState?.dataValues }
@@ -231,10 +227,9 @@ export const updateState = async (req: Request) => {
 
 export const deleteState = async (req: Request) => {
   try {
-    const {StateData} = initModels(req);
 
     const findState = await StateData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findState && findState.dataValues)) {
@@ -246,9 +241,9 @@ export const deleteState = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findState.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findState.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { state_id: findState?.dataValues?.id, data: {...findState?.dataValues} },
       new_data: {
         state_id: findState?.dataValues?.id, data: {
@@ -267,10 +262,9 @@ export const deleteState = async (req: Request) => {
 
 export const statusUpdateForState = async (req: Request) => {
   try {
-    const {StateData} = initModels(req);
 
     const findState = await StateData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findState && findState.dataValues)) {
       return resNotFound();
@@ -281,10 +275,10 @@ export const statusUpdateForState = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findState.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findState.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { state_id: findState?.dataValues?.id, data: {...findState?.dataValues} },
       new_data: {
         state_id: findState?.dataValues?.id, data: {

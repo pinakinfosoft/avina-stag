@@ -44,30 +44,45 @@ import {
   SingleProductType,
 } from "../../utils/app-enumeration";
 import { moveFileToS3ByType } from "../../helpers/file.helper";
-import { initModels } from "../model/index.model";
 import dbContext from "../../config/db-context";
+import { AppUser } from "../model/app-user.model";
+import { Product } from "../model/product.model";
+import { ProductWish } from "../model/produc-wish-list.model";
+import { ProductMetalOption } from "../model/product-metal-option.model";
+import { ProductImage } from "../model/product-image.model";
+import { MetalMaster } from "../model/master/attributes/metal/metal-master.model";
+import { MetalTone } from "../model/master/attributes/metal/metalTone.model";
+import { GoldKarat } from "../model/master/attributes/metal/gold-karat.model";
+import { SizeData } from "../model/master/attributes/item-size.model";
+import { LengthData } from "../model/master/attributes/item-length.model";
+import { CustomerUser } from "../model/customer-user.model";
+import { ConfigEternityProduct } from "../model/config-eternity-product.model";
+import { ConfigBraceletProduct } from "../model/config-bracelet-product.model";
+import { LooseDiamondGroupMasters } from "../model/loose-diamond-group-master.model";
+import { ConfigProduct } from "../model/config-product.model";
+import { BirthStoneProduct } from "../model/birth-stone-product/birth-stone-product.model";
+import { GiftSetProduct } from "../model/gift-set-product/gift_set_product.model";
+import { BirthstoneProductMetalOption } from "../model/birth-stone-product/birth-stone-product-metal-option.model";
+import { Image } from "../model/image.model";
+import { StudConfigProduct } from "../model/stud-config-product.model";
+import { CartProducts } from "../model/cart-product.model";
 
 export const addProductWishList = async (req: Request) => {
   try {
-    const { AppUser, Product, ProductWish } = initModels(req);
     const { user_id, product_id, product_type } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
+    
     const wishListproduct = {
       user_id: user_id,
       product_id: product_id,
       product_type: product_type,
       created_date: getLocalDate(),
-      company_info_id: company_info_id?.data
     };
 
     const userExit = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
     const productExit = await Product.findOne({
-      where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: product_id, is_deleted: DeletedStatus.No },
     });
 
     if (!(userExit && userExit.dataValues)) {
@@ -79,9 +94,9 @@ export const addProductWishList = async (req: Request) => {
     const addProductData = await ProductWish.create(wishListproduct);
 
     const wish_list_count = await ProductWish.count({
-      where: { user_id: user_id, company_info_id: company_info_id?.data },
+      where: { user_id: user_id },
     });
-    await addActivityLogs(req?.body?.db_connection, company_info_id?.data, [{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         product_wish_list_id: addProductData?.dataValues?.id,
@@ -101,26 +116,22 @@ export const addProductWishList = async (req: Request) => {
 
 export const getProductWishListByUserId = async (req: Request) => {
   try {
-    const { AppUser, Product, ProductWish, ProductMetalOption, ProductImage, MetalMaster, MetalTone, GoldKarat } = initModels(req);
 
     if (!req.body.user_id) return resBadRequest({ message: INVALID_ID });
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
-    const userData = await AppUser.findOne({ where: { id: req.body.user_id, company_info_id: company_info_id?.data } });
+    
+    const userData = await AppUser.findOne({ where: { id: req.body.user_id } });
     if (!(userData && userData.dataValues)) {
       return resNotFound({ message: USER_NOT_FOUND });
     }
 
     const wishlistData = await ProductWish.findAll({
-      where: { user_id: userData.dataValues.id, company_info_id: company_info_id?.data },
+      where: { user_id: userData.dataValues.id },
     });
 
     const productId = wishlistData.map((t: any) => t.product_id);
 
     const ProductList = await Product.findAll({
-      where: { id: productId, company_info_id: company_info_id?.data },
+      where: { id: productId },
       order: [
         [{ model: ProductMetalOption, as: "PMO" }, "id_metal", "ASC"],
         [Sequelize.literal('"PMO->metal_karat"."name"'), "ASC"],
@@ -141,7 +152,7 @@ export const getProductWishListByUserId = async (req: Request) => {
           model: ProductImage,
           as: "product_images",
           attributes: ["id", "image_path", "id_metal_tone", "image_type"],
-          where: [{ is_deleted: DeletedStatus.No, image_type: PRODUCT_IMAGE_TYPE.Feature, company_info_id: company_info_id?.data }],
+          where: [{ is_deleted: DeletedStatus.No, image_type: PRODUCT_IMAGE_TYPE.Feature }],
         },
         {
           required: false,
@@ -177,21 +188,20 @@ export const getProductWishListByUserId = async (req: Request) => {
             "compare_price",
             "id_karat",
           ],
-          where: { is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+          where: { is_deleted: DeletedStatus.No },
           include: [
             {
               required: false,
               model: MetalMaster,
               as: "metal_master",
               attributes: [],
-              where: { company_info_id: company_info_id?.data },
             },
             {
               required: false,
               model: GoldKarat,
               as: "metal_karat",
               attributes: [],
-              where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id: company_info_id?.data },
+              where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
             },
           ],
         },
@@ -206,17 +216,13 @@ export const getProductWishListByUserId = async (req: Request) => {
 
 export const deleteProductWishList = async (req: Request) => {
   try {
-    const { AppUser, Product, ProductWish, ProductMetalOption, ProductImage, MetalMaster, MetalTone, GoldKarat } = initModels(req);
     const { user_id, product_id } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
+    
     const userExit = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
     const productExit = await Product.findOne({
-      where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: product_id, is_deleted: DeletedStatus.No },
     });
 
     if (!(userExit && userExit.dataValues)) {
@@ -230,15 +236,14 @@ export const deleteProductWishList = async (req: Request) => {
       where: {
         user_id: userExit.dataValues.id,
         product_id: productExit.dataValues.id,
-        company_info_id: company_info_id?.data,
       },
     });
 
     const wish_list_count = await ProductWish.count({
-      where: { user_id: user_id, company_info_id: company_info_id?.data },
+      where: { user_id: user_id },
     });
 
-    await addActivityLogs(req, company_info_id?.data, [{
+    await addActivityLogs( [{
       old_data: { product_wish_list_id: productExit?.dataValues?.id, data: { ...productExit?.dataValues }, user_id: userExit?.dataValues?.id, user_data: { ...userExit } },
       new_data: null
     }], productExit?.dataValues?.id, LogsActivityType.Delete, LogsType.ProductWishList, req?.body?.session_res?.id_app_user)
@@ -254,7 +259,6 @@ export const deleteProductWishList = async (req: Request) => {
 
 export const getProductWishListData = async (req: Request) => {
   try {
-    const { SizeData, LengthData, CustomerUser, AppUser, Product, ProductWish, ProductMetalOption, ProductImage, MetalMaster, MetalTone, GoldKarat } = initModels(req);
     let paginationProps = {};
 
     let pagination = {
@@ -263,7 +267,7 @@ export const getProductWishListData = async (req: Request) => {
     };
     let noPagination = req.query.no_pagination === "1";
     const searchText = pagination.search_text;
-    const whereArray = [
+    const whereArray: any[] = [
       searchText
         ? {
           [Op.or]: [
@@ -314,12 +318,7 @@ export const getProductWishListData = async (req: Request) => {
             )
           ]
         }
-        : {},
-
-      // Static filter
-      {
-        company_info_id: req?.body?.session_res?.client_id
-      }
+        : {}
     ];
 
     // ✅ Merge all conditions into one object
@@ -330,63 +329,54 @@ export const getProductWishListData = async (req: Request) => {
         model: SizeData,
         as: "size",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: LengthData,
         as: "length",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: MetalMaster,
         as: "metal",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: GoldKarat,
         as: "karat",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: MetalTone,
         as: "metal_tone",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: MetalTone,
         as: "head_metal_tone",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: MetalTone,
         as: "shank_metal_tone",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: MetalTone,
         as: "band_metal_tone",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
       {
         model: CustomerUser,
         as: "user",
         attributes: [],
-        where: { company_info_id: req?.body?.session_res?.client_id },
         required: false
       },
     ];
@@ -605,19 +595,15 @@ export const addVariantProductIntoWishList = async (req: Request) => {
       diamond_origin,
       diamond,
     } = req.body;
-    const { ConfigEternityProduct, ConfigBraceletProduct, LooseDiamondGroupMasters, AppUser, Product, ProductWish, ProductMetalOption, ConfigProduct, BirthStoneProduct, GiftSetProduct, BirthstoneProductMetalOption, Image, StudConfigProduct } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
+   
     const userExit = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
 
     if (!(userExit && userExit.dataValues)) {
       return resNotFound({ message: USER_NOT_FOUND });
     }
-    const trn = await req.body.db_connection.transaction();
+    const trn = await dbContext.transaction();
     try {
       let ProductWishList: any;
       // get IP
@@ -633,7 +619,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
       // single product add to wishlist
       if (product_type == AllProductTypes.Product) {
         const product = await Product.findOne({
-          where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+          where: { id: product_id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
 
@@ -645,8 +631,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
           where: {
             id: variant_id,
             id_product: product_id,
-            is_deleted: DeletedStatus.No,
-            company_info_id: company_info_id?.data,
+            is_deleted: DeletedStatus.No
           },
           transaction: trn,
         });
@@ -662,7 +647,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: user_id,
             variant_id: variant_id,
             id_metal_tone: id_metal_tone,
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -679,7 +663,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             product_id: product.dataValues.id,
             variant_id: variant_id,
             created_date: getLocalDate(),
-            company_info_id: company_info_id?.data,
             product_type: AllProductTypes.Product,
             id_size:
               id_size &&
@@ -768,7 +751,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
         // gift set  product add to cart
       } else if (product_type == AllProductTypes.GiftSet_product) {
         const product = await GiftSetProduct.findOne({
-          where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+          where: { id: product_id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
 
@@ -781,7 +764,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             product_type: product_type,
             product_id: product_id,
             user_id: user_id,
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -797,7 +779,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             created_date: getLocalDate(),
-            company_info_id: company_info_id?.data,
             product_type: AllProductTypes.GiftSet_product,
             id_size:
               id_size &&
@@ -828,7 +809,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
         // birthstone product add to cart
       } else if (product_type == AllProductTypes.BirthStone_product) {
         const product = await BirthStoneProduct.findOne({
-          where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+          where: { id: product_id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
 
@@ -841,7 +822,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             id: variant_id,
             id_product: product_id,
             is_deleted: DeletedStatus.No,
-            company_info_id: company_info_id?.data,
+            
           },
           transaction: trn,
         });
@@ -856,7 +837,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             product_id: product_id,
             user_id: user_id,
             variant_id: variant_id,
-            company_info_id: company_info_id?.data,
+            
             id_metal_tone:
               id_metal_tone &&
                 id_metal_tone != "null" &&
@@ -877,11 +858,10 @@ export const addVariantProductIntoWishList = async (req: Request) => {
 
         let imagePath = null;
         if (req.file) {
-          const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+          const moveFileResult = await moveFileToS3ByType(
             req.file,
             IMAGE_TYPE.ConfigProduct,
-            company_info_id?.data,
-            req
+            
           );
 
           if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -898,7 +878,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.ConfigProduct,
               created_by: req.body.session_res.id_app_user,
-              company_info_id: company_info_id?.data,
+              
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -911,7 +891,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             variant_id: variant_id,
-            company_info_id: company_info_id?.data,
+            
             created_date: getLocalDate(),
             product_type: AllProductTypes.BirthStone_product,
             id_size:
@@ -958,7 +938,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
         // config ring product add to cart
       } else if (product_type == AllProductTypes.Config_Ring_product) {
         const product = await ConfigProduct.findOne({
-          where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+          where: { id: product_id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
 
@@ -971,7 +951,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             product_type: product_type,
             product_id: product_id,
             user_id: user_id,
-            company_info_id: company_info_id?.data,
+            
             id_head_metal_tone:
               id_head_metal_tone &&
                 id_head_metal_tone != "null" &&
@@ -1012,11 +992,10 @@ export const addVariantProductIntoWishList = async (req: Request) => {
         }
         let imagePath = null;
         if (req.file) {
-          const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+          const moveFileResult = await moveFileToS3ByType(
             req.file,
             IMAGE_TYPE.ConfigProduct,
-            company_info_id?.data,
-            req
+            
           );
 
           if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -1033,7 +1012,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.ConfigProduct,
               created_by: req.body.session_res.id_app_user,
-              company_info_id: company_info_id?.data,
+              
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -1046,7 +1025,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             created_date: getLocalDate(),
-            company_info_id: company_info_id?.data,
+            
             product_type: AllProductTypes.Config_Ring_product,
             id_size:
               id_size &&
@@ -1104,7 +1083,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
         // Three stone config product add to wishlist
       } else if (product_type == AllProductTypes.Three_stone_config_product) {
         const product = await ConfigProduct.findOne({
-          where: { id: product_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+          where: { id: product_id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
 
@@ -1117,7 +1096,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             product_type: product_type,
             product_id: product_id,
             user_id: user_id,
-            company_info_id: company_info_id?.data,
+            
             id_head_metal_tone:
               id_head_metal_tone &&
                 id_head_metal_tone != "null" &&
@@ -1160,11 +1139,10 @@ export const addVariantProductIntoWishList = async (req: Request) => {
         }
         let imagePath = null;
         if (req.file) {
-          const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+          const moveFileResult = await moveFileToS3ByType(
             req.file,
             IMAGE_TYPE.ConfigProduct,
-            company_info_id?.data,
-            req
+            
           );
 
           if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -1181,7 +1159,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.ConfigProduct,
               created_by: req.body.session_res.id_app_user,
-              company_info_id: company_info_id?.data,
+              
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -1194,7 +1172,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             created_date: getLocalDate(),
-            company_info_id: company_info_id?.data,
+            
             product_type: AllProductTypes.Three_stone_config_product,
             id_size:
               id_size &&
@@ -1254,7 +1232,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
           where: {
             id: product_id,
             is_deleted: DeletedStatus.No,
-            company_info_id: company_info_id?.data,
           },
         });
 
@@ -1267,7 +1244,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             product_type: AllProductTypes.Eternity_product,
-            company_info_id: company_info_id?.data,
             id_metal_tone:
               id_metal_tone &&
                 id_metal_tone != "" &&
@@ -1289,11 +1265,10 @@ export const addVariantProductIntoWishList = async (req: Request) => {
 
         let imagePath = null;
         if (req.file) {
-          const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+          const moveFileResult = await moveFileToS3ByType(
             req.file,
             IMAGE_TYPE.ConfigProduct,
-            company_info_id?.data,
-            req
+            
           );
 
           if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -1310,7 +1285,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.ConfigProduct,
               created_by: req.body.session_res.id_app_user,
-              company_info_id: company_info_id?.data,
+              
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -1323,7 +1298,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             created_date: getLocalDate(),
-            company_info_id: company_info_id?.data,
+            
             product_type: AllProductTypes.Eternity_product,
             id_size:
               id_size &&
@@ -1363,7 +1338,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
           where: {
             id: product_id,
             is_deleted: DeletedStatus.No,
-            company_info_id: company_info_id?.data,
+            
           },
         });
 
@@ -1375,7 +1350,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
           where: {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
-            company_info_id: company_info_id?.data,
+            
             product_type: AllProductTypes.BraceletConfigurator,
             id_metal_tone:
               id_metal_tone &&
@@ -1398,11 +1373,10 @@ export const addVariantProductIntoWishList = async (req: Request) => {
 
         let imagePath = null;
         if (req.file) {
-          const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+          const moveFileResult = await moveFileToS3ByType(
             req.file,
             IMAGE_TYPE.ConfigProduct,
-            company_info_id?.data,
-            req
+            
           );
 
           if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -1419,7 +1393,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.ConfigProduct,
               created_by: req.body.session_res.id_app_user,
-              company_info_id: company_info_id?.data,
+              
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -1432,7 +1406,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             created_date: getLocalDate(),
-            company_info_id: company_info_id?.data,
+            
             product_type: AllProductTypes.BraceletConfigurator,
             id_size:
               id_size &&
@@ -1481,7 +1455,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             id: product_id,
             is_deleted: DeletedStatus.No,
             is_active: ActiveStatus.Active,
-            company_info_id: company_info_id?.data,
           },
         });
 
@@ -1498,7 +1471,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             product_type: AllProductTypes.LooseDiamond,
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -1514,7 +1486,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             created_date: getLocalDate(),
-            company_info_id: company_info_id?.data,
             product_type: AllProductTypes.LooseDiamond,
             product_details: { ...product_details },
             user_ip: IP,
@@ -1532,7 +1503,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               is_choose_setting: "1",
 
             },
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -1546,7 +1516,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             id: variant_id,
             id_product: product_id,
             is_deleted: DeletedStatus.No,
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -1598,7 +1567,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             id_metal_tone: id_metal_tone,
             "product_details.diamond.stock_number": diamond_stock_number,
             "product_details.diamond.inventory_type": diamond_inventory_type,
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -1614,7 +1582,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
             variant_id: variant_id,
-            company_info_id: company_info_id?.data,
             created_date: getLocalDate(),
             product_type: AllProductTypes.SettingProduct,
             id_size:
@@ -1705,7 +1672,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               is_choose_setting: "1",
 
             },
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -1719,7 +1685,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             id: variant_id,
             id_product: product_id,
             is_deleted: DeletedStatus.No,
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -1771,7 +1736,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
             id_metal_tone: id_metal_tone,
             "product_details.diamond.stock_number": diamond_stock_number,
             "product_details.diamond.inventory_type": diamond_inventory_type,
-            company_info_id: company_info_id?.data,
           },
           transaction: trn,
         });
@@ -1783,11 +1747,9 @@ export const addVariantProductIntoWishList = async (req: Request) => {
         }
         let imagePath = null;
         if (req.file) {
-          const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+          const moveFileResult = await moveFileToS3ByType(
             req.file,
             IMAGE_TYPE.ConfigProduct,
-            company_info_id?.data,
-            req
           );
 
           if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -1804,7 +1766,6 @@ export const addVariantProductIntoWishList = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.ConfigProduct,
               created_by: req.body.session_res.id_app_user,
-              company_info_id: company_info_id?.data,
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -1815,8 +1776,7 @@ export const addVariantProductIntoWishList = async (req: Request) => {
           {
             user_id: userExit.dataValues.id,
             product_id: product.dataValues.id,
-            variant_id: variant_id,
-            company_info_id: company_info_id?.data,
+            variant_id: variant_id, 
             created_date: getLocalDate(),
             product_type: AllProductTypes.SingleTreasure,
             is_band: is_band,
@@ -1902,10 +1862,10 @@ export const addVariantProductIntoWishList = async (req: Request) => {
       }
 
       const wish_list_count = await ProductWish.count({
-        where: { user_id: user_id, company_info_id: company_info_id?.data },
+        where: { user_id: user_id },
         transaction: trn,
       });
-      await addActivityLogs(req, company_info_id?.data, [{
+      await addActivityLogs( [{
         old_data: null,
         new_data: {
           product_wish_list_id: ProductWishList?.dataValues?.id, data: {
@@ -1929,21 +1889,16 @@ export const addVariantProductIntoWishList = async (req: Request) => {
 
 export const getVariantProductWishlistByUserId = async (req: any) => {
   try {
-    const { AppUser } = initModels(req);
 
     const { user_id } = req.params;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
     const userData = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
     if (!(userData && userData.dataValues)) {
       return resNotFound({ message: USER_NOT_FOUND });
     }
 
-    const products = await req.body.db_connection.query(
+    const products = await dbContext.query(
       `( SELECT
           wishlist.id,
           wishlist.user_id,
@@ -2014,7 +1969,6 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
           ON product_reviews.product_id = wishlist.product_id
           AND wishlist.product_type = ANY(ARRAY[${AllProductTypes.Product}, ${AllProductTypes.SettingProduct}, ${AllProductTypes.SingleTreasure}])
           AND product_reviews.is_approved = '1'::bit
-          AND product_reviews.company_info_id = wishlist.company_info_id
 
         -- Product data selection via LATERAL
         LEFT JOIN LATERAL (
@@ -2067,8 +2021,8 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
                   GROUP BY pdo.id_product,ds.name
                       ) pd ON pd.id_product = p.id
 
-            WHERE p.company_info_id = wishlist.company_info_id
-              AND p.id = wishlist.product_id
+            WHERE 
+               p.id = wishlist.product_id
               AND wishlist.product_type = ANY(ARRAY[${AllProductTypes.SettingProduct}, ${AllProductTypes.SingleTreasure}])
 
             UNION ALL
@@ -2115,16 +2069,14 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
                   GROUP BY pdo.id_product,ds.name
                       ) pd ON pd.id_product = p.id
 
-            WHERE p.company_info_id = wishlist.company_info_id
-              AND p.id = wishlist.product_id
+            WHERE p.id = wishlist.product_id
               AND wishlist.product_type = ANY(ARRAY[${AllProductTypes.Product}])
 
             UNION ALL
 
             SELECT gsp.product_title, gsp.sku, gsp.slug, NULL,NULL as single_product_type,  NULL::numeric,gsp.price::numeric
             FROM gift_set_products gsp
-            WHERE gsp.company_info_id = wishlist.company_info_id
-              AND gsp.id = wishlist.product_id
+            WHERE gsp.id = wishlist.product_id
               AND wishlist.product_type = ${AllProductTypes.GiftSet_product}
 
             UNION ALL
@@ -2132,8 +2084,7 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
             SELECT bp.name, bp.sku, bp.slug, NULL,NULL as single_product_type,bpmo.price::numeric AS compare_price,bpmo.price::numeric as product_price
             FROM birthstone_products bp
             JOIN birthstone_product_metal_options bpmo on bpmo.id_product = bp.id 
-            WHERE bp.company_info_id = wishlist.company_info_id
-              AND bp.id = wishlist.product_id
+            WHERE bp.id = wishlist.product_id
               AND wishlist.product_type = ${AllProductTypes.BirthStone_product}
               AND CASE
                 WHEN wishlist.id_karat IS NOT NULL THEN bpmo.id_product = wishlist.product_id AND bpmo.id_metal = wishlist.id_metal AND bpmo.id_karat = wishlist.id_karat AND bpmo.id_metal_tone::text = wishlist.id_metal_tone::text
@@ -2153,8 +2104,7 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
             END AS product_price
             FROM config_products cp
             LEFT JOIN diamond_shapes ds ON ds.id = cp.center_dia_shape_id
-            WHERE cp.company_info_id = wishlist.company_info_id
-              AND cp.id = wishlist.product_id
+            WHERE  cp.id = wishlist.product_id
               AND LOWER(cp.product_type) = 'ring'
               AND wishlist.product_type = ${AllProductTypes.Config_Ring_product}
 
@@ -2165,8 +2115,7 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
             0::numeric AS product_price
             FROM config_products cp
             LEFT JOIN diamond_shapes ds ON ds.id = cp.center_dia_shape_id
-            WHERE cp.company_info_id = wishlist.company_info_id
-              AND cp.id = wishlist.product_id
+            WHERE  cp.id = wishlist.product_id
               AND LOWER(cp.product_type) = 'three stone'
               AND wishlist.product_type = ${AllProductTypes.Three_stone_config_product}
 
@@ -2175,8 +2124,7 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
             SELECT cep.product_title, cep.sku, cep.slug, ds.name,NULL as single_product_type,0::numeric AS compare_price, 0::numeric as product_price
             FROM config_eternity_products cep
             LEFT JOIN diamond_shapes ds ON ds.id = cep.dia_shape_id
-            WHERE cep.company_info_id = wishlist.company_info_id
-              AND cep.id = wishlist.product_id
+            WHERE cep.id = wishlist.product_id
               AND wishlist.product_type = ${AllProductTypes.Eternity_product}
 
             UNION ALL
@@ -2190,8 +2138,7 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
                 LIMIT 1
               ),NULL as single_product_type,0::numeric AS compare_price,0::numeric AS product_price
             FROM config_bracelet_products cbp
-            WHERE cbp.company_info_id = wishlist.company_info_id
-              AND cbp.id = wishlist.product_id
+            WHERE cbp.id = wishlist.product_id
               AND wishlist.product_type = ${AllProductTypes.BraceletConfigurator}
 
             UNION ALL
@@ -2267,7 +2214,6 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
                 LEFT JOIN DIAMOND_GROUP_MASTERS DGM 
                   ON 
                     DGM.ID_SHAPE = SD.DIA_SHAPE::integer
-                    AND DGM.COMPANY_INFO_ID = ${company_info_id?.data}
                     AND DGM.MIN_CARAT_RANGE <= SD.DIA_WEIGHT
                     AND DGM.MAX_CARAT_RANGE >= SD.DIA_WEIGHT
                     AND DGM.ID_STONE = CAST(pdo.stone AS integer)
@@ -2375,7 +2321,6 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
                 LEFT JOIN DIAMOND_GROUP_MASTERS DGM 
                   ON 
                     DGM.ID_SHAPE = CPD.DIA_SHAPE::integer
-                    AND DGM.COMPANY_INFO_ID = ${company_info_id?.data}
                     AND DGM.MIN_CARAT_RANGE <= CPD.DIA_WEIGHT
                     AND DGM.MAX_CARAT_RANGE >= CPD.DIA_WEIGHT
                     AND DGM.ID_STONE = CAST(pdo.stone AS integer)
@@ -2456,8 +2401,7 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
         ) image_selection ON true
 
         WHERE
-          wishlist.company_info_id = ${company_info_id?.data}
-            AND wishlist.user_id = ${user_id}
+          wishlist.user_id = ${user_id}
 
         GROUP BY
           wishlist.id,
@@ -2491,22 +2435,22 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
 
     const productList = []
         for (let index = 0; index < products.length; index++) {
-          const element = products[index];
+          const element: any = products[index];
           const productType = await getProductTypeForPriceCorrection(element.product_type, element.single_product_type)
-          let data = element
+          let data: any = element
           let price = 0
           let compare_price = 0
           if (data.product_type === AllProductTypes.Config_Ring_product) {
-            price = await getRingConfigProductPriceForCart(req, data.product_id, data.is_band)
+            price = await getRingConfigProductPriceForCart(data.product_id, data.is_band)
             compare_price = price
           } else if (data.product_type === AllProductTypes.Three_stone_config_product) {
-            price = await getThreeStoneConfigProductPriceForCart(req, data.product_id, data.is_band)
+            price = await getThreeStoneConfigProductPriceForCart(data.product_id, data.is_band)
             compare_price = price
           } else if (data.product_type === AllProductTypes.Eternity_product) {
-            price = await getEternityConfigProductPrice(req, data.product_id)
+            price = await getEternityConfigProductPrice(data.product_id)
             compare_price = price
           } else if (data.product_type === AllProductTypes.BraceletConfigurator) {
-            price = await getBraceletConfigProductPrice(req, data.product_id)
+            price = await getBraceletConfigProductPrice(data.product_id)
             compare_price = price
           } else {
             price = data.product_price
@@ -2525,15 +2469,11 @@ export const getVariantProductWishlistByUserId = async (req: any) => {
 
 export const deleteVariantProductWishList = async (req: Request) => {
   try {
-    const { AppUser, ProductWish } = initModels(req);
 
     const { whishlist_id, user_id } = req.params;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
+   
     const userExit = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
 
     if (!(userExit && userExit.dataValues)) {
@@ -2541,7 +2481,7 @@ export const deleteVariantProductWishList = async (req: Request) => {
     }
 
     const findProduct = await ProductWish.findOne({
-      where: { id: whishlist_id, user_id: user_id, company_info_id: company_info_id?.data },
+      where: { id: whishlist_id, user_id: user_id },
     });
 
     if (!(findProduct && findProduct.dataValues)) {
@@ -2549,14 +2489,14 @@ export const deleteVariantProductWishList = async (req: Request) => {
     }
 
     await ProductWish.destroy({
-      where: { id: whishlist_id, company_info_id: company_info_id?.data },
+      where: { id: whishlist_id },
     });
 
     const wish_list_count = await ProductWish.count({
-      where: { user_id: user_id, company_info_id: company_info_id?.data },
+      where: { user_id: user_id },
     });
 
-    await addActivityLogs(req, company_info_id?.data, [{
+    await addActivityLogs( [{
       old_data: { product_wish_list_id: findProduct?.dataValues?.id, data: { ...findProduct?.dataValues }, user_id: userExit?.dataValues?.id, user_data: { ...userExit } },
       new_data: null
     }], findProduct?.dataValues?.id, LogsActivityType.Delete, LogsType.VariantProductWishList, req?.body?.session_res?.id_app_user)
@@ -2572,14 +2512,10 @@ export const deleteVariantProductWishList = async (req: Request) => {
 
 export const deleteVariantProductWishListWithProduct = async (req: Request) => {
   try {
-    const { AppUser, ProductWish, Product } = initModels(req)
     const { whishlist_id, user_id, product_id } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
+   
     const userExit = await AppUser.findOne({
-      where: { id: user_id, is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { id: user_id, is_deleted: DeletedStatus.No },
     });
 
     if (!(userExit && userExit.dataValues)) {
@@ -2592,7 +2528,7 @@ export const deleteVariantProductWishListWithProduct = async (req: Request) => {
           id: product_id,
           is_deleted: DeletedStatus.No,
           is_active: DeletedStatus.yes,
-          company_info_id: company_info_id?.data,
+          
         },
       });
       if (!(product && product.dataValues)) {
@@ -2611,15 +2547,15 @@ export const deleteVariantProductWishListWithProduct = async (req: Request) => {
           product_id: product.dataValues.id,
           user_id: user_id,
           product_type: AllProductTypes.Product,
-          company_info_id: company_info_id?.data,
+          
         },
       });
 
       const wish_list_count = await ProductWish.count({
-        where: { user_id: user_id, company_info_id: company_info_id?.data },
+        where: { user_id: user_id },
       });
 
-      await addActivityLogs(req, company_info_id?.data, [{
+      await addActivityLogs( [{
         old_data: { product_wish_list_id: ProductWishWithUser?.dataValues?.id, data: { ...ProductWishWithUser?.dataValues }, user_id: userExit?.dataValues?.id, user_data: { ...userExit } },
         new_data: null
       }], ProductWishWithUser?.dataValues?.id, LogsActivityType.Delete, LogsType.ProductWishListWithProduct, req?.body?.session_res?.id_app_user)
@@ -2630,7 +2566,7 @@ export const deleteVariantProductWishListWithProduct = async (req: Request) => {
       });
     }
     const findProduct = await ProductWish.findOne({
-      where: { id: whishlist_id, user_id: user_id, company_info_id: company_info_id?.data },
+      where: { id: whishlist_id, user_id: user_id },
     });
 
     if (!(findProduct && findProduct.dataValues)) {
@@ -2638,13 +2574,13 @@ export const deleteVariantProductWishListWithProduct = async (req: Request) => {
     }
 
     await ProductWish.destroy({
-      where: { id: whishlist_id, company_info_id: company_info_id?.data },
+      where: { id: whishlist_id },
     });
 
     const wish_list_count = await ProductWish.count({
-      where: { user_id: user_id, company_info_id: company_info_id?.data },
+      where: { user_id: user_id },
     });
-    await addActivityLogs(req, company_info_id?.data, [{
+    await addActivityLogs([{
       old_data: { product_wish_list_id: findProduct?.dataValues?.id, data: { ...findProduct?.dataValues }, user_id: userExit?.dataValues?.id, user_data: { ...userExit } },
       new_data: null
     }], findProduct?.dataValues?.id, LogsActivityType.Delete, LogsType.ProductWishListWithProduct, req?.body?.session_res?.id_app_user)
@@ -2661,15 +2597,11 @@ export const deleteVariantProductWishListWithProduct = async (req: Request) => {
 export const getWishListProductsForProductListAndDetail = async (
   req: Request
 ) => {
-  const { AppUser, ProductWish } = initModels(req)
   try {
     const { user_id } = req.params;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
+    
     const products = await ProductWish.findAll({
-      where: { user_id: user_id, company_info_id: company_info_id?.data },
+      where: { user_id: user_id },
       attributes: [
         "id",
         "product_id",
@@ -2692,13 +2624,9 @@ export const getWishListProductsForProductListAndDetail = async (
 
 export const moveProductCartToWishlist = async (req: Request) => {
   try {
-    const { CartProducts, ProductWish } = initModels(req)
     const { cart_id } = req.params
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
-    const findProduct = await CartProducts.findOne({ where: { id: cart_id, company_info_id: company_info_id?.data } })
+    
+    const findProduct = await CartProducts.findOne({ where: { id: cart_id } })
     if (!(findProduct && findProduct.dataValues)) {
       return resNotFound({ message: prepareMessageFromParams(ERROR_NOT_FOUND, [["field_name", "Cart Product"]]) })
     }
@@ -2727,7 +2655,7 @@ export const moveProductCartToWishlist = async (req: Request) => {
         id_head_metal_tone: findProduct.dataValues.id_head_metal_tone,
         id_shank_metal_tone: findProduct.dataValues.id_shank_metal_tone,
         id_band_metal_tone: findProduct.dataValues.id_band_metal_tone,
-        company_info_id: company_info_id?.data,
+        
         user_ip: IP,
         user_country: country,
         user_location: locationData
@@ -2742,7 +2670,7 @@ export const moveProductCartToWishlist = async (req: Request) => {
       product_id: findProduct.dataValues.product_id,
       variant_id: findProduct.dataValues.variant_id,
       created_date: getLocalDate(),
-      company_info_id: company_info_id?.data,
+      
       product_type: findProduct.dataValues.product_type,
       id_size: findProduct.dataValues.id_size,
       id_metal: findProduct.dataValues.id_metal,
@@ -2766,9 +2694,9 @@ export const moveProductCartToWishlist = async (req: Request) => {
       user_country: country,
       user_location: locationData
     })
-    await CartProducts.destroy({ where: { id: findProduct.dataValues.id, company_info_id: company_info_id?.data } })
+    await CartProducts.destroy({ where: { id: findProduct.dataValues.id } })
 
-    await addActivityLogs(req, company_info_id?.data, [{
+    await addActivityLogs( [{
       old_data: null,
       new_data: {
         product_wish_list_id: wishlistProduct?.dataValues?.id, data: {
@@ -2777,7 +2705,7 @@ export const moveProductCartToWishlist = async (req: Request) => {
       }
     }], wishlistProduct?.dataValues?.id, LogsActivityType.Add, LogsType.MoveProductCartToWishList, req?.body?.session_res?.id_app_user)
 
-    await addActivityLogs(req, company_info_id?.data, [{
+    await addActivityLogs( [{
       old_data: { cart_id: findProduct?.dataValues?.id, data: { ...findProduct?.dataValues } },
       new_data: null
     }], wishlistProduct?.dataValues?.id, LogsActivityType.Delete, LogsType.MoveProductCartToWishList, req?.body?.session_res?.id_app_user)

@@ -19,15 +19,15 @@ import {
 } from "../../utils/shared-functions";
 import { ActiveStatus, DeletedStatus, LogsActivityType, LogsType } from "../../utils/app-enumeration";
 import { Op, QueryTypes } from "sequelize";
-import { initModels } from "../model/index.model";
+import { ShippingCharge } from "../model/shipping-charges.model";
+import dbContext from "../../config/db-context";
 
 export const addSippingCharge = async (req: Request) => {
   let trn;
   try {
-    const { ShippingCharge } = initModels(req);
     const { amount, min_amount, max_amount } = req.body;
 
-    const response = await checkAmountConflict(min_amount, max_amount,null,req?.body?.session_res?.client_id, req);
+    const response = await checkAmountConflict(min_amount, max_amount,null,null);
 
     if (response.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return response;
@@ -40,10 +40,9 @@ export const addSippingCharge = async (req: Request) => {
       max_amount,
       is_active: ActiveStatus.Active,
       created_by: req?.body?.session_res?.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_at: getLocalDate(),
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         shipping_charge_id: result?.dataValues?.id, data: {
@@ -60,23 +59,9 @@ export const addSippingCharge = async (req: Request) => {
 
 export const getShippingChargeByFilter = async (req: Request) => {
   try {
-    const { ShippingCharge } = initModels(req);
     const pagination = getInitialPaginationFromQuery(req.query);
-    let company_info_id: any = {};
-    
-    if (req?.body?.session_res?.client_id) {
-      company_info_id.data = req.body.session_res.client_id;
-    } else {
-      const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-      if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return decrypted;
-      }
-
-      company_info_id = decrypted;
-    }
     // Initialize where condition for filtering shipping_charges
-    let whereCondition = `shipping_charges.company_info_id = ${company_info_id?.data} AND shipping_charges.is_deleted = '${
+    let whereCondition = `shipping_charges.is_deleted = '${
       DeletedStatus.No
     }' AND shipping_charges.id != 0 ${
       pagination.search_text
@@ -127,7 +112,7 @@ export const getShippingChargeByFilter = async (req: Request) => {
           `;
 
     // Execute the query with replacements for dynamic values
-    const result: any = await req.body.db_connection.query(query, {
+    const result: any = await dbContext.query(query, {
       replacements: {
         is_active: pagination.is_active || null,
         per_page_rows: pagination.per_page_rows,
@@ -160,11 +145,10 @@ export const getShippingChargeByFilter = async (req: Request) => {
 
 export const updatedShippingCharge = async (req: Request) => {
   try {
-    const { ShippingCharge } = initModels(req);
     const { id }: any = req.params;
     const { amount, min_amount, max_amount, is_active } = req.body;
 
-    const response = await checkAmountConflict(min_amount, max_amount, id,req?.body?.session_res?.client_id, req);
+    const response = await checkAmountConflict(min_amount, max_amount, id,null);
     if (response.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return response;
     }
@@ -178,11 +162,11 @@ export const updatedShippingCharge = async (req: Request) => {
         updated_by: req?.body?.session_res?.id_app_user,
         updated_at: getLocalDate(),
       },
-      { where: { id: id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id } }
     );
     const  AfterupdateDhippingData = await ShippingCharge.findOne({where:{ id: id } })
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { shipping_charge_id: shippingData?.dataValues?.id, data: {...shippingData?.dataValues}},
       new_data: {
         shipping_charge_id: AfterupdateDhippingData?.dataValues?.id, data: { ...AfterupdateDhippingData?.dataValues }
@@ -197,9 +181,8 @@ export const updatedShippingCharge = async (req: Request) => {
 
 export const deleteShippingCharge = async (req: Request) => {
   try {
-    const { ShippingCharge } = initModels(req);
     const ShippingChargeData = await ShippingCharge.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(ShippingChargeData && ShippingChargeData.dataValues)) {
@@ -212,9 +195,9 @@ export const deleteShippingCharge = async (req: Request) => {
         updated_by: req?.body?.session_res?.id_app_user,
         updated_at: getLocalDate(),
       },
-      { where: { id: ShippingChargeData.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: ShippingChargeData.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { shipping_charge_id: ShippingChargeData?.dataValues?.id, data: {...ShippingChargeData?.dataValues}},
       new_data: {
         shipping_charge_id: ShippingChargeData?.dataValues?.id, data: {
@@ -233,9 +216,8 @@ export const deleteShippingCharge = async (req: Request) => {
 
 export const changeStatusShippingCharge = async (req: Request) => {
   try {
-    const { ShippingCharge } = initModels(req);
     const ShippingChargeData = await ShippingCharge.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(ShippingChargeData && ShippingChargeData.dataValues)) {
@@ -248,9 +230,9 @@ export const changeStatusShippingCharge = async (req: Request) => {
         updated_by: req?.body?.session_res?.id_app_user,
         updated_at: getLocalDate(),
       },
-      { where: { id: ShippingChargeData.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: ShippingChargeData.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { shipping_charge_id: ShippingChargeData?.dataValues?.id, data: {...ShippingChargeData?.dataValues}},
       new_data: {
         shipping_charge_id: ShippingChargeData?.dataValues?.id, data: {
@@ -269,12 +251,7 @@ export const changeStatusShippingCharge = async (req: Request) => {
 
 export const applySippingCharge = async (req: Request) => {
   try {
-    const { ShippingCharge } = initModels(req);
     const { amount } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const shippingChargeData: any = await ShippingCharge.findOne({
       where: {
         [Op.and]: [
@@ -312,7 +289,6 @@ export const applySippingCharge = async (req: Request) => {
           },
           { is_deleted: DeletedStatus.No },
           { is_active: ActiveStatus.Active },
-          {company_info_id:company_info_id?.data}
         ],
       },
     });
@@ -338,11 +314,9 @@ export const checkAmountConflict = async (
   minAmount: number,
   maxAmount: number,
   excludeId: any = null,
-  client_id: number,
   req: Request
 ) => {
   try {
-    const { ShippingCharge } = initModels(req);
     // First check if min_amount is less than max_amount
     if (minAmount && maxAmount && minAmount >= maxAmount) {
       // If min_amount is not less than max_amount, return an error
@@ -464,7 +438,6 @@ export const checkAmountConflict = async (
                 ],
               },
           { is_deleted: DeletedStatus.No }, // Ensure the record is not deleted
-          {company_info_id :client_id}
         ],
         ...(excludeId && { id: { [Op.ne]: excludeId } }), // Exclude the current record during update
       },

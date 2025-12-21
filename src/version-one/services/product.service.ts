@@ -42,7 +42,6 @@ import {
   addActivityLogs,
   columnValueLowerCase,
   createToneArrayBasedOnKarat,
-  getCompanyIdBasedOnTheCompanyKey,
   getInitialPaginationFromQuery,
   getLocalDate,
   getWebSettingData,
@@ -119,16 +118,45 @@ import {
   moveFileToS3ByTypeAndLocation,
   moveOriginalFileToS3ByTypeAndLocation,
 } from "../../helpers/file.helper";
-import { initModels } from "../model/index.model";
 import { fetchConfigurationByKey } from "./auth.service";
+import { Product } from "../model/product.model";
+import { Image } from "../model/image.model";
+import { ProductMetalOption } from "../model/product-metal-option.model";
+import { ProductDiamondOption } from "../model/product-diamond-option.model";
+import { DiamondGroupMaster } from "../model/master/attributes/diamond-group-master.model";
+import { ProductImage } from "../model/product-image.model";
+import { ProductCategory } from "../model/product-category.model";
+import { ProductVideo } from "../model/product-video.model";
+import { MetalTone } from "../model/master/attributes/metal/metalTone.model";
+import { ProductWish } from "../model/produc-wish-list.model";
+import { CartProducts } from "../model/cart-product.model";
+import { Tag } from "../model/master/attributes/tag.model";
+import { Collection } from "../model/master/attributes/collection.model";
+import { SizeData } from "../model/master/attributes/item-size.model";
+import { LengthData } from "../model/master/attributes/item-length.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { CategoryData } from "../model/category.model";
+import { SettingTypeData } from "../model/master/attributes/settingType.model";
+import { MetalGroupMaster } from "../model/master/attributes/metal/metal-group-master.model";
+import { SettingCaratWeight } from "../model/master/attributes/settingCaratWeight.model";
+import { SystemConfiguration } from "../model/system-configuration.model";
+import { GoldKarat } from "../model/master/attributes/metal/gold-karat.model";
+import { StockChangeLog } from "../model/stock-change-log.model";
+import { BrandData } from "../model/master/attributes/brands.model";
+import { Offers } from "../model/offer-discount/offer.model";
+import { ConfigProduct } from "../model/config-product.model";
+import { ConfigProductMetals } from "../model/config-product-metal.model";
+import { ConfigProductDiamonds } from "../model/config-product-diamonds.model";
+import { ConfigCartProduct } from "../model/config-cart-product.model";
+import { ProductSearchHistories } from "../model/product-search-histories.model";
+import { DiamondCaratSize } from "../model/master/attributes/caratSize.model";
+import { MetalMaster } from "../model/master/attributes/metal/metal-master.model";
 import { s3ListObjects } from "../../helpers/s3-client.helper";
 import dbContext from "../../config/db-context";
 import { calculateDiscountAmount, fetchActiveOffers, getProductOffersForId } from "./apply-offer-buy-with-new.service";
-import { after } from "node:test";
 
 export const getAllProduct = async (req: Request) => {
   try {
-    const { Product } = initModels(req);
     let pagination = {
       ...getInitialPaginationFromQuery(req.query),
       search_text: req.query.search_text,
@@ -136,8 +164,7 @@ export const getAllProduct = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
           [Op.or]: {
@@ -146,7 +173,7 @@ export const getAllProduct = async (req: Request) => {
             slug: { [Op.iLike]: `%${pagination.search_text}%` },
           },
         }
-        : {},
+        : {}
     ];
 
     const totalItems = await Product.count({
@@ -159,7 +186,7 @@ export const getAllProduct = async (req: Request) => {
     pagination.total_items = totalItems;
     pagination.total_pages = Math.ceil(totalItems / pagination.per_page_rows);
 
-    const result = await req.body.db_connection.query(`(SELECT products.id,
+    const result = await dbContext.query(`(SELECT products.id,
 products.name,
 products.sku,
 products.slug,
@@ -228,7 +255,7 @@ LEFT JOIN diamond_group_masters DGM ON DGM.id = pdo.id_diamond_group
 	GROUP BY pdo.id_product
 ) as pdo on pdo.id_product = products.id
 LEFT JOIN products as pp ON pp.id = products.parent_id
-WHERE products.is_deleted = '0' AND products.company_info_id = ${req?.body?.session_res?.client_id}
+WHERE products.is_deleted = '0'
 ${pagination.search_text ? `AND (products.name ILIKE '%${pagination.search_text}%' OR products.sku ILIKE '%${pagination.search_text}%' OR products.slug ILIKE '%${pagination.search_text}%')` : ''}
 GROUP BY products.id,categories.category_name,pp.sku,pdo.total_diamond_price
 ORDER BY ${pagination.sort_by == "category_name" ? `category_name` : pagination.sort_by == "parent_sku" ? `pp.sku` : `products.${pagination.sort_by}`} ${pagination.order_by}
@@ -246,8 +273,8 @@ OFFSET
   }
 };
 
-const addRateToProductList = async (productList: any, req: Request) => {
-  const resFMCGR = await fetchMetalConfigGroupRate(req);
+const addRateToProductList = async (productList: any) => {
+  const resFMCGR = await fetchMetalConfigGroupRate();
   if (resFMCGR.code !== DEFAULT_STATUS_CODE_SUCCESS) {
     return resFMCGR;
   }
@@ -263,7 +290,6 @@ const addRateToProductList = async (productList: any, req: Request) => {
 
 export const getProductById = async (req: Request) => {
   try {
-    const { Image,Product,ProductMetalOption, ProductDiamondOption, DiamondGroupMaster, ProductImage,ProductCategory, ProductVideo, MetalTone } = initModels(req);
 
     let idProduct = req.params.id;
     if (!idProduct) return resBadRequest({ message: INVALID_ID });
@@ -357,7 +383,6 @@ export const getProductById = async (req: Request) => {
       where: {
         id: idProduct,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id
       },
       include: [
         {
@@ -482,14 +507,14 @@ export const getProductById = async (req: Request) => {
     }
 
     const metal_tone = await MetalTone.findAll({
-      where: { id: metalToneList.map((t: any) => t),company_info_id :req?.body?.session_res?.client_id },
+      where: { id: metalToneList.map((t: any) => t) },
       attributes: [
         "id",
         "name",
         "sort_code",
         [Sequelize.literal("metal_tone_image.image_path"), "image_path"],
       ],
-      include: [{required: false, model: Image, as: "metal_tone_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id} }],
+      include: [{required: false, model: Image, as: "metal_tone_image", attributes: [] }],
     });
 
     if (!(findProduct && findProduct.dataValues)) {
@@ -507,15 +532,11 @@ export const validateSameProductName = async (
   name: string,
   sku: string,
   id: number | null = null,
-  client_id: number,
-  req: Request,
 ) => {
-  const {Product} = initModels(req);
   const productWithSameNameSKU = await Product.findOne({
     where: [
       { [Op.or]: { name, sku }, is_deleted: DeletedStatus.No },
-      id ? { id: { [Op.ne]: id } } : {},
-      {company_info_id :client_id}
+      id ? { id: { [Op.ne]: id } } : {}
     ],
   });
   if (productWithSameNameSKU && productWithSameNameSKU.dataValues) {
@@ -531,14 +552,12 @@ export const validateSameProductName = async (
 
 export const activeInactiveProduct = async (req: Request) => {
   try {
-      const {Product, ProductWish,CartProducts} = initModels(req);
 
     const { id_product, is_active } = req.body;
     const findProduct = await Product.findOne({
       where: {
         id: id_product,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id
       },
     });
 
@@ -561,23 +580,21 @@ export const activeInactiveProduct = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findProduct.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findProduct.dataValues.id } }
     );
     await ProductWish.destroy({
       where: {
         product_id: findProduct.dataValues.id,
         product_type: [AllProductTypes.Product, AllProductTypes.SettingProduct],
-        company_info_id :req?.body?.session_res?.client_id
       },
     });
     await CartProducts.destroy({
       where: {
         product_id: findProduct.dataValues.id,
         product_type: [AllProductTypes.Product, AllProductTypes.SettingProduct],
-        company_info_id :req?.body?.session_res?.client_id
       },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { product_id: findProduct.dataValues.id, data: {...findProduct.dataValues} },
       new_data: {
         product_id: findProduct.dataValues.id, data: {
@@ -587,7 +604,7 @@ export const activeInactiveProduct = async (req: Request) => {
         }
       }
     }], findProduct.dataValues.id, LogsActivityType.StatusUpdate, LogsType.Product, req.body.session_res.id_app_user)
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess();
   } catch (e) {
     return resUnknownError({ data: e });
@@ -595,15 +612,14 @@ export const activeInactiveProduct = async (req: Request) => {
 };
 
 export const deleteProduct = async (req: Request) => {
-  const trn = await (req.body.db_connection).transaction();
-    const {Product, ProductDiamondOption, ProductCategory, ProductMetalOption, ProductImage, ProductVideo, ProductWish, CartProducts} = initModels(req);
+  const trn = await dbContext.transaction();
 
   try {
     const productToBeDelete = await Product.findOne({
       where: {
         id: req.body.id,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
+
       },
     });
 
@@ -617,7 +633,7 @@ export const deleteProduct = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: productToBeDelete.dataValues.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+      { where: { id: productToBeDelete.dataValues.id }, transaction: trn }
     );
 
     await ProductCategory.update(
@@ -627,7 +643,7 @@ export const deleteProduct = async (req: Request) => {
         modified_date: getLocalDate(),
       },
       {
-        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No },
         transaction: trn,
       }
     );
@@ -639,7 +655,7 @@ export const deleteProduct = async (req: Request) => {
         modified_date: getLocalDate(),
       },
       {
-        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No },
         transaction: trn,
       }
     );
@@ -651,7 +667,7 @@ export const deleteProduct = async (req: Request) => {
         modified_date: getLocalDate(),
       },
       {
-        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No },
         transaction: trn,
       }
     );
@@ -663,7 +679,7 @@ export const deleteProduct = async (req: Request) => {
         modified_date: getLocalDate(),
       },
       {
-        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No },
         transaction: trn,
       }
     );
@@ -675,7 +691,7 @@ export const deleteProduct = async (req: Request) => {
         modified_date: getLocalDate(),
       },
       {
-        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id_product: productToBeDelete.dataValues.id, is_deleted: DeletedStatus.No },
         transaction: trn,
       }
     );
@@ -683,7 +699,7 @@ export const deleteProduct = async (req: Request) => {
       where: {
         product_id: productToBeDelete.dataValues.id,
         product_type: [AllProductTypes.Product, AllProductTypes.SettingProduct],
-        company_info_id :req?.body?.session_res?.client_id,
+
       },
       transaction: trn,
     });
@@ -691,7 +707,7 @@ export const deleteProduct = async (req: Request) => {
       where: {
         product_id: productToBeDelete.dataValues.id,
         product_type: [AllProductTypes.Product, AllProductTypes.SettingProduct],
-        company_info_id :req?.body?.session_res?.client_id,
+
       },
       transaction: trn,
     });
@@ -713,7 +729,7 @@ export const deleteProduct = async (req: Request) => {
     //   await trn.rollback();
     //   return resRename;
     // }
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { product_id: productToBeDelete.dataValues.id, data: {...productToBeDelete.dataValues} },
       new_data: {
         product_id: productToBeDelete.dataValues.id, data: {
@@ -724,7 +740,7 @@ export const deleteProduct = async (req: Request) => {
       }
     }], productToBeDelete.dataValues.id, LogsActivityType.Delete, LogsType.Product, req.body.session_res.id_app_user)
     await trn.commit();
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess();
   } catch (e) {
     await trn.rollback();
@@ -755,7 +771,6 @@ export const saveProductBasicDetails = async (req: Request) => {
       meta_tag = null,
 
     } = req.body;
-    const {Product,  ProductCategory} = initModels(req);
 
     let resIdProduct = 0;
     if (id_product !== 0) {
@@ -767,7 +782,7 @@ export const saveProductBasicDetails = async (req: Request) => {
         where: {
           id: id_product,
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id,
+
         },
       });
 
@@ -780,8 +795,6 @@ export const saveProductBasicDetails = async (req: Request) => {
       name,
       sku,
       id_product !== 0 ? id_product : null,
-      req?.body?.session_res?.client_id,
-      req
     );
     if (validateName.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validateName;
@@ -793,7 +806,7 @@ export const saveProductBasicDetails = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.tag
           ? productToBeUpdate.dataValues.tag
           : "",
-    },req?.body?.session_res?.client_id, req);
+      });
 
     if (validTag.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validTag;
@@ -802,13 +815,13 @@ export const saveProductBasicDetails = async (req: Request) => {
     const validPC = await validateProductCategories({
       categories: product_categories,
       id_product: id_product !== 0 ? id_product : null,
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validPC.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validPC;
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       if (id_product === 0) {
         const resProduct = await Product.create(
@@ -830,7 +843,6 @@ export const saveProductBasicDetails = async (req: Request) => {
             is_featured: FeaturedProductStatus.InFeatured,
             is_trending: TrendingProductStatus.InTrending,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
             meta_title: meta_title,
             meta_description: meta_description,
@@ -848,7 +860,6 @@ export const saveProductBasicDetails = async (req: Request) => {
               id_sub_category: productCategory.id_sub_category,
               id_sub_sub_category: productCategory.id_sub_sub_category,
               created_by: req.body.session_res.id_app_user,
-              company_info_id :req?.body?.session_res?.client_id,
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -873,7 +884,7 @@ export const saveProductBasicDetails = async (req: Request) => {
             modified_by: req.body.session_res.id_app_user,
             modified_date: new Date(),
           },
-          { where: { id: id_product,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: id_product }, transaction: trn }
         );
 
         for (const productCategory of product_categories) {
@@ -885,7 +896,6 @@ export const saveProductBasicDetails = async (req: Request) => {
                 id_sub_category: productCategory.id_sub_category,
                 id_sub_sub_category: productCategory.id_sub_sub_category,
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
                 created_date: new Date(),
               },
               { transaction: trn }
@@ -899,7 +909,7 @@ export const saveProductBasicDetails = async (req: Request) => {
                 modified_by: req.body.session_res.id_app_user,
                 modified_date: new Date(),
               },
-              { where: { id: productCategory.id ,company_info_id :req?.body?.session_res?.client_id}, transaction: trn }
+              { where: { id: productCategory.id }, transaction: trn }
             );
           }
         }
@@ -911,12 +921,12 @@ export const saveProductBasicDetails = async (req: Request) => {
               modified_by: req.body.session_res.id_app_user,
               modified_date: new Date(),
             },
-            { where: { id: productCategory.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: productCategory.id }, transaction: trn }
           );
         }
       }
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      await refreshMaterializedProductListView(dbContext);
       return resSuccess({ data: resIdProduct });
     } catch (e) {
       await trn.rollback();
@@ -927,9 +937,8 @@ export const saveProductBasicDetails = async (req: Request) => {
   }
 };
 
-const validateProductTag = async (payload: IValidateProductTagPayload,client_id:number, req: Request) => {
+  const validateProductTag = async (payload: IValidateProductTagPayload) => {
   const { tag, oldTag } = payload;
-  const { Tag } = initModels(req);
   let tagIdsToValidate = [];
   let tagIds = oldTag.split("|").map((item) => Number(item));
 
@@ -944,7 +953,6 @@ const validateProductTag = async (payload: IValidateProductTagPayload,client_id:
       id: { [Op.in]: tagIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
   });
 
@@ -956,9 +964,8 @@ const validateProductTag = async (payload: IValidateProductTagPayload,client_id:
 };
 
 const validateProductCollection = async (
-  payload: IValidateProductCollectionPayload,client_id:number, req: Request
+  payload: IValidateProductCollectionPayload
 ) => {
-  const { Collection } = initModels(req);
   const { collection, oldCollection } = payload;
 
   let collectionIdsToValidate = [];
@@ -975,7 +982,6 @@ const validateProductCollection = async (
       id: { [Op.in]: collectionIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
   });
 
@@ -990,9 +996,8 @@ const validateProductCollection = async (
   return resSuccess();
 };
 
-const validateProductSize = async (payload: IValidateProductSizePayload,client_id:number, req: Request) => {
+const validateProductSize = async (payload: IValidateProductSizePayload) => {
   const { size, oldSize } = payload;
-  const { SizeData } = initModels(req);
   let sizeIdsToValidate = [];
   let sizeIds = oldSize.split("|").map((item) => Number(item));
   for (const id of size) {
@@ -1006,7 +1011,6 @@ const validateProductSize = async (payload: IValidateProductSizePayload,client_i
       id: { [Op.in]: sizeIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
   });
 
@@ -1022,9 +1026,8 @@ const validateProductSize = async (payload: IValidateProductSizePayload,client_i
 };
 
 const validateProductLength = async (
-  payload: IValidateProductLengthPayload,client_id,req: Request
+    payload: IValidateProductLengthPayload
 ) => {
-  const { LengthData } = initModels(req);
   const { length, oldLength } = payload;
 
   let lengthIdsToValidate = [];
@@ -1041,7 +1044,6 @@ const validateProductLength = async (
       id: { [Op.in]: lengthIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
   });
 
@@ -1057,10 +1059,9 @@ const validateProductLength = async (
 };
 
 const validateDiamondShapes = async (
-  payload: IValidateDiamondShapesPayload,client_id:number, req: Request
+  payload: IValidateDiamondShapesPayload
 ) => {
   const { shapes, oldShapes } = payload;
-  const { DiamondShape } = initModels(req);
   let shapeIdsToValidate = [];
   let shapeIds = oldShapes.split("|").map((item) => Number(item));
 
@@ -1075,7 +1076,7 @@ const validateDiamondShapes = async (
       id: { [Op.in]: shapeIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
+
     },
   });
 
@@ -1091,15 +1092,14 @@ const validateDiamondShapes = async (
 };
 
 const validateProductCategories = async (
-  payload: IValidateProductCategoryPayload,client_id:number, req: Request
+  payload: IValidateProductCategoryPayload
 ) => {
   const { categories, id_product } = payload;
-  const { ProductCategory, CategoryData } = initModels(req);
   let oldProductCategories: IProductCategory[] = [];
 
   if (id_product) {
     const findAllPC = await ProductCategory.findAll({
-      where: { id_product, is_deleted: DeletedStatus.No,company_info_id :client_id },
+      where: { id_product, is_deleted: DeletedStatus.No, },
     });
 
     if (findAllPC.length > 0) {
@@ -1135,7 +1135,7 @@ const validateProductCategories = async (
             is_deleted: DeletedStatus.No,
             is_active: ActiveStatus.Active,
             parent_id: { [Op.eq]: null },
-            company_info_id :client_id,
+
           },
           include: category.id_sub_category
             ? {
@@ -1146,7 +1146,6 @@ const validateProductCategories = async (
                 id: category.id_sub_category,
                 is_deleted: DeletedStatus.No,
                 is_active: ActiveStatus.Active,
-                company_info_id :client_id,
               },
               include: category.id_sub_sub_category
                 ? [
@@ -1158,7 +1157,6 @@ const validateProductCategories = async (
                       id: category.id_sub_sub_category,
                       is_deleted: DeletedStatus.No,
                       is_active: ActiveStatus.Active,
-                      company_info_id :client_id,
                     },
                   },
                 ]
@@ -1176,7 +1174,6 @@ const validateProductCategories = async (
             attributes: ["id"],
             where: {
               id: category.id_category,
-              company_info_id :client_id,
             },
             include: category.id_sub_category
               ? {
@@ -1187,7 +1184,6 @@ const validateProductCategories = async (
                   id: category.id_sub_category,
                   is_deleted: DeletedStatus.No,
                   is_active: ActiveStatus.Active,
-                  company_info_id :client_id,
                 },
                 include: category.id_sub_sub_category
                   ? [
@@ -1199,7 +1195,6 @@ const validateProductCategories = async (
                         id: category.id_sub_sub_category,
                         is_deleted: DeletedStatus.No,
                         is_active: ActiveStatus.Active,
-                        company_info_id :client_id,
                       },
                     },
                   ]
@@ -1219,7 +1214,6 @@ const validateProductCategories = async (
             attributes: ["id"],
             where: {
               id: category.id_sub_category,
-              company_info_id :client_id,
             },
             include: category.id_sub_category
               ? {
@@ -1230,7 +1224,6 @@ const validateProductCategories = async (
                   id: category.id_sub_sub_category,
                   is_deleted: DeletedStatus.No,
                   is_active: ActiveStatus.Active,
-                  company_info_id :client_id,
                 },
               }
               : [],
@@ -1249,7 +1242,6 @@ const validateProductCategories = async (
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
           parent_id: { [Op.eq]: null },
-          company_info_id :client_id,
         },
         include: category.id_sub_category
           ? {
@@ -1260,7 +1252,6 @@ const validateProductCategories = async (
               id: category.id_sub_category,
               is_deleted: DeletedStatus.No,
               is_active: ActiveStatus.Active,
-              company_info_id :client_id,
             },
             include: category.id_sub_sub_category
               ? [
@@ -1272,7 +1263,6 @@ const validateProductCategories = async (
                     id: category.id_sub_sub_category,
                     is_deleted: DeletedStatus.No,
                     is_active: ActiveStatus.Active,
-                    company_info_id :client_id,
                   },
                 },
               ]
@@ -1300,17 +1290,16 @@ export const saveMetalDiamondDetails = async (req: Request) => {
       product_metal_options,
       product_diamond_options,
     } = req.body;
-    const {Product} = initModels(req);
 
     const productToBeUpdate = await Product.findOne({
-      where: { id: id_product, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id_product, is_deleted: DeletedStatus.No },
     });
 
     if (!(productToBeUpdate && productToBeUpdate.dataValues)) {
       return resNotFound({ message: PRODUCT_NOT_FOUND });
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       const resSSST = await saveSettingStyleType({
         settingStyleType: setting_style_type,
@@ -1320,7 +1309,7 @@ export const saveMetalDiamondDetails = async (req: Request) => {
         idProduct: productToBeUpdate.dataValues.id,
         idAppUser: req.body.session_res.id_app_user,
         trn,
-      },req?.body?.session_res?.client_id, req);
+      });
 
       if (resSSST.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         await trn.rollback();
@@ -1335,7 +1324,7 @@ export const saveMetalDiamondDetails = async (req: Request) => {
         idProduct: productToBeUpdate.dataValues.id,
         idAppUser: req.body.session_res.id_app_user,
         trn,
-      },req?.body?.session_res?.client_id, req);
+      });
 
       if (resPS.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         await trn.rollback();
@@ -1350,7 +1339,7 @@ export const saveMetalDiamondDetails = async (req: Request) => {
         idProduct: productToBeUpdate.dataValues.id,
         idAppUser: req.body.session_res.id_app_user,
         trn,
-      },req?.body?.session_res?.client_id, req);
+      });
 
       if (resPL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         await trn.rollback();
@@ -1362,7 +1351,7 @@ export const saveMetalDiamondDetails = async (req: Request) => {
         productMetalOptions: product_metal_options,
         idAppUser: req.body.session_res.id_app_user,
         trn,
-      },req?.body?.session_res?.client_id, req);
+      });
 
       if (resSPMO.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         await trn.rollback();
@@ -1374,7 +1363,7 @@ export const saveMetalDiamondDetails = async (req: Request) => {
         productDiamondOptions: product_diamond_options,
         idAppUser: req.body.session_res.id_app_user,
         trn,
-      },req?.body?.session_res?.client_id, req);
+      });
 
       if (resSPDO.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         await trn.rollback();
@@ -1392,8 +1381,7 @@ export const saveMetalDiamondDetails = async (req: Request) => {
   }
 };
 
-const saveSettingStyleType = async (payload: ISaveSettingStyleTypePayload, client_id: number, req: Request) => {
-  const {SettingTypeData, Product} = initModels(req);
+const saveSettingStyleType = async (payload: ISaveSettingStyleTypePayload) => {
   const { settingStyleType, oldSettingStyleType, idProduct, idAppUser, trn } =
     payload;
 
@@ -1413,7 +1401,6 @@ const saveSettingStyleType = async (payload: ISaveSettingStyleTypePayload, clien
       id: { [Op.in]: settingStyleTypeIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
     transaction: trn,
   });
@@ -1428,15 +1415,14 @@ const saveSettingStyleType = async (payload: ISaveSettingStyleTypePayload, clien
       modified_by: idAppUser,
       modified_date: getLocalDate(),
     },
-    { where: { id: idProduct,company_info_id :client_id }, transaction: trn }
+    { where: { id: idProduct, }, transaction: trn }
   );
-  // await refreshMaterializedProductListView(req.body.db_connection);
+  await refreshMaterializedProductListView(dbContext);
   return resSuccess();
 };
 
-const saveProductSize = async (payload: ISaveProductSizePayload,client_id:number, req: Request) => {
+const saveProductSize = async (payload: ISaveProductSizePayload) => {
   const { size, oldSize, idProduct, idAppUser, trn } = payload;
-  const {SizeData, Product} = initModels(req);
   let sizeIdsToValidate = [];
   let sizeIds = oldSize.split("|").map((item) => Number(item));
 
@@ -1451,7 +1437,6 @@ const saveProductSize = async (payload: ISaveProductSizePayload,client_id:number
       id: { [Op.in]: sizeIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
     transaction: trn,
   });
@@ -1466,15 +1451,14 @@ const saveProductSize = async (payload: ISaveProductSizePayload,client_id:number
       modified_by: idAppUser,
       modified_date: getLocalDate(),
     },
-    { where: { id: idProduct,company_info_id :client_id }, transaction: trn }
+    { where: { id: idProduct, }, transaction: trn }
   );
-  // await refreshMaterializedProductListView(req.body.db_connection);
+  await refreshMaterializedProductListView(dbContext);
   return resSuccess();
 };
 
-const saveProductLength = async (payload: ISaveProductLengthPayload,client_id:number, req: Request) => {
+const saveProductLength = async (payload: ISaveProductLengthPayload) => {
   const { length, oldLength, idProduct, idAppUser, trn } = payload;
-  const {LengthData, Product} = initModels(req);
   let lengthIdsToValidate = [];
   let lengthIds = oldLength.split("|").map((item) => Number(item));
 
@@ -1489,7 +1473,6 @@ const saveProductLength = async (payload: ISaveProductLengthPayload,client_id:nu
       id: { [Op.in]: lengthIdsToValidate },
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
     transaction: trn,
   });
@@ -1504,19 +1487,18 @@ const saveProductLength = async (payload: ISaveProductLengthPayload,client_id:nu
       modified_by: idAppUser,
       modified_date: getLocalDate(),
     },
-    { where: { id: idProduct,company_info_id :client_id }, transaction: trn }
+    { where: { id: idProduct, }, transaction: trn }
   );
-  // await refreshMaterializedProductListView(req.body.db_connection);
+  await refreshMaterializedProductListView(dbContext);
   return resSuccess();
 };
 
 const saveProductMetalOptions = async (
-  payload: ISaveProductMetalOptionsPayload,client_id:number, req: Request
+  payload: ISaveProductMetalOptionsPayload
 ) => {
   const { idProduct, productMetalOptions, idAppUser, trn } = payload;
-  const {ProductMetalOption, MetalGroupMaster} = initModels(req);
   let findAlreadyAddedPMO = await ProductMetalOption.findAll({
-    where: { id_product: idProduct, is_deleted: DeletedStatus.No,company_info_id :client_id },
+    where: { id_product: idProduct, is_deleted: DeletedStatus.No, },
     transaction: trn,
   });
   let pmo: IProductMetalOptions;
@@ -1538,7 +1520,7 @@ const saveProductMetalOptions = async (
         (item) => item.dataValues.id !== oldPMO?.dataValues.id
       );
       findMetalGroup = await MetalGroupMaster.findOne({
-        where: { id: pmo.id_metal_group,company_info_id :client_id },
+        where: { id: pmo.id_metal_group, },
         transaction: trn,
       });
 
@@ -1566,12 +1548,12 @@ const saveProductMetalOptions = async (
             modified_by: idAppUser,
             modified_date: getLocalDate(),
           },
-          { where: { id: oldPMO.dataValues.id,company_info_id :client_id }, transaction: trn }
+          { where: { id: oldPMO.dataValues.id, }, transaction: trn }
         );
       }
     } else {
       findMetalGroup = await MetalGroupMaster.findOne({
-        where: { id: pmo.id_metal_group, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id :client_id },
+        where: { id: pmo.id_metal_group, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, },
         transaction: trn,
       });
       if (!(findMetalGroup && findMetalGroup.dataValues)) {
@@ -1586,7 +1568,6 @@ const saveProductMetalOptions = async (
           is_default: pmo.is_default,
           created_by: idAppUser,
           created_date: getLocalDate(),
-          company_info_id :client_id
         },
         { transaction: trn }
       );
@@ -1600,21 +1581,20 @@ const saveProductMetalOptions = async (
         modified_by: idAppUser,
         modified_date: getLocalDate(),
       },
-      { where: { id: pmo.dataValues.id,company_info_id :client_id }, transaction: trn }
+      { where: { id: pmo.dataValues.id, }, transaction: trn }
     );
   }
   return resSuccess();
 };
 
 const saveProductDiamondOptions = async (
-  payload: ISaveProductDiamondOptionsPayload,client_id:number, req: Request
+  payload: ISaveProductDiamondOptionsPayload
 ) => {
-  const {ProductDiamondOption} = initModels(req);
 
   const { productDiamondOptions, idProduct, idAppUser, trn } = payload;
 
   let findAlreadyAddedPDO = await ProductDiamondOption.findAll({
-    where: { id_product: idProduct, is_deleted: DeletedStatus.No,company_info_id :client_id },
+    where: { id_product: idProduct, is_deleted: DeletedStatus.No, },
     transaction: trn,
   });
 
@@ -1637,7 +1617,7 @@ const saveProductDiamondOptions = async (
       );
 
       if (hasAnyDifferenceInOldAndNewPDO(oldPDO, pdo)) {
-        const validAttribute = await validateProductDiamondOption(req,pdo,client_id, oldPDO);
+        const validAttribute = await validateProductDiamondOption(pdo, oldPDO);
         if (validAttribute.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           return validAttribute;
         }
@@ -1653,11 +1633,11 @@ const saveProductDiamondOptions = async (
             modified_by: idAppUser,
             modified_date: getLocalDate(),
           },
-          { where: { id: oldPDO.dataValues.id,company_info_id :client_id }, transaction: trn }
+          { where: { id: oldPDO.dataValues.id, }, transaction: trn }
         );
       }
     } else {
-      const validAttribute = await validateProductDiamondOption(req,pdo,client_id );
+      const validAttribute = await validateProductDiamondOption(pdo, null);
       if (validAttribute.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return validAttribute;
       }
@@ -1712,22 +1692,19 @@ const hasAnyDifferenceInOldAndNewPDO = (
 
 // In validateProductDiamondOption funciton we are handling error which is thown manualy
 const validateProductDiamondOption = async (
-  req: Request,
   pdo: IProductDiamondOptions,
-  client_id:number,
   oldPDO?: Model<any, any>,
 ) => {
   try {
-    const {DiamondGroupMaster, SettingCaratWeight} = initModels(req);
 
     if (
       !oldPDO ||
       oldPDO.dataValues.id_diamond_group !== pdo.id_diamond_group
     ) {
-      await validateDiamondAttribute(DiamondGroupMaster, pdo.id_diamond_group,client_id);
+      await validateDiamondAttribute(DiamondGroupMaster, pdo.id_diamond_group);
     }
     if (!oldPDO || oldPDO.dataValues.id_setting !== pdo.id_setting) {
-      await validateDiamondAttribute(SettingCaratWeight, pdo.id_setting,client_id);
+      await validateDiamondAttribute(SettingCaratWeight, pdo.id_setting);
     }
 
     return resSuccess();
@@ -1743,10 +1720,9 @@ const validateProductDiamondOption = async (
 const validateDiamondAttribute = async (
   attributeModel: any,
   attributeId: number,
-  client_id:number
 ) => {
   const findAttribut = await attributeModel.findOne({
-    where: { id: attributeId, is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active,company_info_id :client_id },
+    where: { id: attributeId, is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, },
   });
 
   if (!(findAttribut && findAttribut.dataValues)) {
@@ -1756,12 +1732,11 @@ const validateDiamondAttribute = async (
   return resSuccess;
 };
 
-const findMetalRateFromId = async (idMetal: number, idKt: number, req: any) => {
+const findMetalRateFromId = async (idMetal: number, idKt: number) => {
   // Formula for metal
   // Gold = (1850/31.104)*(kt/24)
   // Silver = 999
   // platinum = 950
-  const { SystemConfiguration, GoldKarat, } = initModels(req);
   const config = await SystemConfiguration.findOne({
     where: { id_metal: idMetal },
   });
@@ -1785,7 +1760,6 @@ const findMetalRateFromId = async (idMetal: number, idKt: number, req: any) => {
 
       const ouncePriceConfig = await fetchConfigurationByKey(
         SYSTEM_CONFIGURATIONS_KEYS.OUNCE_PRICE,
-        req
       );
       if (ouncePriceConfig.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return ouncePriceConfig;
@@ -1793,7 +1767,6 @@ const findMetalRateFromId = async (idMetal: number, idKt: number, req: any) => {
 
       const goldGramPerOnceConfig = await fetchConfigurationByKey(
         SYSTEM_CONFIGURATIONS_KEYS.GOLD_GRAM_PER_OUNCE,
-        req
       );
       if (goldGramPerOnceConfig.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return goldGramPerOnceConfig;
@@ -1811,7 +1784,6 @@ const findMetalRateFromId = async (idMetal: number, idKt: number, req: any) => {
     case METAL_RATE_FORMULA.Silver:
       const silverRateConfig = await fetchConfigurationByKey(
         SYSTEM_CONFIGURATIONS_KEYS.SILVER_PRICE_PER_GRAM,
-        req
       );
       if (silverRateConfig.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return silverRateConfig;
@@ -1823,7 +1795,6 @@ const findMetalRateFromId = async (idMetal: number, idKt: number, req: any) => {
     case METAL_RATE_FORMULA.Platinum:
       const platinumRateConfig = await fetchConfigurationByKey(
         SYSTEM_CONFIGURATIONS_KEYS.PLATINUM_PRICE_PER_GRAM,
-        req
       );
       if (platinumRateConfig.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return platinumRateConfig;
@@ -1837,12 +1808,11 @@ const findMetalRateFromId = async (idMetal: number, idKt: number, req: any) => {
   }
 };
 
-export const fetchMetalConfigGroupRate = async (req: Request) => {
-  const {MetalGroupMaster, GoldKarat} = initModels(req);
+export const fetchMetalConfigGroupRate = async () => {
   let metalRateList: IMetalRate[] = [];
   let metalConfigGroupRate: IMetalGroupRate[] = [];
 
-  const resMetalRate = await findMetalRateList(req);
+  const resMetalRate = await findMetalRateList();
   if (resMetalRate.code !== DEFAULT_STATUS_CODE_SUCCESS) {
     return resMetalRate;
   }
@@ -1892,8 +1862,7 @@ export const fetchMetalConfigGroupRate = async (req: Request) => {
   return resSuccess({ data: metalConfigGroupRate });
 };
 
-const findMetalRateList = async (req: Request) => {
-  const {SystemConfiguration} = initModels(req);
+const findMetalRateList = async () => {
   let metalRateList: IMetalRate[] = [];
   const rateConfigs = await SystemConfiguration.findAll({
     where: { config_key: { [Op.in]: RATE_CONFIG_KEY_LIST } },
@@ -1949,12 +1918,10 @@ const validateProductFileReqData = async (
   idMetalTone: NumberConstructor,
   idType: number,
   isImage: boolean,
-  client_id: number,
   req: Request
 ) => {
-  const {Product, MetalTone, ProductImage, ProductVideo} = initModels(req);
   const productToBeUpdate = await Product.findOne({
-    where: { id: idProduct, is_deleted: DeletedStatus.No,company_info_id :client_id },
+    where: { id: idProduct, is_deleted: DeletedStatus.No, },
   });
 
   if (!(productToBeUpdate && productToBeUpdate.dataValues)) {
@@ -1962,7 +1929,7 @@ const validateProductFileReqData = async (
   }
 
   const toneToBeAdd = await MetalTone.findOne({
-    where: { id: idMetalTone, is_deleted: DeletedStatus.No,company_info_id :client_id },
+    where: { id: idMetalTone, is_deleted: DeletedStatus.No, },
   });
 
   if (!(toneToBeAdd && toneToBeAdd.dataValues)) {
@@ -1977,7 +1944,6 @@ const validateProductFileReqData = async (
         id_metal_tone: idMetalTone,
         image_type: idType,
         is_deleted: DeletedStatus.No,
-        company_info_id :client_id
       },
     });
   } else {
@@ -1987,7 +1953,6 @@ const validateProductFileReqData = async (
         id_metal_tone: idMetalTone,
         video_type: idType,
         is_deleted: DeletedStatus.No,
-        company_info_id :client_id
       },
     });
   }
@@ -2004,7 +1969,6 @@ const validateProductFileReqData = async (
 
 export const addProductImages = async (req:Request) => {
   try {
-    const {Product, ProductImage,ProductVideo} = initModels(req);
     const { id_product, image_type }:any = req.body;
     let sku;
     let id_metal_tone: any = req.body.id_metal_tone ?? null;
@@ -2032,7 +1996,7 @@ export const addProductImages = async (req:Request) => {
     // }
 
     const productToBeUpdate = await Product.findOne({
-      where: { id: id_product, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id_product, is_deleted: DeletedStatus.No },
     });
 
     if (!(productToBeUpdate && productToBeUpdate.dataValues)) {
@@ -2041,7 +2005,7 @@ export const addProductImages = async (req:Request) => {
 
     sku = productToBeUpdate.dataValues.sku;
 
-    const trn = await req.body.db_connection.transaction();
+    const trn = await dbContext.transaction();
     try {
       const imageFiles: Express.Multer.File[] = req.files as Express.Multer.File[];
 
@@ -2113,18 +2077,15 @@ export const addProductImages = async (req:Request) => {
 
           let resMFTL = null
           if (imageType == IMAGE_UPLOAD_TYPE.Meta_image) {
-              resMFTL = await moveOriginalFileToS3ByTypeAndLocation(req.body.db_connection,
+              resMFTL = await moveOriginalFileToS3ByTypeAndLocation(
               file,
               `${PRODUCT_FILE_LOCATION}/${sku}`,
-              req.body.session_res.client_id,
-              req
+              null
             );
           } else {
-             resMFTL = await moveFileToS3ByTypeAndLocation(req.body.db_connection,
+             resMFTL = await moveFileToS3ByTypeAndLocation(
               file,
               `${PRODUCT_FILE_LOCATION}/${sku}`,
-              req.body.session_res.client_id,
-              req
             );
             }
             
@@ -2141,7 +2102,6 @@ export const addProductImages = async (req:Request) => {
                 image_path: resMFTL.data,
                 image_type: imageType,
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
                 created_date: getLocalDate(),
               },
               { transaction: trn }
@@ -2151,7 +2111,7 @@ export const addProductImages = async (req:Request) => {
       }
 
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       return resSuccess();
     } catch (e) {
       console.error(e);
@@ -2164,7 +2124,6 @@ export const addProductImages = async (req:Request) => {
 }
 export const addProductVideos = async (req: Request) => {
   try {
-    const {Product, ProductVideo} = initModels(req);
     const { id_product, id_metal_tone, video_type } = req.body;
     let sku;
 
@@ -2173,8 +2132,7 @@ export const addProductVideos = async (req: Request) => {
       id_metal_tone,
       video_type,
       false,
-      req?.body?.session_res?.client_id,
-      req
+      null
     );
     if (resVPFRD.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resVPFRD;
@@ -2189,7 +2147,7 @@ export const addProductVideos = async (req: Request) => {
       return resNotFound({ message: VIDEOS_NOT_FOUND });
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let videoFile;
       for (videoFile of files.videos) {
@@ -2197,7 +2155,7 @@ export const addProductVideos = async (req: Request) => {
           videoFile.filename,
           videoFile.destination,
           `public/${PRODUCT_FILE_LOCATION}/${sku}`,
-          videoFile.fileAddAndEditInDBAndS3ForOriginalFileName,req
+          videoFile.fileAddAndEditInDBAndS3ForOriginalFileName
         );
         if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           await trn.rollback();
@@ -2211,14 +2169,13 @@ export const addProductVideos = async (req: Request) => {
             video_path: `${PRODUCT_FILE_LOCATION}/${sku}/${videoFile.originalname}`,
             video_type: video_type,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
         );
       }
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       return resSuccess();
     } catch (e) {
       await trn.rollback();
@@ -2231,13 +2188,12 @@ export const addProductVideos = async (req: Request) => {
 
 export const deleteProductImages = async (req: Request) => {
   try {
-    const {Product, ProductImage} = initModels(req);
     const { id, id_metal_tone, id_product, image_type } = req.body;
     const idAppUser = req.body.session_res.id_app_user;
 
     if (id) {
       const findImage = await ProductImage.findOne({
-        where: { id, id_product, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id, id_product, is_deleted: DeletedStatus.No },
       });
       if (!(findImage && findImage.dataValues)) {
         return resNotFound({ message: IMAGE_NOT_FOUND });
@@ -2248,7 +2204,7 @@ export const deleteProductImages = async (req: Request) => {
           modified_by: idAppUser,
           modified_date: getLocalDate(),
         },
-        { where: { id, id_product, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+        { where: { id, id_product, is_deleted: DeletedStatus.No } }
       );
     } else if (id_metal_tone) {
       if (image_type) {
@@ -2258,7 +2214,7 @@ export const deleteProductImages = async (req: Request) => {
             modified_by: idAppUser,
             modified_date: getLocalDate(),
           },
-          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No, image_type,company_info_id :req?.body?.session_res?.client_id } }
+          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No, image_type } }
         );
       } else {
         await ProductImage.update(
@@ -2267,11 +2223,11 @@ export const deleteProductImages = async (req: Request) => {
             modified_by: idAppUser,
             modified_date: getLocalDate(),
           },
-          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No } }
         );
       }
     }
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess();
   } catch (e) {
     return resUnknownError({ data: e });
@@ -2280,13 +2236,12 @@ export const deleteProductImages = async (req: Request) => {
 
 export const deleteProductVideos = async (req: Request) => {
   try {
-    const { ProductVideo} = initModels(req);
     const { id, id_metal_tone, id_product, video_type } = req.body;
     const idAppUser = req.body.session_res.id_app_user;
 
     if (id) {
       const findVideo = await ProductVideo.findOne({
-        where: { id, id_product, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id, id_product, is_deleted: DeletedStatus.No },
       });
       if (!(findVideo && findVideo.dataValues)) {
         return resNotFound({ message: VIDEO_NOT_FOUND });
@@ -2297,7 +2252,7 @@ export const deleteProductVideos = async (req: Request) => {
           modified_by: idAppUser,
           modified_date: getLocalDate(),
         },
-        { where: { id, id_product, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+        { where: { id, id_product, is_deleted: DeletedStatus.No } }
       );
     } else if (id_metal_tone) {
       if (video_type) {
@@ -2307,7 +2262,7 @@ export const deleteProductVideos = async (req: Request) => {
             modified_by: idAppUser,
             modified_date: getLocalDate(),
           },
-          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No, video_type,company_info_id :req?.body?.session_res?.client_id } }
+          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No, video_type } }
         );
       } else {
         await ProductVideo.update(
@@ -2316,11 +2271,11 @@ export const deleteProductVideos = async (req: Request) => {
             modified_by: idAppUser,
             modified_date: getLocalDate(),
           },
-          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No, company_info_id :req?.body?.session_res?.client_id } }
+          { where: { id_product, id_metal_tone, is_deleted: DeletedStatus.No,  } }
         );
       }
     }
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess();
   } catch (e) {
     return resUnknownError({ data: e });
@@ -2329,10 +2284,9 @@ export const deleteProductVideos = async (req: Request) => {
 
 export const productMetalToneList = async (req: Request) => {
   try {
-    const { Product, ProductMetalOption, ProductCategory, MetalTone,Image } = initModels(req);
     
     const products = await Product.findOne({
-      where: { id: req.body.product_id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+      where: { id: req.body.product_id, is_deleted: DeletedStatus.No, },
       attributes: ["id", "name", "sku", "product_type"],
       include: [
         {
@@ -2354,7 +2308,7 @@ export const productMetalToneList = async (req: Request) => {
               'metal_tone'
             ],
           ],
-          where: { is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+          where: { is_deleted: DeletedStatus.No, },
         },
 
         {
@@ -2367,7 +2321,7 @@ export const productMetalToneList = async (req: Request) => {
             "id_sub_category",
             "id_sub_sub_category",
           ],
-          where: { is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+          where: { is_deleted: DeletedStatus.No, },
         },
       ],
     });
@@ -2389,7 +2343,7 @@ export const productMetalToneList = async (req: Request) => {
     }
 
     const findMetalTone = await MetalTone.findAll({
-      where: { id: metalTones,company_info_id:req?.body?.session_res?.client_id },
+      where: { id: metalTones, },
       attributes: [
         "id",
         "name",
@@ -2397,7 +2351,7 @@ export const productMetalToneList = async (req: Request) => {
         "sort_code",
         [Sequelize.literal("metal_tone_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "metal_tone_image", attributes: [],where:{company_info_id:req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "metal_tone_image", attributes: [],required:false }],
     });
 
     return resSuccess({ data: findMetalTone });
@@ -2466,11 +2420,6 @@ const processProductList = async (productList) => {
 
 export const productListUserSide = async (req: any) => {
   try {
-    const {Collection, BrandData, Offers} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
     };
@@ -2588,7 +2537,6 @@ export const productListUserSide = async (req: any) => {
           where: {
             slug: { [Op.iLike]: `%${value}%` },
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data
           },
         });
         if (findCollection && findCollection.dataValues) {
@@ -2605,7 +2553,6 @@ export const productListUserSide = async (req: any) => {
           where: {
             slug: { [Op.iLike]: `%${req.query.brand}%` },
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data
           },
         });
         if (findBrand && findBrand.dataValues) {
@@ -2621,7 +2568,7 @@ export const productListUserSide = async (req: any) => {
       category = "watch";
     }
 
-    const productTotalCount = await req.body.db_connection.query(`WITH filtered_pmo AS (
+    const productTotalCount = await dbContext.query(`WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
             pmo.metal_weight,
@@ -2641,7 +2588,6 @@ export const productListUserSide = async (req: any) => {
             karats.name,
 			id_m_tone, 
             karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -2675,7 +2621,7 @@ export const productListUserSide = async (req: any) => {
      LEFT JOIN diamond_group_masters dgm ON dgm.id = pdo.id_diamond_group AND dgm.is_deleted = '0'::"bit"
      LEFT JOIN without_center_diamond_price ON without_center_diamond_price.id_product = products.id
   WHERE products.is_deleted = '0'::"bit" AND products.is_active = '1'::"bit"
-  AND products.company_info_id = ${company_info_id?.data} AND products.parent_id IS NULL
+ AND products.parent_id IS NULL
   AND CASE
         		WHEN '${req.query.setting_type}' = '0' THEN TRUE
         		ELSE string_to_array(setting_style_type, '|')::int[] && ARRAY[${req.query.setting_type
@@ -2786,7 +2732,7 @@ export const productListUserSide = async (req: any) => {
 
 
 
-   const productList = await req.body.db_connection.query(`WITH filtered_pmo AS (
+   const productList = await dbContext.query(`WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
             pmo.metal_weight,
@@ -2806,7 +2752,6 @@ export const productListUserSide = async (req: any) => {
             karats.name,
 			id_m_tone, 
             karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -2888,7 +2833,7 @@ export const productListUserSide = async (req: any) => {
         : ``
       }
   WHERE products.is_deleted = '0'::"bit" AND products.is_active = '1'::"bit"
-  AND products.company_info_id = ${company_info_id?.data} AND products.parent_id IS NULL
+ AND products.parent_id IS NULL
   AND CASE
         		WHEN '${req.query.setting_type}' = '0' THEN TRUE
         		ELSE string_to_array(setting_style_type, '|')::int[] && ARRAY[${req.query.setting_type
@@ -3016,21 +2961,20 @@ export const productListUserSide = async (req: any) => {
       (offer: any) => offer.offer_type === `${offerType.ProductType}`
     );
 
-    const findRoundingValue = await req.body.db_connection.query(`
-      SELECT * FROM price_corrections WHERE product_type In (:product_type) AND company_info_id = :company_info_id AND is_active = :is_active
+    const findRoundingValue = await dbContext.query(`
+      SELECT * FROM price_corrections WHERE product_type In (:product_type)  AND is_active = :is_active
     `, { type: QueryTypes.SELECT,
       replacements: {
         product_type: [PRICE_CORRECTION_PRODUCT_TYPE.DynamicProduct, PRICE_CORRECTION_PRODUCT_TYPE.ChooseSettingProduct],
-        company_info_id: company_info_id?.data,
         is_active: ActiveStatus.Active
       }
     });
-    const dynamicProductRoundingValue = findRoundingValue.find((item: any) => item.product_type === PRICE_CORRECTION_PRODUCT_TYPE.DynamicProduct);
-    const chooseSettingProductRoundingValue = findRoundingValue.find((item: any) => item.product_type === PRICE_CORRECTION_PRODUCT_TYPE.ChooseSettingProduct);
+    const dynamicProductRoundingValue: any = findRoundingValue.find((item: any) => item.product_type === PRICE_CORRECTION_PRODUCT_TYPE.DynamicProduct);
+    const chooseSettingProductRoundingValue: any = findRoundingValue.find((item: any) => item.product_type === PRICE_CORRECTION_PRODUCT_TYPE.ChooseSettingProduct);
 
     const productListWithCurrency: any = []
     for (const product of productList) {
-      let data = product;
+      let data: any = product;
       let appliedOffers: any = [];
       let appliedChooseSettingOffers: any = [];
       let totalDiscount = 0;
@@ -3039,7 +2983,6 @@ export const productListUserSide = async (req: any) => {
         data.id,
         data.pmo[0].Price,
         req?.body?.session_res?.id_app_user,
-        req
       );
       let bestProductOffer: any = null;
       let bestChooseSettingOffer: any = null;
@@ -3126,15 +3069,10 @@ export const productListUserSide = async (req: any) => {
 };
 
 export const productGetByIdUserSide = async (req: any) => {
-  const { DiamondGroupMaster, Tag, SizeData, LengthData, DiamondShape, MetalTone, GoldKarat, MetalMaster, Image,DiamondCaratSize} = initModels(req);
   const { slug, user_id } = req.body;
-  const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
   try {
     
-    const products: any = await req.body.db_connection.query(
+    const products: any = await dbContext.query(
       `SELECT
 	P.ID,
 	P.NAME,
@@ -3415,7 +3353,6 @@ FROM
 	p.is_deleted = '${DeletedStatus.No}' AND
 	p.is_active = '${ActiveStatus.Active}' AND
 	P.SLUG = '${slug}' AND
-  p.company_info_id = ${company_info_id?.data}
   GROUP BY
 	P.ID,	SUM_PRICE.TOTAL_DIAMOND_WEIGHT`,
       { type: QueryTypes.SELECT }
@@ -3429,17 +3366,17 @@ FROM
       products && products[0]?.PDO.map((value: any) => value.id_diamond_group);
 
     const findDiamondGroup = await DiamondGroupMaster.findAll({
-      where: { id: diamondGroup,company_info_id:company_info_id?.data },
+      where: { id: diamondGroup, },
       attributes: ["id", "id_shape"],
     });
 
     const tages = await Tag.findAll({
-      where: { id: products[0].tag ,company_info_id:company_info_id?.data},
+      where: { id: products[0].tag ,},
       attributes: ["id", "name"],
     });
 
     const size = await SizeData.findAll({
-      where: { id: products[0].size,company_info_id:company_info_id?.data },
+      where: { id: products[0].size, },
       order: [
         [
           Sequelize.cast(
@@ -3458,7 +3395,7 @@ FROM
     });
 
     const length = await LengthData.findAll({
-      where: { id: products[0].length,company_info_id:company_info_id?.data },
+      where: { id: products[0].length, },
       order: [
         [
           Sequelize.cast(
@@ -3477,7 +3414,7 @@ FROM
     });
 
     const diamond_shape = await DiamondShape.findAll({
-      where: { id: findDiamondGroup.map((value: any) => value.id_shape),company_info_id:company_info_id?.data },
+      where: { id: findDiamondGroup.map((value: any) => value.id_shape), },
       attributes: [
         "id",
         "name",
@@ -3485,11 +3422,11 @@ FROM
         "sort_code",
         [Sequelize.literal("diamond_shape_image.image_path"), "image_path"]
       ],
-      include: [{ model: Image, as: "diamond_shape_image", attributes: [],where:{company_info_id:company_info_id?.data} }],
+      include: [{ model: Image, as: "diamond_shape_image", attributes: [],where:{} }],
     });
 
     const choose_setting_diamond_shape = await DiamondShape.findAll({
-      where: { id: products[0]?.setting_diamond_shapes,company_info_id:company_info_id?.data },
+      where: { id: products[0]?.setting_diamond_shapes, },
       attributes: [
         "id",
         "name",
@@ -3497,11 +3434,11 @@ FROM
         "sort_code",
         [Sequelize.literal("diamond_shape_image.image_path"), "image_path"]
       ],
-      include: [{ model: Image, as: "diamond_shape_image", attributes: [],where:{company_info_id:company_info_id?.data} }],
+      include: [{ model: Image, as: "diamond_shape_image", attributes: [],where:{} }],
     });
 
     const choose_setting_diamond_size = await DiamondCaratSize.findAll({
-      where: { id: products[0]?.setting_diamond_sizes,company_info_id:company_info_id?.data },
+      where: { id: products[0]?.setting_diamond_sizes, },
       attributes: [
         "id",
         "value",
@@ -3509,7 +3446,7 @@ FROM
         "sort_code",
         [Sequelize.literal("diamond_carat_image.image_path"), "image_path"]
       ],
-      include: [{ model: Image, as: "diamond_carat_image", attributes: [],where:{company_info_id:company_info_id?.data} }],
+      include: [{ model: Image, as: "diamond_carat_image", attributes: [],where:{} }],
     });
 
     const metalTone = products[0].PMO.map((t: any) => t.metal_tone);
@@ -3521,7 +3458,6 @@ FROM
         id: metalTone.flat().map((t: any) => t),
         is_deleted: DeletedStatus.No,
         is_active: ActiveStatus.Active,
-        company_info_id:company_info_id?.data
       },
       attributes: [
         "id",
@@ -3529,7 +3465,7 @@ FROM
         "sort_code",
         [Sequelize.literal("metal_tone_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "metal_tone_image", attributes: [],where:{company_info_id:company_info_id?.data} }],
+      include: [{ model: Image, as: "metal_tone_image", attributes: [],where:{} }],
     });
 
     const metal_karat = await GoldKarat.findAll({
@@ -3538,7 +3474,6 @@ FROM
         id: karat.flat().map((t: any) => t),
         is_deleted: DeletedStatus.No,
         is_active: ActiveStatus.Active,
-        company_info_id:company_info_id?.data
       },
       order: [["name", "ASC"]],
       attributes: [
@@ -3546,7 +3481,7 @@ FROM
         "name",
         [Sequelize.literal("karat_image.image_path"), "image_path"],
       ],
-      include: [{required: false, model: Image, as: "karat_image", attributes: [],where:{company_info_id:company_info_id?.data} }],
+      include: [{required: false, model: Image, as: "karat_image", attributes: [],where:{} }],
     });
 
     const metals = await MetalMaster.findAll({
@@ -3554,13 +3489,12 @@ FROM
         id: metal.flat().map((t: any) => t),
         is_deleted: DeletedStatus.No,
         is_active: ActiveStatus.Active,
-        company_info_id:company_info_id?.data
       },
       attributes: ["id", "name"],
       order: [["id", "ASC"]],
     });
 
-    const center_diamond_details = await req.body.db_connection.query(
+    const center_diamond_details = await dbContext.query(
       `SELECT gemstones.name as diamond, product_diamond_options.count AS count, diamond_shapes.name as shape,  mm_sizes.value as MM_size,
        colors.value as diamond_color, clarities.value as diamond_clarity, cuts.value as diamond_cut,
         (product_diamond_options.weight*product_diamond_options.count) AS weight, product_diamond_options.weight as diamond_size_value,
@@ -3573,12 +3507,11 @@ FROM
       LEFT OUTER JOIN mm_sizes ON diamond_group_masters.id_mm_size = mm_sizes.id OR product_diamond_options.id_mm_size = mm_sizes.id
       LEFT OUTER JOIN colors ON diamond_group_masters.id_color = colors.id OR product_diamond_options.id_color = colors.id
       LEFT OUTER JOIN clarities ON diamond_group_masters.id_clarity = clarities.id OR product_diamond_options.id_clarity = clarities.id
-      LEFT OUTER JOIN cuts ON diamond_group_masters.id_cuts = cuts.id WHERE products.slug = '${slug}' AND products.company_info_id=${company_info_id?.data}
-      AND product_diamond_options.id_type = 1`,
+      LEFT OUTER JOIN cuts ON diamond_group_masters.id_cuts = cuts.id WHERE products.slug = '${slug}' AND products.      AND product_diamond_options.id_type = 1`,
       { type: QueryTypes.SELECT }
     );
 
-    const childProducts: any = await req.body.db_connection.query(
+    const childProducts: any = await dbContext.query(
       `SELECT
 	P.ID,
 	P.NAME,
@@ -3622,8 +3555,7 @@ FROM
   WHERE
 	p.is_deleted = '${DeletedStatus.No}' AND
 	p.is_active = '${ActiveStatus.Active}' AND
-  p.company_info_id=${company_info_id?.data}
-  AND p.parent_id = ${products[0].parent_id &&
+  p.  AND p.parent_id = ${products[0].parent_id &&
         products[0].parent_id != "" &&
         products[0].parent_id != undefined &&
         products[0].parent_id != null &&
@@ -3653,12 +3585,12 @@ FROM
       childProducts.length > 0
         ? childProducts.length == 1 && childProducts[0].id === products[0].id
           ? []
-          : await req.body.db_connection.query(
+          : await dbContext.query(
             `(SELECT carat_sizes.id, count,weight, carat_sizes.value as carat_size_value,images.image_path as image_path FROM product_diamond_options 
 LEFT JOIN diamond_group_masters ON id_diamond_group = diamond_group_masters.id
 LEFT JOIN carat_sizes ON id_carat = carat_sizes.id
 LEFT JOIN images ON carat_sizes.id_image = images.id
-WHERE product_diamond_options.company_info_id = ${company_info_id?.data} AND id_product IN (${childProducts
+ AND id_product IN (${childProducts
               .map((t: any) => t.id)
               .join(",")}) AND id_type = 1)`,
             { type: QueryTypes.SELECT }
@@ -3668,12 +3600,12 @@ WHERE product_diamond_options.company_info_id = ${company_info_id?.data} AND id_
       childProducts.length > 0
         ? childProducts.length == 1 && childProducts[0].id === products[0].id
           ? []
-          : await req.body.db_connection.query(
+          : await dbContext.query(
             `(SELECT diamond_shapes.id, diamond_shapes.name, diamond_shapes.sort_code,diamond_shapes.slug,images.image_path as image_path FROM product_diamond_options 
 LEFT JOIN diamond_group_masters ON id_diamond_group = diamond_group_masters.id
 LEFT JOIN diamond_shapes ON diamond_group_masters.id_shape = diamond_shapes.id
 LEFT JOIN images ON diamond_shapes.id_image = images.id
-WHERE product_diamond_options.company_info_id = ${company_info_id?.data} AND id_product IN (${childProducts
+ AND id_product IN (${childProducts
               .map((t: any) => t.id)
               .join(",")}) AND id_type = 1)`,
             { type: QueryTypes.SELECT }
@@ -3693,8 +3625,7 @@ WHERE product_diamond_options.company_info_id = ${company_info_id?.data} AND id_
         productOffers,
         products[0].id,
         products[0].PMO[0].Price,
-        req?.body?.session_res?.id_app_user,
-        req
+        req?.body?.session_res?.id_app_user
       );
       let bestProductOffer: any = null;
       let bestProductDiscount = 0;
@@ -3792,11 +3723,7 @@ const productType = products[0].product_type == SingleProductType.DynemicPrice |
 
 export const featuredProductListUserSide = async (req: any) => {
   try {
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-    const productList = await req.body.db_connection.query(
+    const productList = await dbContext.query(
       `SELECT products.id, products.name, products.sku, products.slug, products.sort_description,
   products.discount_type, products.discount_value, products.setting_style_type,products.product_type,
   products.gender, products.making_charge, products.finding_charge, products.other_charge, products.additional_detail, products.certificate,
@@ -3845,7 +3772,6 @@ LEFT  JOIN diamond_group_masters AS DGM ON DGM.id = PDO.id_diamond_group
 WHERE products.is_deleted = '0' 
 AND products.is_active = '1' 
 AND products.is_featured = '1'
-AND products.company_info_id = ${company_info_id?.data}
 GROUP BY products.id
 ORDER BY products.id DESC 
 
@@ -3871,11 +3797,7 @@ ORDER BY products.id DESC
 
 export const trendingProductListUserSide = async (req: any) => {
   try {
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-    const productList = await req.body.db_connection.query(
+    const productList = await dbContext.query(
       `SELECT products.id, products.name, products.sku, products.slug, products.sort_description,
     products.discount_type, products.discount_value, products.setting_style_type,products.product_type,
     products.gender, products.making_charge, products.finding_charge, products.other_charge, products.additional_detail,products.certificate,
@@ -3924,7 +3846,6 @@ export const trendingProductListUserSide = async (req: any) => {
   WHERE products.is_deleted = '0' 
   AND products.is_active = '1' 
   AND products.is_trending = '1'
-  AND products.company_info_id = ${company_info_id?.data}
   GROUP BY products.id
   ORDER BY products.id DESC 
   
@@ -3947,13 +3868,11 @@ export const trendingProductListUserSide = async (req: any) => {
 
 export const featuredProductStatusUpdate = async (req: Request) => {
   try {
-    const { Product } = initModels(req);
     const { id_product, is_featured } = req.body;
     const findProduct = await Product.findOne({
       where: {
         id: id_product,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
       },
     });
 
@@ -3967,9 +3886,9 @@ export const featuredProductStatusUpdate = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findProduct.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findProduct.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { product_id: findProduct.dataValues.id, data:{ ...findProduct.dataValues } },
       new_data: {
         product_id: findProduct.dataValues.id, data: {
@@ -3979,7 +3898,7 @@ export const featuredProductStatusUpdate = async (req: Request) => {
         }
       }
     }], findProduct.dataValues.id, LogsActivityType.StatusUpdate, LogsType.Product, req.body.session_res.id_app_user)
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
   } catch (e) {
     return resUnknownError({ data: e });
@@ -3988,14 +3907,12 @@ export const featuredProductStatusUpdate = async (req: Request) => {
 
 export const trendingProductStatusUpdate = async (req: Request) => {
   try {
-    const { Product } = initModels(req);
 
     const { id_product, is_trending } = req.body;
     const findProduct = await Product.findOne({
       where: {
         id: id_product,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
       },
     });
 
@@ -4009,10 +3926,10 @@ export const trendingProductStatusUpdate = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findProduct.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findProduct.dataValues.id } }
     );
-    // await refreshMaterializedProductListView(req.body.db_connection);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    // await refreshMaterializedProductListViewdbContext;
+    await addActivityLogs([{
       old_data: { product_id: findProduct.dataValues.id, data: {...findProduct.dataValues} },
       new_data: {
         product_id: findProduct.dataValues.id, data: {
@@ -4030,7 +3947,6 @@ export const trendingProductStatusUpdate = async (req: Request) => {
 
 export const saveProductMetalOption = async (req: Request) => {
   try {
-    const { Product, ProductMetalOption, ProductDiamondOption, DiamondGroupMaster } = initModels(req);
 
     const {
       id_product,
@@ -4046,7 +3962,7 @@ export const saveProductMetalOption = async (req: Request) => {
 
     if (!id_product) return resBadRequest({ message: INVALID_ID });
     const products = await Product.findOne({
-      where: { id: id_product, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id_product, is_deleted: DeletedStatus.No },
     });
     if (!(products && products.dataValues)) {
       return resNotFound({ message: PRODUCT_NOT_FOUND });
@@ -4058,7 +3974,7 @@ export const saveProductMetalOption = async (req: Request) => {
       !product_platinum_options
     )
       return resBadRequest({ message: METAL_IS_REQUIRES });
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       if (size) {
@@ -4068,7 +3984,7 @@ export const saveProductMetalOption = async (req: Request) => {
             modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
           },
-          { where: { id: id_product,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: id_product }, transaction: trn }
         );
       }
 
@@ -4079,7 +3995,7 @@ export const saveProductMetalOption = async (req: Request) => {
             modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
           },
-          { where: { id: id_product,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: id_product }, transaction: trn }
         );
       }
 
@@ -4090,7 +4006,7 @@ export const saveProductMetalOption = async (req: Request) => {
             modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
           },
-          { where: { id: id_product,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: id_product }, transaction: trn }
         );
       }
 
@@ -4115,13 +4031,12 @@ export const saveProductMetalOption = async (req: Request) => {
                 id_karat: pmgo.id_karat,
                 created_date: getLocalDate(),
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
               },
               { transaction: trn }
             );
           } else {
             let productMetal = await ProductMetalOption.findOne({
-              where: { id: pmgo.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: pmgo.id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
 
@@ -4140,7 +4055,7 @@ export const saveProductMetalOption = async (req: Request) => {
                 modified_by: req.body.session_res.id_app_user,
               },
 
-              { where: { id: pmgo.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pmgo.id, is_deleted: DeletedStatus.No }, transaction: trn }
             );
           }
         }
@@ -4171,13 +4086,12 @@ export const saveProductMetalOption = async (req: Request) => {
                 id_metal_tone: pmso.id_metal_tone.join("|"),
                 created_date: getLocalDate(),
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
               },
               { transaction: trn }
             );
           } else {
             let productMetal = await ProductMetalOption.findOne({
-              where: { id: pmso.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: pmso.id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
 
@@ -4195,7 +4109,7 @@ export const saveProductMetalOption = async (req: Request) => {
                 modified_by: req.body.session_res.id_app_user,
               },
 
-              { where: { id: pmso.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pmso.id, is_deleted: DeletedStatus.No }, transaction: trn }
             );
           }
         }
@@ -4226,13 +4140,12 @@ export const saveProductMetalOption = async (req: Request) => {
                 id_metal_tone: pmpo.id_metal_tone.join("|"),
                 created_date: getLocalDate(),
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
               },
               { transaction: trn }
             );
           } else {
             let productMetal = await ProductMetalOption.findOne({
-              where: { id: pmpo.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: pmpo.id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
 
@@ -4251,7 +4164,7 @@ export const saveProductMetalOption = async (req: Request) => {
                 modified_by: req.body.session_res.id_app_user,
               },
 
-              { where: { id: pmpo.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pmpo.id, is_deleted: DeletedStatus.No }, transaction: trn }
             );
           }
         }
@@ -4270,7 +4183,6 @@ export const saveProductMetalOption = async (req: Request) => {
               id_clarity: pdod.id_clarity,
               id_cuts: pdod.id_cuts,
               is_deleted: DeletedStatus.No,
-              company_info_id :req?.body?.session_res?.client_id,
             },
             transaction: trn,
           });
@@ -4292,13 +4204,12 @@ export const saveProductMetalOption = async (req: Request) => {
                 is_default: pdod.is_default,
                 created_date: getLocalDate(),
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
               },
               { transaction: trn }
             );
           } else {
             let diamondOption = await ProductDiamondOption.findOne({
-              where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: pdod.id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
 
@@ -4320,13 +4231,13 @@ export const saveProductMetalOption = async (req: Request) => {
                 modified_by: req.body.session_res.id_app_user,
               },
 
-              { where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pdod.id, is_deleted: DeletedStatus.No }, transaction: trn }
             );
           }
         }
       }
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       return resSuccess();
     } catch (error) {
       await trn.rollback();
@@ -4379,7 +4290,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
       setting_diamond_shapes,
       setting_diamond_sizes
     } = req.body;
-    const { Product, ProductCategory, ProductMetalOption, ProductDiamondOption, DiamondGroupMaster } = initModels(req);
     let slug = name
       .toLowerCase()
       .replaceAll(" ", "-")
@@ -4395,7 +4305,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
         where: {
           id: id_product,
           is_deleted: DeletedStatus.No,
-          company_info_id:req?.body?.session_res?.client_id,
         },
       });
 
@@ -4414,7 +4323,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.id_collection
           ? productToBeUpdate.dataValues.id_collection
           : "",
-    },req?.body?.session_res?.client_id, req)
+    })
 
     if (validCollection.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validCollection;
@@ -4425,7 +4334,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.tag
           ? productToBeUpdate.dataValues.tag
           : ""
-      },req?.body?.session_res?.client_id, req);
+      });
 
     if (validTag.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validTag;
@@ -4434,7 +4343,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
     const validPC = await validateProductCategories({
       categories: product_categories,
       id_product: id_product !== 0 ? id_product : null,
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validPC.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validPC;
@@ -4447,11 +4356,11 @@ export const addProductAllDetailsApi = async (req: Request) => {
     )
       return resBadRequest({ message: METAL_IS_REQUIRES });
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       if (id_product === 0) {
         const productSKU = await Product.findOne({
-          where: { sku: sku, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+          where: { sku: sku, is_deleted: DeletedStatus.No, },
         });
 
         if (productSKU != null) {
@@ -4463,7 +4372,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
           where: [
             columnValueLowerCase("name", name),
             { is_deleted: DeletedStatus.No },
-            {company_info_id:req?.body?.session_res?.client_id},
+            
           ],
         });
 
@@ -4500,7 +4409,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
             is_featured: FeaturedProductStatus.InFeatured,
             is_trending: TrendingProductStatus.InTrending,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
             quantity: quantity,
             is_quantity_track: is_quantity_track,
@@ -4535,7 +4443,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
               id_sub_category: productCategory.id_sub_category,
               id_sub_sub_category: productCategory.id_sub_sub_category,
               created_by: req.body.session_res.id_app_user,
-              company_info_id :req?.body?.session_res?.client_id,
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -4572,7 +4479,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                     band_metal_weight: pmgo.band_metal_weight || 0,
                     remaing_quantity_count: pmgo.quantity,
                     created_by: req.body.session_res.id_app_user,
-                    company_info_id :req?.body?.session_res?.client_id,
                   },
                   { transaction: trn }
                 );
@@ -4587,7 +4493,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                     new_quantity: pmgo.quantity || 0,
                     transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                     changed_by: req.body.session_res.id_app_user,
-                    company_info_id: req.body.session_res.company_info_id,
                     email: null,
                     change_date: getLocalDate(),
                   });
@@ -4625,7 +4530,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   band_metal_weight: pmso.band_metal_weight || 0,
                   remaing_quantity_count: pmso.quantity,
                   created_by: req.body.session_res.id_app_user,
-                  company_info_id :req?.body?.session_res?.client_id,
                 },
                 { transaction: trn }
               );
@@ -4640,7 +4544,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   new_quantity: pmso.quantity || 0,
                   transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                   changed_by: req.body.session_res.id_app_user,
-                  company_info_id: req.body.session_res.company_info_id,
                   email: null,
                   change_date: getLocalDate(),
                 });
@@ -4679,7 +4582,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   band_metal_weight: pmpo.band_metal_weight || 0,
                   remaing_quantity_count: pmpo.quantity,
                   created_by: req.body.session_res.id_app_user,
-                  company_info_id :req?.body?.session_res?.client_id,
                 },
                 { transaction: trn }
               );
@@ -4694,7 +4596,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   new_quantity: pmpo.quantity || 0,
                   transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                   changed_by: req.body.session_res.id_app_user,
-                  company_info_id: req.body.session_res.company_info_id,
                   email: null,
                   change_date: getLocalDate(),
                 });
@@ -4716,7 +4617,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                 id_clarity: pdod.id_clarity,
                 id_cuts: pdod.id_cuts,
                 is_deleted: DeletedStatus.No,
-                company_info_id:req?.body?.session_res?.client_id
               },
               transaction: trn,
             });
@@ -4742,7 +4642,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   is_default: pdod.is_default,
                   created_date: getLocalDate(),
                   created_by: req.body.session_res.id_app_user,
-                  company_info_id :req?.body?.session_res?.client_id,
                 },
                 { transaction: trn }
               );
@@ -4752,7 +4651,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
         }
       } else {
         const productSKU = await Product.findOne({
-          where: { sku: sku, is_deleted: DeletedStatus.No, id: { [Op.ne]: id_product },company_info_id:req?.body?.session_res?.client_id  },
+          where: { sku: sku, is_deleted: DeletedStatus.No, id: { [Op.ne]: id_product },  },
         });
 
         if (productSKU != null) {
@@ -4764,7 +4663,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
             columnValueLowerCase("slug", slug),
             { is_deleted: DeletedStatus.No },
             { id: { [Op.ne]: id_product } },
-            {company_info_id:req?.body?.session_res?.client_id},
+            
           ],
         });
 
@@ -4812,7 +4711,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
                 ? collection.join("|")
                 : null,
           },
-          { where: { id: id_product,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: id_product, }, transaction: trn }
         );
 
         for (const productCategory of product_categories) {
@@ -4824,7 +4723,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                 id_sub_category: productCategory.id_sub_category,
                 id_sub_sub_category: productCategory.id_sub_sub_category,
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
                 created_date: new Date(),
               },
               { transaction: trn }
@@ -4838,7 +4736,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
                 modified_by: req.body.session_res.id_app_user,
                 modified_date: new Date(),
               },
-              { where: { id: productCategory.id,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: productCategory.id, }, transaction: trn }
             );
           }
         }
@@ -4850,7 +4748,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
               modified_by: req.body.session_res.id_app_user,
               modified_date: new Date(),
             },
-            { where: { id: productCategory.id,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: productCategory.id, }, transaction: trn }
           );
         }
 
@@ -4880,14 +4778,13 @@ export const addProductAllDetailsApi = async (req: Request) => {
                     quantity: pmgo.quantity,
                     remaing_quantity_count: pmgo.quantity,
                     created_by: req.body.session_res.id_app_user,
-                    company_info_id :req?.body?.session_res?.client_id,
                   },
                   { transaction: trn }
                 );
               }
             } else {
               let productMetal = await ProductMetalOption.findOne({
-                where: { id: pmgo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id  },
+                where: { id: pmgo.id, is_deleted: DeletedStatus.No,  },
                 transaction: trn,
               });
 
@@ -4915,7 +4812,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   modified_by: req.body.session_res.id_app_user,
                 },
 
-                { where: { id: pmgo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id  }, transaction: trn }
+                { where: { id: pmgo.id, is_deleted: DeletedStatus.No,  }, transaction: trn }
               );
             }
           }
@@ -4950,13 +4847,12 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   quantity: pmso.quantity,
                   remaing_quantity_count: pmso.quantity,
                   created_by: req.body.session_res.id_app_user,
-                  company_info_id :req?.body?.session_res?.client_id,
                 },
                 { transaction: trn }
               );
             } else {
               let productMetal = await ProductMetalOption.findOne({
-                where: { id: pmso.id, is_deleted: DeletedStatus.No ,company_info_id:req?.body?.session_res?.client_id },
+                where: { id: pmso.id, is_deleted: DeletedStatus.No , },
                 transaction: trn,
               });
 
@@ -4983,7 +4879,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   modified_by: req.body.session_res.id_app_user,
                 },
 
-                { where: { id: pmso.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+                { where: { id: pmso.id, is_deleted: DeletedStatus.No, }, transaction: trn }
               );
             }
           }
@@ -5018,13 +4914,12 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   remaing_quantity_count: pmpo.quantity,
                   quantity: pmpo.quantity,
                   created_by: req.body.session_res.id_app_user,
-                  company_info_id :req?.body?.session_res?.client_id,
                 },
                 { transaction: trn }
               );
             } else {
               let productMetal = await ProductMetalOption.findOne({
-                where: { id: pmpo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+                where: { id: pmpo.id, is_deleted: DeletedStatus.No, },
                 transaction: trn,
               });
 
@@ -5052,7 +4947,7 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   modified_by: req.body.session_res.id_app_user,
                 },
 
-                { where: { id: pmpo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+                { where: { id: pmpo.id, is_deleted: DeletedStatus.No, }, transaction: trn }
               );
             }
           }
@@ -5071,7 +4966,6 @@ export const addProductAllDetailsApi = async (req: Request) => {
                 id_clarity: pdod.id_clarity,
                 id_cuts: pdod.id_cuts,
                 is_deleted: DeletedStatus.No,
-                company_info_id:req?.body?.session_res?.client_id,
               },
               transaction: trn,
             });
@@ -5098,13 +4992,12 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   is_default: pdod.is_default,
                   created_date: getLocalDate(),
                   created_by: req.body.session_res.id_app_user,
-                  company_info_id :req?.body?.session_res?.client_id,
                 },
                 { transaction: trn }
               );
             } else {
               let diamondOption = await ProductDiamondOption.findOne({
-                where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+                where: { id: pdod.id, is_deleted: DeletedStatus.No, },
                 transaction: trn,
               });
 
@@ -5132,19 +5025,19 @@ export const addProductAllDetailsApi = async (req: Request) => {
                   modified_by: req.body.session_res.id_app_user,
                 },
 
-                { where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+                { where: { id: pdod.id, is_deleted: DeletedStatus.No, }, transaction: trn }
               );
             }
           }
         }
       }
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Add, LogsType.Product, req.body.session_res.id_app_user,trn)
+      await addActivityLogs([{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Add, LogsType.Product, req.body.session_res.id_app_user,trn)
 
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       return resSuccess();
     } catch (e) {
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       await trn.rollback();
       return resUnknownError({ data: e });
     }
@@ -5194,7 +5087,6 @@ export const editproductApi = async (req: Request) => {
       setting_diamond_shapes,
       setting_diamond_sizes
     } = req.body;
-    const { Product, ProductMetalOption, ProductDiamondOption, DiamondGroupMaster, ProductCategory, StockChangeLog} = initModels(req);
     let slug = name
       .toLowerCase()
       .replaceAll(" ", "-")
@@ -5210,7 +5102,6 @@ export const editproductApi = async (req: Request) => {
         where: {
           id: id_product,
           is_deleted: DeletedStatus.No,
-          company_info_id:req?.body?.session_res?.client_id,
         },
       });
 
@@ -5218,11 +5109,11 @@ export const editproductApi = async (req: Request) => {
         return resNotFound({ message: PRODUCT_NOT_FOUND });
       }
     }
-    const productMetal = await ProductMetalOption.findAll({ where: { id_product: productToBeUpdate.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id } })
-    const productDiamond = await ProductDiamondOption.findAll({ where: { id_product: productToBeUpdate.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id } })
-    const productCategory = await ProductCategory.findAll({ where: { id_product: productToBeUpdate.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id } })
+    const productMetal = await ProductMetalOption.findAll({ where: { id_product: productToBeUpdate.dataValues.id, is_deleted: DeletedStatus.No, } })
+    const productDiamond = await ProductDiamondOption.findAll({ where: { id_product: productToBeUpdate.dataValues.id, is_deleted: DeletedStatus.No, } })
+    const productCategory = await ProductCategory.findAll({ where: { id_product: productToBeUpdate.dataValues.id, is_deleted: DeletedStatus.No, } })
     const productsku = await Product.findOne({
-      where: { sku: sku, id: { [Op.ne]: id_product }, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+      where: { sku: sku, id: { [Op.ne]: id_product }, is_deleted: DeletedStatus.No, },
     });
 
     if (productsku != null) {
@@ -5235,7 +5126,7 @@ export const editproductApi = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.tag
           ? productToBeUpdate.dataValues.tag
           : "",
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validTag.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validTag;
@@ -5244,7 +5135,7 @@ export const editproductApi = async (req: Request) => {
     const validPC = await validateProductCategories({
       categories: product_categories,
       id_product: id_product !== 0 ? id_product : null,
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validPC.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validPC;
@@ -5258,7 +5149,7 @@ export const editproductApi = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.id_collection
           ? productToBeUpdate.dataValues.id_collection
           : "",
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validCollection.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validCollection;
@@ -5275,7 +5166,7 @@ export const editproductApi = async (req: Request) => {
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
         { id: { [Op.ne]: id_product } },
-        {company_info_id:req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -5283,7 +5174,7 @@ export const editproductApi = async (req: Request) => {
       slug = `${slug}-${sameSlugCount}`;
     }
     let activitylogs: any = { category: [], metals: [], diamonds: [] }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       await Product.update(
         {
@@ -5334,7 +5225,7 @@ export const editproductApi = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
           modified_date: new Date(),
         },
-        { where: { id: id_product,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+        { where: { id: id_product, }, transaction: trn }
       );
       activitylogs = {
         ...activitylogs, products: {
@@ -5384,14 +5275,13 @@ export const editproductApi = async (req: Request) => {
               id_sub_category: productCategory.id_sub_category,
               id_sub_sub_category: productCategory.id_sub_sub_category,
               created_by: req.body.session_res.id_app_user,
-              company_info_id :req?.body?.session_res?.client_id,
               created_date: new Date(),
             },
             { transaction: trn }
           );
           activitylogs = { ...activitylogs, category: [...activitylogs.category, data.dataValues] }
         } else {
-          const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id,company_info_id:req?.body?.session_res?.client_id } })
+          const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id, } })
           await ProductCategory.update(
             {
               id_category: productCategory.id_category??null,
@@ -5400,7 +5290,7 @@ export const editproductApi = async (req: Request) => {
               modified_by: req.body.session_res.id_app_user,
               modified_date: new Date(),
             },
-            { where: { id: productCategory.id,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: productCategory.id, }, transaction: trn }
           );
     
           activitylogs = {
@@ -5416,7 +5306,7 @@ export const editproductApi = async (req: Request) => {
       }
 
       for (const productCategory of validPC.data) {
-        const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id,company_info_id:req?.body?.session_res?.client_id } })
+        const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id, } })
 
         await ProductCategory.update(
           {
@@ -5424,7 +5314,7 @@ export const editproductApi = async (req: Request) => {
             modified_by: req.body.session_res.id_app_user,
             modified_date: new Date(),
           },
-          { where: { id: productCategory.id,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: productCategory.id, }, transaction: trn }
         );
 
         activitylogs = {
@@ -5464,7 +5354,6 @@ export const editproductApi = async (req: Request) => {
                   remaing_quantity_count: pmgo.quantity,
                   band_metal_weight: pmgo.band_metal_weight || 0,
                   created_by: req.body.session_res.id_app_user,
-                  company_info_id :req?.body?.session_res?.client_id,
                   is_deleted: pmgo.is_deleted,
                 },
                 { transaction: trn }
@@ -5484,7 +5373,6 @@ export const editproductApi = async (req: Request) => {
                   new_quantity: pmgo.quantity || 0,
                   transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                   changed_by: req.body.session_res.id_app_user,
-                  company_info_id: req.body.session_res.company_info_id,
                   email: null,
                   change_date: getLocalDate(),
                 });
@@ -5492,7 +5380,7 @@ export const editproductApi = async (req: Request) => {
             }
           } else {
             let productMetal = await ProductMetalOption.findOne({
-              where: { id: pmgo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+              where: { id: pmgo.id, is_deleted: DeletedStatus.No, },
               transaction: trn,
             });
 
@@ -5522,7 +5410,7 @@ export const editproductApi = async (req: Request) => {
             }
             await ProductMetalOption.update(
               payload,
-              { where: { id: pmgo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pmgo.id, is_deleted: DeletedStatus.No, }, transaction: trn }
             );
             activitylogs = {
               ...activitylogs, metals: [...activitylogs.metals, {
@@ -5545,7 +5433,6 @@ export const editproductApi = async (req: Request) => {
                 new_quantity: pmgo.quantity || 0,
                 transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                 changed_by: req.body.session_res.id_app_user,
-                company_info_id: req.body.session_res.company_info_id,
                 email: null,
                 change_date: getLocalDate(),
               });
@@ -5589,7 +5476,6 @@ export const editproductApi = async (req: Request) => {
                 band_metal_weight: pmso.band_metal_weight || 0,
                 remaing_quantity_count: pmso.quantity,
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
                 is_deleted: pmso.is_deleted,
               },
               { transaction: trn }
@@ -5609,14 +5495,13 @@ export const editproductApi = async (req: Request) => {
                 new_quantity: pmso.quantity || 0,
                 transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                 changed_by: req.body.session_res.id_app_user,
-                company_info_id: req.body.session_res.company_info_id,
                 email: null,
                 change_date: getLocalDate(),
               });
             }
           } else {
             let productMetal = await ProductMetalOption.findOne({
-              where: { id: pmso.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+              where: { id: pmso.id, is_deleted: DeletedStatus.No, },
               transaction: trn,
             });
 
@@ -5645,7 +5530,7 @@ export const editproductApi = async (req: Request) => {
             }
             await ProductMetalOption.update(
               payload,
-              { where: { id: pmso.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pmso.id, is_deleted: DeletedStatus.No, }, transaction: trn }
             );
             activitylogs = {
               ...activitylogs, metals: [...activitylogs.metals, {
@@ -5667,7 +5552,6 @@ export const editproductApi = async (req: Request) => {
                 new_quantity: pmso.quantity || 0,
                 transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                 changed_by: req.body.session_res.id_app_user,
-                company_info_id: req.body.session_res.company_info_id,
                 email: null,
                 change_date: getLocalDate(),
               });
@@ -5712,7 +5596,6 @@ export const editproductApi = async (req: Request) => {
                 band_metal_weight: pmpo.band_metal_weight || 0,
                 quantity: pmpo.quantity,
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
                 is_deleted: pmpo.is_deleted,
               },
               { transaction: trn }
@@ -5732,14 +5615,13 @@ export const editproductApi = async (req: Request) => {
                 new_quantity: pmpo.quantity || 0,
                 transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                 changed_by: req.body.session_res.id_app_user,
-                company_info_id: req.body.session_res.company_info_id,
                 email: null,
                 change_date: getLocalDate(),
               });
             }
           } else {
             let productMetal = await ProductMetalOption.findOne({
-              where: { id: pmpo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+              where: { id: pmpo.id, is_deleted: DeletedStatus.No, },
               transaction: trn,
             });
 
@@ -5770,7 +5652,7 @@ export const editproductApi = async (req: Request) => {
             await ProductMetalOption.update(
               payload,
 
-              { where: { id: pmpo.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pmpo.id, is_deleted: DeletedStatus.No, }, transaction: trn }
             );
             activitylogs = {
               ...activitylogs, metals: [...activitylogs.metals, {
@@ -5793,7 +5675,7 @@ export const editproductApi = async (req: Request) => {
                 new_quantity: pmpo.quantity || 0,
                 transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
                 changed_by: req.body.session_res.id_app_user,
-                company_info_id:req?.body?.session_res?.client_id,
+
                 email: null,
                 change_date: getLocalDate(),
               });
@@ -5820,7 +5702,6 @@ export const editproductApi = async (req: Request) => {
               id_clarity: pdod.id_clarity,
               id_cuts: pdod.id_cuts,
               is_deleted: DeletedStatus.No,
-              company_info_id:req?.body?.session_res?.client_id,
             },
             transaction: trn,
           });
@@ -5849,7 +5730,6 @@ export const editproductApi = async (req: Request) => {
                     : "0",
                 created_date: getLocalDate(),
                 created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
                 is_deleted: pdod.is_deleted,
               },
               { transaction: trn }
@@ -5861,7 +5741,7 @@ export const editproductApi = async (req: Request) => {
             }
           } else {
             let diamondOption = await ProductDiamondOption.findOne({
-              where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id },
+              where: { id: pdod.id, is_deleted: DeletedStatus.No, },
               transaction: trn,
             });
 
@@ -5909,7 +5789,7 @@ export const editproductApi = async (req: Request) => {
                 is_deleted: pdod.is_deleted,
               },
 
-              { where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id:req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pdod.id, is_deleted: DeletedStatus.No, }, transaction: trn }
             );
 
             activitylogs = {
@@ -5920,10 +5800,9 @@ export const editproductApi = async (req: Request) => {
           }
         }
       }
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{ old_data: { products: productToBeUpdate.dataValues, category: productCategory.map((t: any) => t.dataValues), metals: productMetal.map((t: any) => t.dataValues), diamonds: productDiamond.map((t: any) => t.dataValues) }, new_data: activitylogs }], productToBeUpdate.dataValues.id, LogsActivityType.Edit, LogsType.Product, req.body.session_res.id_app_user,trn)
+      await addActivityLogs([{ old_data: { products: productToBeUpdate.dataValues, category: productCategory.map((t: any) => t.dataValues), metals: productMetal.map((t: any) => t.dataValues), diamonds: productDiamond.map((t: any) => t.dataValues) }, new_data: activitylogs }], productToBeUpdate.dataValues.id, LogsActivityType.Edit, LogsType.Product, req.body.session_res.id_app_user,trn)
 
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
       return resSuccess();
     } catch (e) {
       await trn.rollback();
@@ -5936,24 +5815,19 @@ export const editproductApi = async (req: Request) => {
 
 export const wishlistCartListCount = async (req: Request) => {
   try {
-    const { ProductWish, CartProducts, ConfigCartProduct } = initModels(req);
     const { user_id } = req.body;
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
 
     const wish_list_count = await ProductWish.count({
-      where: { user_id: user_id,company_info_id:company_info_id?.data },
+      where: { user_id: user_id, },
     });
 
     const cart_list_count = await CartProducts.sum("quantity", {
-      where: { user_id: user_id,company_info_id:company_info_id?.data },
+      where: { user_id: user_id, },
     });
 
     const config_cart_list_count = await ConfigCartProduct.count({
-      where: { user_id: user_id,company_info_id:company_info_id?.data },
+      where: { user_id: user_id, },
     });
 
     const totalCartCount = cart_list_count + config_cart_list_count;
@@ -5966,10 +5840,6 @@ export const wishlistCartListCount = async (req: Request) => {
 
 export const searchProductGlobally = async (req: any) => {
   try {
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
 
     // Replace any character that is NOT:
     // - letters (a-z, A-Z)
@@ -5983,7 +5853,7 @@ export const searchProductGlobally = async (req: any) => {
     const searchValue = req.query.search_text
       .trim();
     
-    const productList = await req.body.db_connection.query(`
+    const productList = await dbContext.query(`
       WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
@@ -6010,7 +5880,6 @@ export const searchProductGlobally = async (req: any) => {
             pmo.center_diamond_price,
             karats.name,
             karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -6022,7 +5891,6 @@ export const searchProductGlobally = async (req: any) => {
             product_images.id_metal_tone,
             product_images.image_type
            FROM product_images
-             LEFT JOIN web_config_setting ON web_config_setting.company_info_id = product_images.company_info_id
           WHERE product_images.is_deleted = '0'::"bit" AND (product_images.image_type = ANY (ARRAY[1, 4]))
         ), sum_price AS (
          SELECT pdo_1.id_product,
@@ -6082,16 +5950,15 @@ export const searchProductGlobally = async (req: any) => {
   GROUP BY products.id,filtered_pmo.compare_price,filtered_pmo.id_karat,metal_master.metal_rate,filtered_pmo.metal_weight,
   sum_price.sum_price,metal_master.calculate_rate,filtered_pmo.karat_calculate_rate,product_image.image_path,categories.category_name
         `,{ type: QueryTypes.SELECT, replacements: { searchValue } })
-   const findRoundingValue = await req.body.db_connection.query(`
-      SELECT * FROM price_corrections WHERE product_type In (:product_type) AND company_info_id = :company_info_id AND is_active = :is_active
+   const findRoundingValue = await dbContext.query(`
+      SELECT * FROM price_corrections WHERE product_type In (:product_type)  AND is_active = :is_active
     `, { type: QueryTypes.SELECT,
       replacements: {
         product_type: [PRICE_CORRECTION_PRODUCT_TYPE.DynamicProduct],
-        company_info_id: company_info_id?.data,
         is_active: ActiveStatus.Active
       }
     });
-    const dynamicProductRoundingValue = findRoundingValue.find((item: any) => item.product_type === PRICE_CORRECTION_PRODUCT_TYPE.DynamicProduct);
+    const dynamicProductRoundingValue:any = findRoundingValue.find((item: any) => item.product_type === PRICE_CORRECTION_PRODUCT_TYPE.DynamicProduct);
     const productListWithCurrency = await Promise.all(productList.map(async(product: any) => {
       const productType = product.product_type == SingleProductType.DynemicPrice || SingleProductType.cataLogueProduct ? PRICE_CORRECTION_PRODUCT_TYPE.DynamicProduct : null
       const productRoundValue = product.product_type == SingleProductType.DynemicPrice || SingleProductType.cataLogueProduct ? dynamicProductRoundingValue && dynamicProductRoundingValue.round_off ? {value: dynamicProductRoundingValue.round_off, flag: true} : {value: 0, flag: false} : {value: 0, flag: false}
@@ -6117,13 +5984,8 @@ export const searchProductGlobally = async (req: any) => {
 export const getBySKUConfigProductDetails = async (req: Request) => {
   try {
     const { slug } = req.params;
-    const { ConfigProduct, DiamondGroupMaster, ConfigProductMetals, ConfigProductDiamonds } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const configPRoductExit = await ConfigProduct.findOne({
-      where: { slug: { [Op.iLike]: `${slug}` }, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { slug: { [Op.iLike]: `${slug}` }, is_deleted: DeletedStatus.No, },
     });
 
     if (!(configPRoductExit && configPRoductExit.dataValues)) {
@@ -6131,7 +5993,7 @@ export const getBySKUConfigProductDetails = async (req: Request) => {
     }
 
     const product:any = await ConfigProduct.findOne({
-      where: { slug: { [Op.iLike]: `${slug}` }, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { slug: { [Op.iLike]: `${slug}` }, is_deleted: DeletedStatus.No, },
       attributes: [
         "id",
         "shank_type_id",
@@ -6166,14 +6028,12 @@ export const getBySKUConfigProductDetails = async (req: Request) => {
           model: DiamondGroupMaster,
           as: "cender_diamond",
           attributes: ["id_stone"],
-          where:{company_info_id:company_info_id?.data},
           required:false,
         },
         {
           required: false,
           model: ConfigProductMetals,
           as: "CPMO",
-          where:{company_info_id:company_info_id?.data},
           attributes: [
             "id",
             "config_product_id",
@@ -6189,7 +6049,6 @@ export const getBySKUConfigProductDetails = async (req: Request) => {
           required: false,
           model: ConfigProductDiamonds,
           as: "CPDO",
-          where:{company_info_id:company_info_id?.data},
           attributes: [
             "id",
             "config_product_id",
@@ -6259,7 +6118,6 @@ export const addProductWithVariant = async (req: Request) => {
       is_band ,
       setting_diamond_sizes
     } = req.body;
-    const { Product, ProductCategory, ProductMetalOption, ProductDiamondOption, BrandData, ProductImage,StockChangeLog,DiamondGroupMaster } = initModels(req);
     // check if product id is not 0 then check product find
     let productToBeUpdate;
     if (id_product !== 0) {
@@ -6267,7 +6125,6 @@ export const addProductWithVariant = async (req: Request) => {
         where: {
           id: id_product,
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id
         },
       });
 
@@ -6281,7 +6138,6 @@ export const addProductWithVariant = async (req: Request) => {
           id: { [Op.ne]: productToBeUpdate.dataValues.id },
           sku: sku,
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id,
         },
       });
 
@@ -6291,7 +6147,7 @@ export const addProductWithVariant = async (req: Request) => {
     } else {
       // check same SKU exited or not  (all sku is different)
       const productSKU = await Product.findOne({
-        where: { sku: sku, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { sku: sku, is_deleted: DeletedStatus.No },
       });
 
       if (productSKU != null) {
@@ -6299,9 +6155,9 @@ export const addProductWithVariant = async (req: Request) => {
       }
     }
 
-    const categoryData = await ProductCategory.findAll({ where: { id_product: id_product !== 0 ? id_product : 0,company_info_id :req?.body?.session_res?.client_id } })
-    const metalsData = await ProductMetalOption.findAll({ where: { id_product: id_product !== 0 ? id_product : 0,company_info_id :req?.body?.session_res?.client_id } })
-    const diamondData = await ProductDiamondOption.findAll({ where: { id_product: id_product !== 0 ? id_product : 0,company_info_id :req?.body?.session_res?.client_id } })
+    const categoryData = await ProductCategory.findAll({ where: { id_product: id_product !== 0 ? id_product : 0 } })
+    const metalsData = await ProductMetalOption.findAll({ where: { id_product: id_product !== 0 ? id_product : 0 } })
+    const diamondData = await ProductDiamondOption.findAll({ where: { id_product: id_product !== 0 ? id_product : 0 } })
 
     // check the valid tag
 
@@ -6311,7 +6167,7 @@ export const addProductWithVariant = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.tag
           ? productToBeUpdate.dataValues.tag
           : "",
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validTag.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validTag;
@@ -6322,7 +6178,7 @@ export const addProductWithVariant = async (req: Request) => {
     const validPC = await validateProductCategories({
       categories: product_categories,
       id_product: id_product !== 0 ? id_product : null,
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validPC.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validPC;
@@ -6337,7 +6193,7 @@ export const addProductWithVariant = async (req: Request) => {
       id_brand != ""
     ) {
       const validBrand = await BrandData.findOne({
-        where: { id: id_brand, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id: id_brand, is_deleted: DeletedStatus.No },
       });
 
       if (!(validBrand && validBrand.dataValues)) {
@@ -6357,7 +6213,7 @@ export const addProductWithVariant = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.id_collection
           ? productToBeUpdate.dataValues.id_collection
           : "",
-    },req?.body?.session_res?.client_id, req);
+    });
 
     if (validCollection.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validCollection;
@@ -6371,7 +6227,7 @@ export const addProductWithVariant = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.size
           ? productToBeUpdate.dataValues.size
           : "",
-    },req?.body?.session_res?.client_id, req);
+        });
 
     if (validSize.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validSize;
@@ -6385,7 +6241,7 @@ export const addProductWithVariant = async (req: Request) => {
         productToBeUpdate && productToBeUpdate.dataValues.length
           ? productToBeUpdate.dataValues.length
           : "",
-    },req?.body?.session_res?.client_id, req);
+        });
 
     if (validLength.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return validLength;
@@ -6420,7 +6276,7 @@ export const addProductWithVariant = async (req: Request) => {
             productToBeUpdate.dataValues.setting_diamond_shapes
             ? productToBeUpdate.dataValues.setting_diamond_shapes
             : "",
-      },req?.body?.session_res?.client_id, req);
+              });
 
       if (validShapes.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return validShapes;
@@ -6429,7 +6285,7 @@ export const addProductWithVariant = async (req: Request) => {
     let activitylogs: any = { category: [], metals: [], diamonds: [] }
     let productId: any;
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     // product add and edit process
     try {
       // product add and edit
@@ -6444,7 +6300,7 @@ export const addProductWithVariant = async (req: Request) => {
           where: [
             columnValueLowerCase("slug", slug),
             { is_deleted: DeletedStatus.No },
-            {company_info_id :req?.body?.session_res?.client_id},
+            
           ],
         });
 
@@ -6505,7 +6361,6 @@ export const addProductWithVariant = async (req: Request) => {
             is_featured: FeaturedProductStatus.InFeatured,
             is_trending: TrendingProductStatus.InTrending,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
             quantity: quantity,
             retail_price: retail_price,
@@ -6546,7 +6401,7 @@ export const addProductWithVariant = async (req: Request) => {
             columnValueLowerCase("slug", slug),
             { is_deleted: DeletedStatus.No },
             { id: { [Op.ne]: id_product } },
-            {company_info_id :req?.body?.session_res?.client_id},
+            
           ],
         });
 
@@ -6629,7 +6484,7 @@ export const addProductWithVariant = async (req: Request) => {
         }
         await Product.update(
           payload,
-          { where: { id: id_product,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+          { where: { id: id_product }, transaction: trn }
         );
         activitylogs = { ...activitylogs, product: { ...productToBeUpdate.dataValues, ...payload } }
         productId = id_product;
@@ -6646,7 +6501,6 @@ export const addProductWithVariant = async (req: Request) => {
               id_sub_category: productCategory.id_sub_category,
               id_sub_sub_category: productCategory.id_sub_sub_category,
               created_by: req.body.session_res.id_app_user,
-              company_info_id :req?.body?.session_res?.client_id,
               created_date: getLocalDate(),
               is_deleted: DeletedStatus.No,
             },
@@ -6654,7 +6508,7 @@ export const addProductWithVariant = async (req: Request) => {
           );
           activitylogs = { ...activitylogs, category: [...activitylogs.category, data] }
         } else {
-          const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id,company_info_id :req?.body?.session_res?.client_id } })
+          const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id } })
           await ProductCategory.update(
             {
               id_category: productCategory.id_category??null,
@@ -6663,7 +6517,7 @@ export const addProductWithVariant = async (req: Request) => {
               modified_by: req.body.session_res.id_app_user,
               modified_date: getLocalDate(),
             },
-            { where: { id: productCategory.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: productCategory.id }, transaction: trn }
           );
           activitylogs = {
             ...activitylogs, category: [...activitylogs.category, {
@@ -6680,14 +6534,14 @@ export const addProductWithVariant = async (req: Request) => {
       // delete product category
       if (validPC.data.length > 0) {
         for (const productCategory of validPC.data) {
-          const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id,company_info_id :req?.body?.session_res?.client_id } })
+          const categoryData = await ProductCategory.findOne({ where: { id: productCategory.id } })
           await ProductCategory.update(
             {
               is_deleted: DeletedStatus.yes,
               modified_by: req.body.session_res.id_app_user,
               modified_date: getLocalDate(),
             },
-            { where: { id: productCategory.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: productCategory.id }, transaction: trn }
           );
           activitylogs = {
             ...activitylogs, category: [...activitylogs.category, {
@@ -6719,7 +6573,6 @@ export const addProductWithVariant = async (req: Request) => {
               where: {
                 id_product: productId,
                 id_metal_tone: { [Op.not]: null },
-                company_info_id :req?.body?.session_res?.client_id
               },
             }
           );
@@ -6728,21 +6581,20 @@ export const addProductWithVariant = async (req: Request) => {
               id_product: productId,
               is_deleted: DeletedStatus.No,
               id_metal: { [Op.ne]: null },
-              company_info_id :req?.body?.session_res?.client_id,
             },
           });
           await ProductMetalOption.update(
             {
               is_deleted: DeletedStatus.yes,
             },
-            { where: { id: productMetalData.map((t: any) => t.dataValues.id),company_info_id :req?.body?.session_res?.client_id } }
+            { where: { id: productMetalData.map((t: any) => t.dataValues.id) } }
           );
 
           activitylogs = { ...activitylogs, metals: [...activitylogs.metals, { ...productMetalData, is_deleted: DeletedStatus.yes, }] }
         }
       } else {
         const productMetalData = await ProductMetalOption.findAll({
-          where: { id_product: productId, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id},
+          where: { id_product: productId, is_deleted: DeletedStatus.No },
         });
         if (
           productMetalData.length == 1 &&
@@ -6761,7 +6613,6 @@ export const addProductWithVariant = async (req: Request) => {
               where: {
                 id_product: productId,
                 id_metal_tone: { [Op.is]: null },
-                company_info_id :req?.body?.session_res?.client_id
               },
             }
           );
@@ -6782,7 +6633,7 @@ export const addProductWithVariant = async (req: Request) => {
       for (productMetalData of updatedMetalList) {
         if (
           productMetalData.id == 0 &&
-          productMetalData.is_deleted == DeletedStatus.No
+          String(productMetalData.is_deleted) == DeletedStatus.No
         ) {
           addVariantList.push({
             id_product: productId,
@@ -6819,15 +6670,14 @@ export const addProductWithVariant = async (req: Request) => {
               : null,
             is_deleted: DeletedStatus.No,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           });
         } else if (
           productMetalData.id != 0 &&
-          productMetalData.is_deleted == DeletedStatus.No
+          String(productMetalData.is_deleted) == DeletedStatus.No
         ) {
           let productMetal = await ProductMetalOption.findOne({
-            where: { id: productMetalData.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: productMetalData.id, is_deleted: DeletedStatus.No },
             transaction: trn,
           });
           if (!(productMetal && productMetal.dataValues)) {
@@ -6877,7 +6727,7 @@ export const addProductWithVariant = async (req: Request) => {
           }
           await ProductMetalOption.update(
             payload,
-            { where: { id: productMetalData.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: productMetalData.id }, transaction: trn }
           );
           activitylogs = { ...activitylogs, metals: [...activitylogs.metals, { ...productMetal, ...payload }] }
 
@@ -6896,17 +6746,16 @@ export const addProductWithVariant = async (req: Request) => {
               new_quantity: productMetalData.quantity || 0,
               transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
               changed_by: req.body.session_res.id_app_user,
-              company_info_id: req.body.session_res.company_info_id,
               email: null,
               change_date: getLocalDate(),
             });
           }
         } else if (
           productMetalData.id != 0 &&
-          productMetalData.is_deleted == DeletedStatus.yes
+          String(productMetalData.is_deleted) == DeletedStatus.yes
         ) {
           let productMetal = await ProductMetalOption.findOne({
-            where: { id: productMetalData.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: productMetalData.id, is_deleted: DeletedStatus.No },
             transaction: trn,
           });
 
@@ -6921,7 +6770,7 @@ export const addProductWithVariant = async (req: Request) => {
               modified_by: req.body.session_res.id_app_user,
               modified_date: getLocalDate(),
             },
-            { where: { id: productMetalData.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+            { where: { id: productMetalData.id }, transaction: trn }
           );
 
           activitylogs = {
@@ -6954,7 +6803,6 @@ export const addProductWithVariant = async (req: Request) => {
               new_quantity: productMetalData.quantity || 0,
               transaction_type: STOCK_TRANSACTION_TYPE.StockUpdate,
               changed_by: req.body.session_res.id_app_user,
-              company_info_id: req.body.session_res.company_info_id,
               email: null,
               change_date: getLocalDate(),
             });
@@ -6982,7 +6830,6 @@ export const addProductWithVariant = async (req: Request) => {
               id_clarity: pdod.id_clarity,
               id_cuts: pdod.id_cuts,
               is_deleted: DeletedStatus.No,
-              company_info_id :req?.body?.session_res?.client_id,
             },
             transaction: trn,
           });
@@ -7009,8 +6856,7 @@ export const addProductWithVariant = async (req: Request) => {
                 id_cut: pdod.id_cuts,
                 is_default: pdod.is_default,
                 created_date: getLocalDate(),
-                created_by: req.body.session_res.id_app_user,
-                company_info_id :req?.body?.session_res?.client_id,
+                created_by: req.body.session_res.id_app_user, 
                 is_deleted: pdod.is_deleted,
               },
               { transaction: trn }
@@ -7019,7 +6865,7 @@ export const addProductWithVariant = async (req: Request) => {
             activitylogs = { ...activitylogs, diamonds: [...activitylogs.category, data] }
           } else if (pdod.id != 0) {
             let diamondOption = await ProductDiamondOption.findOne({
-              where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: pdod.id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
 
@@ -7053,7 +6899,7 @@ export const addProductWithVariant = async (req: Request) => {
             await ProductDiamondOption.update(
               payload,
 
-              { where: { id: pdod.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+              { where: { id: pdod.id, is_deleted: DeletedStatus.No }, transaction: trn }
             );
 
             activitylogs = { ...activitylogs, diamonds: [...activitylogs.category, { ...diamondOption, ...payload }] }
@@ -7061,15 +6907,15 @@ export const addProductWithVariant = async (req: Request) => {
         }
       }
       if (id_product != 0) {
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{ old_data: { ...productToBeUpdate, category: categoryData.map((t: any) => t.dataValues), metals: metalsData.map((t: any) => t.dataValues), diamonds: diamondData.map((t: any) => t.dataValues) }, new_data: activitylogs }], id_product, LogsActivityType.Edit, LogsType.Product, req.body.session_res.id_app_user,trn)
+            await addActivityLogs([{ old_data: { ...productToBeUpdate, category: categoryData.map((t: any) => t.dataValues), metals: metalsData.map((t: any) => t.dataValues), diamonds: diamondData.map((t: any) => t.dataValues) }, new_data: activitylogs }], id_product, LogsActivityType.Edit, LogsType.Product, req.body.session_res.id_app_user,trn)
       } else {
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Edit, LogsType.Product, req.body.session_res.id_app_user,trn)
+        await addActivityLogs([{ old_data: null, new_data: activitylogs }], null, LogsActivityType.Edit, LogsType.Product, req.body.session_res.id_app_user,trn)
       }
       await trn.commit();
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       return resSuccess();
     } catch (error) {
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       await trn.rollback();
       return resUnknownError({ data: error });
     }
@@ -7082,25 +6928,19 @@ export const addProductWithVariant = async (req: Request) => {
 
 export const getAllProductImageNamePublicAPI = async (req: Request) => {
   try {
-    const { Product, ProductImage, MetalTone } = initModels(req);
     const { sku, images } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const product = await Product.findOne({
-      where: { sku: sku, is_deleted: DeletedStatus.No, company_info_id:company_info_id?.data },
+      where: { sku: sku, is_deleted: DeletedStatus.No,  },
     });
 
     const productImages = await ProductImage.findAll({
       where: {
         id_product: product.dataValues.id,
         is_deleted: DeletedStatus.No,
-        company_info_id:company_info_id?.data,
       },
     });
     const metalTones = await MetalTone.findAll({
-      where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No, },
     });
     let result = [];
     if (product && product.dataValues) {
@@ -7128,7 +6968,6 @@ export const getAllProductImageNamePublicAPI = async (req: Request) => {
               is_deleted: DeletedStatus.No,
               created_date: getLocalDate(),
               created_by: null,
-              company_info_id:company_info_id?.data,
             });
           }
         }
@@ -7153,14 +6992,13 @@ export const getAllProductImageNamePublicAPI = async (req: Request) => {
           is_deleted: DeletedStatus.No,
           created_date: getLocalDate(),
           created_by: null,
-          company_info_id:company_info_id?.data,
         });
       }
     }
     if (result.length > 0) {
       await ProductImage.bulkCreate(result);
     }
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess({ data: result });
   } catch (error) {
     throw error;
@@ -7169,16 +7007,10 @@ export const getAllProductImageNamePublicAPI = async (req: Request) => {
 
 export const getAllProductSlug = async (req:Request) => {
   try {
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    const { Product } = initModels(req);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const result = await Product.findAll({
       where: {
         is_deleted: DeletedStatus.No,
         is_active: ActiveStatus.Active,
-        company_info_id: company_info_id?.data,
         parent_id: null,
         is_3d_product: false
       },
@@ -7205,12 +7037,7 @@ export const similarProductList = async (req: any) => {
       meta_description,
       meta_tag,
     } = req.query;
-    const { Product, ProductMetalOption, ProductDiamondOption, ProductCategory } = initModels(req);
     const { slug } = req.params;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const product = await Product.findOne({
       attributes: [
         "id",
@@ -7292,7 +7119,6 @@ export const similarProductList = async (req: any) => {
       where: {
         slug: slug,
         is_deleted: DeletedStatus.No,
-        company_info_id:company_info_id?.data,
       },
       include: [
         {
@@ -7327,7 +7153,7 @@ export const similarProductList = async (req: any) => {
             "is_default",
             "is_deleted",
           ],
-          where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+          where: { is_deleted: DeletedStatus.No, },
         },
         {
           required: false,
@@ -7349,7 +7175,7 @@ export const similarProductList = async (req: any) => {
             "id_cut",
           ],
 
-          where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+          where: { is_deleted: DeletedStatus.No, },
         },
         {
           required: false,
@@ -7361,7 +7187,7 @@ export const similarProductList = async (req: any) => {
             "id_sub_category",
             "id_sub_sub_category",
           ],
-          where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+          where: { is_deleted: DeletedStatus.No, },
         },
       ],
     });
@@ -7370,8 +7196,8 @@ export const similarProductList = async (req: any) => {
       return resNotFound({ message: PRODUCT_NOT_FOUND });
     }
 
-    const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data)
-    const similarProduct = await req.body.db_connection.query(`(WITH filtered_pmo AS (
+    const configData = await getWebSettingData()
+    const similarProduct = await dbContext.query(`(WITH filtered_pmo AS (
       SELECT DISTINCT ON (pmo.id_product) pmo.id,
          pmo.id_product,
          pmo.id_metal_group,
@@ -7399,7 +7225,7 @@ export const similarProductList = async (req: any) => {
          karats.calculate_rate AS karat_calculate_rate
         FROM product_metal_options pmo
           LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat
-       WHERE pmo.company_info_id = ${company_info_id?.data} AND pmo.is_deleted = '${DeletedStatus.No}'::"bit"
+ AND pmo.is_deleted = '${DeletedStatus.No}'::"bit"
        ORDER BY pmo.id_product, karats.name
      ), product_images_data AS (
       SELECT product_images.id_product,
@@ -7411,13 +7237,13 @@ export const similarProductList = async (req: any) => {
          product_images.id_metal_tone,
          product_images.image_type
         FROM product_images
-       WHERE product_images.company_info_id = ${company_info_id?.data} AND product_images.is_deleted = '${DeletedStatus.No}'::"bit" AND product_images.image_type = ${PRODUCT_IMAGE_TYPE.Feature}
+ AND product_images.is_deleted = '${DeletedStatus.No}'::"bit" AND product_images.image_type = ${PRODUCT_IMAGE_TYPE.Feature}
      ), sum_price AS (
       SELECT pdo_1.id_product,
          sum((CASE WHEN dgm_1.rate IS NULL THEN dgm_1.synthetic_rate ELSE dgm_1.rate END) * pdo_1.weight::double precision * pdo_1.count::double precision) AS sum_price
         FROM product_diamond_options pdo_1
           LEFT JOIN diamond_group_masters dgm_1 ON dgm_1.id = pdo_1.id_diamond_group
-       WHERE pdo_1.company_info_id = ${company_info_id?.data}  AND pdo_1.is_deleted = '${DeletedStatus.No}'::"bit" AND (pdo_1.id_type = ${SingleProductType.VariantType} OR 'undefined'::text <> '1'::text)
+  AND pdo_1.is_deleted = '${DeletedStatus.No}'::"bit" AND (pdo_1.id_type = ${SingleProductType.VariantType} OR 'undefined'::text <> '1'::text)
        GROUP BY pdo_1.id_product
      )
 SELECT products.id,
@@ -7481,7 +7307,7 @@ FROM products
   LEFT JOIN product_diamond_options pdo ON pdo.id_product = products.id AND pdo.is_deleted = '${DeletedStatus.No}'::"bit"
   LEFT JOIN diamond_group_masters dgm ON dgm.id = pdo.id_diamond_group AND dgm.is_deleted = '${DeletedStatus.No}'::"bit"
   LEFT JOIN sum_price ON sum_price.id_product = products.id
-WHERE products.company_info_id= ${company_info_id?.data} AND products.is_deleted = '${DeletedStatus.No}'::"bit" 
+ AND products.is_deleted = '${DeletedStatus.No}'::"bit" 
 AND products.is_active = '${ActiveStatus.Active}'::"bit"
 AND PRODUCTs.ID != ${product.dataValues.id}
  AND products.parent_id IS NULL
@@ -7540,14 +7366,12 @@ LIMIT ${limit}
 
 export const deleteMultipleProducts = async (req: Request) => {
   try {
-    const { Product } = initModels(req);
     const { product_sku } = req.body;
     const productList = await Product.findAll({
       where: {
         sku: {
           [Op.in]: product_sku,
         },
-        company_info_id :req?.body?.session_res?.client_id
       },
     })
     await Product.update(
@@ -7561,7 +7385,6 @@ export const deleteMultipleProducts = async (req: Request) => {
           sku: {
             [Op.in]: product_sku,
           },
-          company_info_id :req?.body?.session_res?.client_id
         },
       }
     );
@@ -7571,12 +7394,11 @@ export const deleteMultipleProducts = async (req: Request) => {
         sku: {
           [Op.in]: product_sku,
         },
-        company_info_id :req?.body?.session_res?.client_id
       },
     })
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{ old_data: productList, new_data: updatedProducts }], productList.map((t: any) => t.dataValues.id).join(","), LogsActivityType.Delete, LogsType.Product, req.body.session_res.id_app_user)
+    await addActivityLogs([{ old_data: productList, new_data: updatedProducts }], productList.map((t: any) => t.dataValues.id).join(","), LogsActivityType.Delete, LogsType.Product, req.body.session_res.id_app_user)
 
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess({ message: RECORD_DELETE_SUCCESSFULLY });
   } catch (error) {
     throw error;
@@ -7585,14 +7407,12 @@ export const deleteMultipleProducts = async (req: Request) => {
 
 export const statusUpdateForMultipleProducts = async (req: Request) => {
   try {
-    const { Product } = initModels(req);
     const { product_sku, is_active } = req.body;
     const productList = await Product.findAll({
       where: {
         sku: {
           [Op.in]: product_sku,
         },
-        company_info_id :req?.body?.session_res?.client_id
       },
     })
     await Product.update(
@@ -7606,7 +7426,6 @@ export const statusUpdateForMultipleProducts = async (req: Request) => {
           sku: {
             [Op.in]: product_sku,
           },
-          company_info_id :req?.body?.session_res?.client_id
         },
       }
     );
@@ -7615,12 +7434,11 @@ export const statusUpdateForMultipleProducts = async (req: Request) => {
         sku: {
           [Op.in]: product_sku,
         },
-        company_info_id :req?.body?.session_res?.client_id
       },
     })
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{ old_data: productList, new_data: updatedProducts }], productList.map((t: any) => t.dataValues.id).join(","), LogsActivityType.Delete, LogsType.Product, req.body.session_res.id_app_user)
+    await addActivityLogs([{ old_data: productList, new_data: updatedProducts }], productList.map((t: any) => t.dataValues.id).join(","), LogsActivityType.Delete, LogsType.Product, req.body.session_res.id_app_user)
 
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
   } catch (error) {
     throw error;
@@ -7629,30 +7447,24 @@ export const statusUpdateForMultipleProducts = async (req: Request) => {
 
 export const getProductImagesUsingS3AndAddInDB = async (req: Request) => {
   try {
-    const { Product,ProductImage,MetalTone } = initModels(req);
     const { sku } = req.body;
     let result = [];
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     for (let productSKU of sku) {
       const product = await Product.findOne({
-        where: { sku: productSKU, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+        where: { sku: productSKU, is_deleted: DeletedStatus.No, },
       });
 
       const productImages = await ProductImage.findAll({
         where: {
           id_product: product.dataValues.id,
           is_deleted: DeletedStatus.No,
-          company_info_id:company_info_id?.data
         },
       });
       const metalTones = await MetalTone.findAll({
-        where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+        where: { is_deleted: DeletedStatus.No, },
       });
 
-      const s3Images = await s3ListObjects(req.body.db_connection,`products/${productSKU}/`,company_info_id?.data);
+      const s3Images = await s3ListObjects(dbContext,`products/${productSKU}/`,null);
       if (product && product.dataValues) {
         for (const tone of metalTones) {
           const filteredImages = s3Images.filter((img) =>
@@ -7675,7 +7487,6 @@ export const getProductImagesUsingS3AndAddInDB = async (req: Request) => {
                     ? 5
                     : 1,
                 is_deleted: DeletedStatus.No,
-                company_info_id:company_info_id?.data,
                 created_date: getLocalDate(),
                 created_by: null,
               });
@@ -7686,10 +7497,10 @@ export const getProductImagesUsingS3AndAddInDB = async (req: Request) => {
     }
 
     if (result.length > 0) {
-      // await refreshMaterializedProductListView(req.body.db_connection);
+      // await refreshMaterializedProductListViewdbContext;
       await ProductImage.bulkCreate(result);
     }
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess({ data: result });
   } catch (error) {
     throw error;
@@ -7698,28 +7509,14 @@ export const getProductImagesUsingS3AndAddInDB = async (req: Request) => {
 
 export const addProductSearchValue = async (req: Request) => {
   try {
-    const { ProductSearchHistories } = initModels(req);
     const { value } = req.body;
     const addSearchValueList: any = [];
     const updateSearchValueList: any = [];
     if (value.length <= 0) {
       return resSuccess();
     }
-    let company_info_id: any = {};
 
-    if (req?.body?.session_res?.client_id) {
-      company_info_id.data = req.body.session_res.client_id;
-    } else {
-      const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-      if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return decrypted;
-      }
-
-      company_info_id = decrypted;
-    }
-
-    const productSearch = await ProductSearchHistories.findAll({where:{company_info_id:company_info_id?.data}});
+    const productSearch = await ProductSearchHistories.findAll({where:{}});
     for (const data of value) {
       const findvalue = productSearch.find(
         (item) =>
@@ -7741,7 +7538,6 @@ export const addProductSearchValue = async (req: Request) => {
           user_id: req.body.session_res.id_app_user,
           created_date: getLocalDate(),
           modified_date: getLocalDate(),
-          company_info_id:company_info_id?.data
         });
       }
     }
@@ -7758,19 +7554,15 @@ export const addProductSearchValue = async (req: Request) => {
 
 export const productSearchListForUser = async (req: Request) => {
   try {
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const userId = req.body.session_res.id_app_user || 0;
-    const popularSearch = await req.body.db_connection.query(
-      `(SELECT value FROM product_search_histories WHERE product_search_histories.company_info_id = ${company_info_id?.data} GROUP BY value ORDER BY COUNT(value) DESC LIMIT 10
+    const popularSearch = await dbContext.query(
+      `(SELECT value FROM product_search_histories WHERE product_search_histories. GROUP BY value ORDER BY COUNT(value) DESC LIMIT 10
 )`,
       { type: QueryTypes.SELECT }
     );
 
-    const recentSearch = await req.body.db_connection.query(
-      `(SELECT id,value FROM product_search_histories WHERE product_search_histories.company_info_id = ${company_info_id?.data} AND user_id = ${userId} ORDER BY modified_date DESC LIMIT 10)`,
+    const recentSearch = await dbContext.query(
+      `(SELECT id,value FROM product_search_histories WHERE product_search_histories. AND user_id = ${userId} ORDER BY modified_date DESC LIMIT 10)`,
       { type: QueryTypes.SELECT }
     );
 
@@ -7784,13 +7576,8 @@ export const productSearchListForUser = async (req: Request) => {
 
 export const deleteProductSearchValueForUser = async (req: Request) => {
   try {
-    const { ProductSearchHistories } = initModels(req);
     const ids = req.params.ids.split(",");
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-    await ProductSearchHistories.destroy({ where: { id: ids,company_info_id:company_info_id?.data } });
+    await ProductSearchHistories.destroy({ where: { id: ids, } });
 
     return resSuccess({ message: RECORD_DELETE_SUCCESSFULLY });
   } catch (error) {
@@ -7803,10 +7590,10 @@ export const popularSearchList = async (req: Request) => {
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
     };
-    const totalItems = await req.body.db_connection.query(
+    const totalItems = await dbContext.query(
       `(SELECT value as ids FROM product_search_histories 
       ${req.query.search_text
-        ? `WHERE product_search_histories.company_info_id = ${req?.body?.session_res?.client_id} AND value LIKE '%${req.query.search_text}%'`
+        ? `WHERE product_search_histories. AND value LIKE '%${req.query.search_text}%'`
         : ""
       }
 GROUP BY value 
@@ -7820,10 +7607,10 @@ ORDER BY COUNT(value) DESC
     pagination.total_pages = Math.ceil(
       totalItems.length / pagination.per_page_rows
     );
-    const popularSearch = await req.body.db_connection.query(
+    const popularSearch = await dbContext.query(
       `(SELECT value,COUNT(value), jsonb_agg(product_search_histories.id) as ids FROM product_search_histories 
       ${req.query.search_text
-        ? `WHERE product_search_histories.company_info_id = ${req?.body?.session_res?.client_id} AND value ILIKE '%${req.query.search_text}%'`
+        ? `WHERE product_search_histories. AND value ILIKE '%${req.query.search_text}%'`
         : ""
       }
 GROUP BY value 
@@ -7842,10 +7629,9 @@ OFFSET
 };
 export const deleteProductSearchValueForAdmin = async (req: Request) => {
   try {
-    const { ProductSearchHistories } = initModels(req);
     const ids = req.params.ids.split(",");
 
-    await ProductSearchHistories.destroy({ where: { id: ids,company_info_id :req?.body?.session_res?.client_id } });
+    await ProductSearchHistories.destroy({ where: { id: ids } });
 
     return resSuccess({ message: RECORD_DELETE_SUCCESSFULLY });
   } catch (error) {
@@ -7857,12 +7643,12 @@ export const recentSearchList = async (req: Request) => {
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
     };
-    const totalItems = await req.body.db_connection.query(
+    const totalItems = await dbContext.query(
       `(SELECT product_search_histories.* FROM product_search_histories  
         LEFT JOIN app_users ON app_users.id = user_id
         LEFT JOIN customer_users ON customer_users.id_app_user = app_users.id
         ${req.query.search_text
-        ? `WHERE product_search_histories.company_info_id = ${req?.body?.session_res?.client_id} AND value ILIKE '%${req.query.search_text}%' OR customer_users.full_name ILIKE '%${req.query.search_text}%' OR customer_users.email ILIKE '%${req.query.search_text}%'`
+        ? `WHERE product_search_histories. AND value ILIKE '%${req.query.search_text}%' OR customer_users.full_name ILIKE '%${req.query.search_text}%' OR customer_users.email ILIKE '%${req.query.search_text}%'`
         : ""
       }
         ORDER BY ${pagination.sort_by} ${pagination.order_by}
@@ -7880,12 +7666,12 @@ export const recentSearchList = async (req: Request) => {
       (req.query.sort_by && req.query.sort_by.toString()) || "modified_date";
     pagination.order_by =
       (req.query.order_by && req.query.order_by.toString()) || "desc";
-    const recentSearch = await req.body.db_connection.query(
+    const recentSearch = await dbContext.query(
       `(SELECT product_search_histories.*,customer_users.full_name,customer_users.email FROM product_search_histories  
         LEFT JOIN app_users ON app_users.id = user_id
         LEFT JOIN customer_users ON customer_users.id_app_user = app_users.id
         ${req.query.search_text
-        ? `WHERE product_search_histories.company_info_id = ${req?.body?.session_res?.client_id} AND value ILIKE '%${req.query.search_text}%' OR customer_users.full_name ILIKE '%${req.query.search_text}%' OR customer_users.email ILIKE '%${req.query.search_text}%'`
+        ? `WHERE product_search_histories. AND value ILIKE '%${req.query.search_text}%' OR customer_users.full_name ILIKE '%${req.query.search_text}%' OR customer_users.email ILIKE '%${req.query.search_text}%'`
         : ""
       }
         ORDER BY ${pagination.sort_by} ${pagination.order_by}
@@ -7904,11 +7690,7 @@ export const recentSearchList = async (req: Request) => {
 
 export const withoutVariantProductExport = async (req: Request) => {
   try {
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-    const products = await req.body.db_connection.query(
+    const products = await dbContext.query(
       `SELECT 
 1 as id_parent,
 main_cat.category_name as category,
@@ -7988,7 +7770,7 @@ LEFT JOIN colors AS colors ON colors.id = DGM.id_color
 LEFT JOIN clarities AS clarity ON clarity.id = DGM.id_color
 LEFT JOIN cuts AS cut ON cut.id = DGM.id_cuts
 LEFT JOIN setting_styles as setting ON setting.id = id_setting
-WHERE product.company_info_id = ${company_info_id?.data }AND product.product_type = ${SingleProductType.VariantType} AND
+AND product.product_type = ${SingleProductType.VariantType} AND
 product.is_deleted = '${DeletedStatus.No}' 
 GROUP BY main_cat.category_name,sub_cat.category_name,
 sub_sub_cat.category_name, product.id,brands.name,metal.name,karat.name,
@@ -8007,23 +7789,17 @@ ORDER BY product.id DESC`,
 
 export const getProductsBasedOnTheSettingStyle = async (req: any) => {
   try {
-    const { Image,SettingTypeData, SizeData, LengthData, MetalTone, MetalMaster, GoldKarat, DiamondCaratSize, DiamondShape} = initModels(req);
     const { setting_style, user_id } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        
-        return company_info_id;
-    }
     
     const findSettingStyle = await SettingTypeData.findOne({
-      where: { name: setting_style, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id: company_info_id?.data },
+      where: { name: setting_style, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, },
     });
 
     if(!(findSettingStyle && findSettingStyle?.dataValues)){
       return resUnprocessableEntity({ message: prepareMessageFromParams(DATA_NOT_FOUND, [["field_name", "Setting Style"]]) });
     }
 
-      const products: any = await req.body.db_connection.query(
+      const products: any = await dbContext.query(
         `SELECT
     P.ID,
     P.NAME,
@@ -8300,7 +8076,6 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
     IS_CHOOSE_SETTING = '${ActiveStatus.Active}' AND
     P.IS_3D_PRODUCT IS TRUE AND
     P.setting_style_type = '${findSettingStyle.dataValues.id}' AND
-    p.company_info_id = ${company_info_id?.data}
     GROUP BY
     P.ID,	SUM_PRICE.TOTAL_DIAMOND_WEIGHT`,
         { type: QueryTypes.SELECT }
@@ -8324,8 +8099,7 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
         productOffers,
         value.id,
         value.PMO[0].Price,
-        req?.body?.session_res?.id_app_user,
-        req
+        req?.body?.session_res?.id_app_user
       );
       let bestProductOffer: any = null;
       let bestProductDiscount = 0;
@@ -8355,7 +8129,7 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
     }
   
       const size = await SizeData.findAll({
-        where: { company_info_id:company_info_id?.data },
+        where: {  },
         order: [
           [
             Sequelize.cast(
@@ -8383,7 +8157,6 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
           id: metalTone.flat().map((t: any) => t),
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
-          company_info_id:company_info_id?.data
         },
         attributes: [
           "id",
@@ -8392,7 +8165,7 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
           "id_metal",
           [Sequelize.literal("metal_tone_image.image_path"), "image_path"],
         ],
-        include: [{ model: Image, as: "metal_tone_image", attributes: [],where:{company_info_id:company_info_id?.data} }],
+        include: [{ model: Image, as: "metal_tone_image", attributes: [],where:{} }],
       });
   
       const metal_karat = await GoldKarat.findAll({
@@ -8400,7 +8173,6 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
           id: karat.flat().map((t: any) => t),
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
-          company_info_id:company_info_id?.data
         },
         order: [["name", "ASC"]],
         attributes: [
@@ -8409,7 +8181,7 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
           "id_metal",
           [Sequelize.literal("karat_image.image_path"), "image_path"],
         ],
-        include: [{required: false, model: Image, as: "karat_image", attributes: [],where:{company_info_id:company_info_id?.data} }],
+        include: [{required: false, model: Image, as: "karat_image", attributes: [],where:{} }],
       });
   
       const metals = await MetalMaster.findAll({
@@ -8417,21 +8189,20 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
           id: metal.flat().map((t: any) => t),
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
-          company_info_id:company_info_id?.data
         },
         attributes: ["id", "name"],
         order: [["id", "ASC"]],
       });
   
     const caratSize = await DiamondCaratSize.findAll({
-      where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, id:  products.map((valuw:any) => valuw.setting_diamond_sizes)},
+      where: { is_deleted: DeletedStatus.No, id:  products.map((value:any) => value.setting_diamond_sizes)},
       order: [["sort_code", "ASC"]],
       attributes: ["id", "value", "slug", "sort_code", [Sequelize.literal("diamond_carat_image.image_path"), "image_path"]],
       include: [{ model: Image, as: "diamond_carat_image", attributes: [] }],
      })
   
     const diamondShape = await DiamondShape.findAll({
-      where: { is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, id:  products.map((value:any) => value.setting_diamond_shapes)},
+      where: { is_deleted: DeletedStatus.No, id:  products.map((value:any) => value.setting_diamond_shapes)},
       attributes: ["id", "name", "slug", "sort_code", [Sequelize.literal("diamond_shape_image.image_path"), "image_path"]],
       include: [{ model: Image, as: "diamond_shape_image", attributes: [] }],
       order: [["id", "ASC"]],
@@ -8474,7 +8245,7 @@ export const getProductsBasedOnTheSettingStyle = async (req: any) => {
     
 export const getProductQuantityDetails = async (req: Request) => {
   try {
-    const products = await req.body.db_connection.query(
+    const products:any = await dbContext.query(
       `SELECT 
         p.id,
         p.sku,

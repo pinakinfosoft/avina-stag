@@ -1,7 +1,7 @@
 import { DATE, DOUBLE, INTEGER, NOW, STRING } from "sequelize";
+import dbContext from "../../config/db-context";
 
-export const ShippingCharge = (dbContext: any) => {
- let shippingCharge = dbContext.define(
+export const ShippingCharge = dbContext.define(
   "shipping_charges",
   {
     id: {
@@ -46,14 +46,9 @@ export const ShippingCharge = (dbContext: any) => {
     modified_by: {
       type: INTEGER,
       allowNull: true,
-    },
-    company_info_id :{ 
-      type:INTEGER
     }
   },
   {
     timestamps: false,
   }
 );
-  return shippingCharge;
-}

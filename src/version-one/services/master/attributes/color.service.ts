@@ -21,11 +21,10 @@ import {
   RECORD_DELETE_SUCCESSFULLY,
   RECORD_UPDATE_SUCCESSFULLY,
 } from "../../../../utils/app-messages";
-import { initModels } from "../../../model/index.model";
+import { Colors } from "../../../model/master/attributes/colors.model";
 
 export const addColor = async (req: Request) => {
   try {
-    const { Colors } = initModels(req);
     const { name } = req.body;
     const slug = createSlug(name);
     const payload = {
@@ -36,18 +35,18 @@ export const addColor = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findName = await Colors.findOne({
-      where: { name: name, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { name: name, is_deleted: DeletedStatus.No, },
     });
 
     if (findName && findName.dataValues) {
       return resErrorDataExit();
     }
    const colorData =  await Colors.create(payload);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         color_id: colorData?.dataValues?.id, data: {
@@ -64,7 +63,6 @@ export const addColor = async (req: Request) => {
 
 export const getColors = async (req: Request) => {
   try {
-    const { Colors } = initModels(req);
 
     let paginationProps = {};
 
@@ -76,8 +74,8 @@ export const getColors = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -85,7 +83,7 @@ export const getColors = async (req: Request) => {
               { name: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -120,10 +118,9 @@ export const getColors = async (req: Request) => {
 
 export const getByIdColor = async (req: Request) => {
   try {
-    const { Colors } = initModels(req);
 
     const findColor = await Colors.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findColor && findColor.dataValues)) {
@@ -137,13 +134,12 @@ export const getByIdColor = async (req: Request) => {
 
 export const updateColor = async (req: Request) => {
   try {
-    const { Colors } = initModels(req);
 
     const { name } = req.body;
     const id = req.params.id;
     const slug = createSlug(name);
     const findColor = await Colors.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findColor && findColor.dataValues)) {
@@ -154,7 +150,7 @@ export const updateColor = async (req: Request) => {
         name: name,
         id: { [Op.ne]: id },
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id
+        
       },
     });
 
@@ -169,13 +165,13 @@ export const updateColor = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
 
     const afterUpdatefindColor = await Colors.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { color_id: findColor?.dataValues?.id, data: findColor?.dataValues },
       new_data: {
         color_id: afterUpdatefindColor?.dataValues?.id, data: { ...afterUpdatefindColor?.dataValues }
@@ -190,10 +186,9 @@ export const updateColor = async (req: Request) => {
 
 export const deleteColor = async (req: Request) => {
   try {
-    const { Colors } = initModels(req);
 
     const findColor = await Colors.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findColor && findColor.dataValues)) {
@@ -205,10 +200,10 @@ export const deleteColor = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findColor.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findColor.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { color_id: findColor?.dataValues?.id, data: {...findColor?.dataValues} },
       new_data: {
         color_id: findColor?.dataValues?.id, data: {
@@ -227,10 +222,9 @@ export const deleteColor = async (req: Request) => {
 
 export const statusUpdateForColor = async (req: Request) => {
   try {
-    const { Colors } = initModels(req);
 
     const findColors = await Colors.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (findColors) {
       const ColorsActionInfo = await Colors.update(
@@ -239,11 +233,11 @@ export const statusUpdateForColor = async (req: Request) => {
           modified_date: getLocalDate(),
           modified_by: req.body.session_res.id_app_user,
         },
-        { where: { id: findColors.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+        { where: { id: findColors.dataValues.id, } }
       );
       if (ColorsActionInfo) {
 
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: { color_id: findColors?.dataValues?.id, data: {...findColors?.dataValues} },
           new_data: {
             color_id: findColors?.dataValues?.id, data: {

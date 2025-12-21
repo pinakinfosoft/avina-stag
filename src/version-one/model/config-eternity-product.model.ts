@@ -1,13 +1,15 @@
 import { BIGINT, DATE, DOUBLE, INTEGER, STRING } from "sequelize";
-import {DiamondGroupMaster} from "./master/attributes/diamond-group-master.model";
-import {SideSettingStyles} from "./master/attributes/side-setting-styles.model";
-import {DiamondShape} from "./master/attributes/diamondShape.model";
-import {ClarityData} from "./master/attributes/clarity.model";
-import {Colors} from "./master/attributes/colors.model";
-import {CutsData} from "./master/attributes/cuts.model";
+import dbContext from "../../config/db-context";
+import { DiamondGroupMaster } from "./master/attributes/diamond-group-master.model";
+import { SideSettingStyles } from "./master/attributes/side-setting-styles.model";
+import { DiamondShape } from "./master/attributes/diamondShape.model";
+import { ClarityData } from "./master/attributes/clarity.model";
+import { Colors } from "./master/attributes/colors.model";
+import { CutsData } from "./master/attributes/cuts.model";
+import { ConfigEternityProductMetalDetail } from "./config-eternity-product-metals.model";
+import { ConfigEternityProductDiamondDetails } from "./config-eternity-product-diamonds.model";
 
-export const ConfigEternityProduct = (dbContext) => {
-let configEternityProduct = dbContext.define("config_eternity_products", {
+export const ConfigEternityProduct = dbContext.define("config_eternity_products", {
   id: {
     type: BIGINT,
     primaryKey: true,
@@ -105,10 +107,44 @@ let configEternityProduct = dbContext.define("config_eternity_products", {
   },
   id_stone: {
     type: BIGINT,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return configEternityProduct
-};
+
+// Associations
+ConfigEternityProduct.belongsTo(DiamondGroupMaster, {
+  foreignKey: "diamond_group_id",
+  as: "DiamondGroupMaster",
+});
+ConfigEternityProduct.hasOne(ClarityData, {
+  as: "diamond_clarity",
+  foreignKey: "id",
+  sourceKey: "dia_clarity_id",
+});
+ConfigEternityProduct.hasOne(Colors, {
+  as: "diamond_color",
+  foreignKey: "id",
+  sourceKey: "dia_color",
+});
+ConfigEternityProduct.hasOne(DiamondShape, {
+  as: "diamond_shape",
+  foreignKey: "id",
+  sourceKey: "dia_shape_id",
+});
+ConfigEternityProduct.hasOne(CutsData, {
+  as: "diamond_cut",
+  foreignKey: "id",
+  sourceKey: "dia_cut_id",
+});
+ConfigEternityProduct.hasOne(SideSettingStyles, {
+  as: "side_setting",
+  foreignKey: "id",
+  sourceKey: "side_setting_id",
+});
+ConfigEternityProduct.hasOne(ConfigEternityProductMetalDetail, {
+  foreignKey: "config_eternity_id",
+  as: "metal",
+});
+ConfigEternityProduct.hasOne(ConfigEternityProductDiamondDetails, {
+  foreignKey: "config_eternity_product_id",
+  as: "diamonds",
+});

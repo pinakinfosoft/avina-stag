@@ -1,13 +1,13 @@
 import { DATE, DOUBLE, INTEGER, STRING } from "sequelize";
- "../../config/db-context";
-import {Image} from "./image.model";
-import {Collection} from "./master/attributes/collection.model";
-import {SettingTypeData} from "./master/attributes/settingType.model";
-import {DiamondShape} from "./master/attributes/diamondShape.model";
-import {Product} from "./product.model";
+import dbContext from "../../config/db-context";
+import { Image } from "./image.model";
+import { Collection } from "./master/attributes/collection.model";
+import { SettingTypeData } from "./master/attributes/settingType.model";
+import { DiamondShape } from "./master/attributes/diamondShape.model";
+import { Product } from "./product.model";
 import { CategoryData } from "./category.model";
-export const TemplateSixData = (dbContext) => {
-  let templateSixData = dbContext.define("template_six", {
+
+export const TemplateSixData = dbContext.define("template_six", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -97,13 +97,54 @@ export const TemplateSixData = (dbContext) => {
   id_product: {
     type: INTEGER,
   },
-  company_info_id: {
-    type: INTEGER
-  },
   mobile_banner_image: {
     type: INTEGER
   }
 });
 
-  return templateSixData;
-};
+// Associations
+TemplateSixData.hasOne(Image, {
+  as: "image",
+  foreignKey: "id",
+  sourceKey: "id_image",
+});
+TemplateSixData.hasOne(Image, {
+  as: "mobile_image",
+  foreignKey: "id",
+  sourceKey: "mobile_banner_image",
+});
+TemplateSixData.hasOne(Image, {
+  as: "hover_image",
+  foreignKey: "id",
+  sourceKey: "id_hover_image",
+});
+TemplateSixData.hasOne(Image, {
+  as: "title_image",
+  foreignKey: "id",
+  sourceKey: "id_title_image",
+});
+TemplateSixData.hasOne(CategoryData, {
+  as: "category",
+  foreignKey: "id",
+  sourceKey: "id_category",
+});
+TemplateSixData.hasOne(Product, {
+  as: "product",
+  foreignKey: "id",
+  sourceKey: "id_product",
+});
+TemplateSixData.hasOne(Collection, {
+  as: "collection",
+  foreignKey: "id",
+  sourceKey: "id_collection",
+});
+TemplateSixData.hasOne(SettingTypeData, {
+  as: "style",
+  foreignKey: "id",
+  sourceKey: "id_style",
+});
+TemplateSixData.hasOne(DiamondShape, {
+  as: "diamond_shape",
+  foreignKey: "id",
+  sourceKey: "id_diamond_shape",
+});

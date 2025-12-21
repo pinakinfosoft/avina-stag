@@ -4,12 +4,11 @@ import { IQueryPagination } from "../../data/interfaces/common/common.interface"
 import { ActiveStatus, DeletedStatus, LogsActivityType, LogsType, Pagination } from "../../utils/app-enumeration";
 import { DEFAULT_STATUS_CODE_SUCCESS, RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
 import { addActivityLogs, getCompanyIdBasedOnTheCompanyKey, getInitialPaginationFromQuery, getLocalDate, resErrorDataExit, resNotFound, resSuccess } from "../../utils/shared-functions";
-import { initModels } from "../model/index.model";
+import { StaticPageData } from "../model/static_page.model";
 
 export const addStaticPage = async (req: Request) => {
   const { name, slug, content, created_by } = req.body
   try {
-    const { StaticPageData } = initModels(req);
     const payload = {
       page_title: name,
       slug: slug,
@@ -18,14 +17,13 @@ export const addStaticPage = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id: req.body.session_res.client_id
     }
-    const StaticPageNameExistes = await StaticPageData.findOne({ where: { page_title: name, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id } })
-    const StaticPageSlugExistes = await StaticPageData.findOne({ where: { slug: slug, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id } })
+    const StaticPageNameExistes = await StaticPageData.findOne({ where: { page_title: name, is_deleted: DeletedStatus.No } })
+    const StaticPageSlugExistes = await StaticPageData.findOne({ where: { slug: slug, is_deleted: DeletedStatus.No } })
 
     if (StaticPageNameExistes === null && StaticPageSlugExistes == null) {
       const result = await StaticPageData.create(payload)
-      await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           static_page_id: result?.dataValues?.id, data: {
@@ -45,7 +43,6 @@ export const addStaticPage = async (req: Request) => {
 
 export const getAllStaticPages = async (req: Request) => {
   try {
-    const { StaticPageData } = initModels(req);
     let paginationProps = {};
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -54,7 +51,6 @@ export const getAllStaticPages = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      { company_info_id: req.body.session_res.client_id },
       {
         [Op.or]: [
           { page_title: { [Op.iLike]: "%" + pagination.search_text + "%" } },
@@ -107,7 +103,6 @@ export const getAllStaticPages = async (req: Request) => {
 
 export const getByIdStaticPage = async (req: Request) => {
   try {
-    const { StaticPageData } = initModels(req);
 
     const StaticPage = await StaticPageData.findOne({ where: { id: req.params.id, is_deleted: DeletedStatus.No } });
 
@@ -122,13 +117,12 @@ export const getByIdStaticPage = async (req: Request) => {
 
 export const updateStaticPages = async (req: Request) => {
   const { id, name, slug, content, updated_by } = req.body
-  const { StaticPageData } = initModels(req);
   try {
-    const staticPageId = await StaticPageData.findOne({ where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id } })
+    const staticPageId = await StaticPageData.findOne({ where: { id: id, is_deleted: DeletedStatus.No } })
 
     if (staticPageId) {
-      const staticPageExists = await StaticPageData.findOne({ where: { page_title: name, id: { [Op.ne]: id }, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id } });
-      const staticPageSlugExists = await StaticPageData.findOne({ where: { slug: slug, id: { [Op.ne]: id }, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id } });
+      const staticPageExists = await StaticPageData.findOne({ where: { page_title: name, id: { [Op.ne]: id }, is_deleted: DeletedStatus.No } });
+      const staticPageSlugExists = await StaticPageData.findOne({ where: { slug: slug, id: { [Op.ne]: id }, is_deleted: DeletedStatus.No } });
 
       if (staticPageExists == null && staticPageSlugExists == null) {
         const StaticPageInfo = await (StaticPageData.update(
@@ -142,10 +136,10 @@ export const updateStaticPages = async (req: Request) => {
           { where: { id: id, is_deleted: DeletedStatus.No } }
         ));
         if (StaticPageInfo) {
-          const StaticPageInformation = await StaticPageData.findOne({ where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id } })
+          const StaticPageInformation = await StaticPageData.findOne({ where: { id: id, is_deleted: DeletedStatus.No } })
 
 
-          await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+          await addActivityLogs([{
             old_data: { static_page_id: staticPageId?.dataValues?.id, data: staticPageId?.dataValues },
             new_data: {
               static_page_id: StaticPageInformation?.dataValues?.id, data: { ...StaticPageInformation?.dataValues }
@@ -170,7 +164,6 @@ export const updateStaticPages = async (req: Request) => {
 export const deleteStaticPage = async (req: Request) => {
 
   try {
-    const { StaticPageData } = initModels(req);
 
     const StaticPageExists = await StaticPageData.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No } });
 
@@ -185,7 +178,7 @@ export const deleteStaticPage = async (req: Request) => {
       },
       { where: { id: StaticPageExists.dataValues.id } }
     );
-    await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+    await addActivityLogs([{
       old_data: { static_page_id: StaticPageExists?.dataValues?.id, data: { ...StaticPageExists?.dataValues } },
       new_data: {
         static_page_id: StaticPageExists?.dataValues?.id, data: {
@@ -204,7 +197,6 @@ export const deleteStaticPage = async (req: Request) => {
 
 export const statusUpdateStaticPage = async (req: Request) => {
   try {
-    const { StaticPageData } = initModels(req);
 
     const StaticPageExists = await StaticPageData.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No } });
     if (StaticPageExists) {
@@ -218,7 +210,7 @@ export const statusUpdateStaticPage = async (req: Request) => {
       ));
       if (StaticPageActionInfo) {
 
-        await addActivityLogs(req, req?.body?.session_res?.client_id, [{
+        await addActivityLogs([{
           old_data: { static_page_id: StaticPageExists?.dataValues?.id, data: { ...StaticPageExists?.dataValues } },
           new_data: {
             static_page_id: StaticPageExists?.dataValues?.id, data: {
@@ -241,15 +233,10 @@ export const statusUpdateStaticPage = async (req: Request) => {
 
 export const getByslugStaticPageUser = async (req: Request) => {
   try {
-    const { StaticPageData } = initModels(req);
 
     const { slug } = req.body
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-    if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-      return company_info_id;
-    }
     const StaticPage = await StaticPageData.findOne({
-      where: { slug: slug, is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id: company_info_id?.data },
+      where: { slug: slug, is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       attributes: ["id", "page_title", "slug", "content", "created_date"]
     });
 

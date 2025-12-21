@@ -27,11 +27,11 @@ import {
 } from "../../utils/app-enumeration";
 import { TResponseReturn } from "../../data/interfaces/common/common.interface";
 import { LOG_FOR_SUPER_ADMIN } from "../../utils/app-constants";
-import { initModels } from "../model/index.model";
+import { ProductBulkUploadFile } from "../model/product-bulk-upload-file.model";
+import { RoleApiPermission } from "../model/role-api-permission.model";
 const readXlsxFile = require("read-excel-file/node");
 export const addRoleAPIPermissionCSVFile = async (req: Request) => {
   try {
-    const { ProductBulkUploadFile } = initModels(req);
     if (!req.file) {
       return resUnprocessableEntity({
         message: FILE_NOT_FOUND,
@@ -55,7 +55,6 @@ export const addRoleAPIPermissionCSVFile = async (req: Request) => {
       req.file.destination,
       PRODUCT_CSV_FOLDER_PATH,
       req.file.originalname,
-      req
     );
 
     if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -67,7 +66,6 @@ export const addRoleAPIPermissionCSVFile = async (req: Request) => {
       status: FILE_STATUS.Uploaded,
       file_type: FILE_BULK_UPLOAD_TYPE.DiamondGroupUpload,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
 
@@ -75,8 +73,6 @@ export const addRoleAPIPermissionCSVFile = async (req: Request) => {
       resPBUF.dataValues.id,
       resMFTL.data,
       req.body.session_res.id_app_user,
-      req?.body?.session_res?.client_id,
-      req
     );
 
     return resSuccess({ data: resPDBUF });
@@ -101,12 +97,9 @@ const processRoleAPIPermissionBulkUploadFile = async (
   id: number,
   path: string,
   idAppUser: number,
-  clientId: number,
-  req: Request
 ) => {
-  const { ProductBulkUploadFile } = initModels(req);
   try {
-    const data = await processCSVFile(path, idAppUser,clientId, req);
+    const data = await processCSVFile(path, idAppUser);
     console.log("datas", data);
     if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       await ProductBulkUploadFile.update(
@@ -146,7 +139,7 @@ const processRoleAPIPermissionBulkUploadFile = async (
     } catch (e) {}
   }
 };
-const getArrayOfRowsFromCSVFile = async (path: string,client_id:number) => {
+const getArrayOfRowsFromCSVFile = async (path: string) => {
   return await new Promise<TResponseReturn>((resolve, reject) => {
     try {
       let results: any = [];
@@ -170,7 +163,6 @@ const getArrayOfRowsFromCSVFile = async (path: string,client_id:number) => {
               id_action: row[1],
               api_endpoint: row[2],
               http_method: row[3],
-              company_info_id :client_id,
             };
 
             batchSize++;
@@ -187,9 +179,9 @@ const getArrayOfRowsFromCSVFile = async (path: string,client_id:number) => {
     }
   });
 };
-const processCSVFile = async (path: string, idAppUser: number,clientId:number, req: Request) => {
+const processCSVFile = async (path: string, idAppUser: number) => {
   try {
-    const resRows = await getArrayOfRowsFromCSVFile(path,clientId);
+    const resRows = await getArrayOfRowsFromCSVFile(path);
     if (resRows.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resRows;
     }
@@ -199,7 +191,7 @@ const processCSVFile = async (path: string, idAppUser: number,clientId:number, r
       return resVH;
     }
 
-    const resAPTD = await addGroupToDB(resRows.data.results, idAppUser, req);
+        const resAPTD = await addGroupToDB(resRows.data.results, idAppUser);
     if (resAPTD.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resAPTD;
     }
@@ -242,11 +234,10 @@ const validateHeaders = async (headers: string[]) => {
   return resSuccess();
 };
 
-const addGroupToDB = async (list: any, idAppUser: number, req: Request) => {
+const addGroupToDB = async (list: any, idAppUser: number) => {
   try {
-    const { RoleApiPermission } = initModels(req);
     const data = await RoleApiPermission.bulkCreate(list);
-    await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         data:data.map((t)=>t.dataValues),

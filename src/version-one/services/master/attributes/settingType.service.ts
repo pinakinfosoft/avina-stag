@@ -26,18 +26,19 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../utils/shared-functions";
-import { initModels } from "../../../model/index.model";
+import { SettingTypeData } from "../../../model/master/attributes/settingType.model";
+import { Image } from "../../../model/image.model";
+import dbContext from "../../../../config/db-context";
 
 export const addSettingType = async (req: Request) => {
   try {
-    const {SettingTypeData} = initModels(req);
     const { name, sort_code } = req.body;
     const slug = createSlug(name);
     const findName = await SettingTypeData.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -45,7 +46,7 @@ export const addSettingType = async (req: Request) => {
       where: [
         columnValueLowerCase("sort_code", sort_code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -54,17 +55,17 @@ export const addSettingType = async (req: Request) => {
     ) {
       return resErrorDataExit();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       let idImage = null;
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.settingType,
           req.body.session_res.id_app_user,
           "",
-          req?.body?.session_res?.client_id
+          
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           trn.rollback();
@@ -78,7 +79,7 @@ export const addSettingType = async (req: Request) => {
         sort_code: sort_code,
         created_date: getLocalDate(),
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
+        
         id_image: idImage,
         is_active: ActiveStatus.Active,
         is_deleted: DeletedStatus.No,
@@ -86,7 +87,7 @@ export const addSettingType = async (req: Request) => {
 
       const settingType = await SettingTypeData.create(payload, { transaction: trn });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           setting_type_id: settingType?.dataValues?.id, data: {
@@ -108,7 +109,6 @@ export const addSettingType = async (req: Request) => {
 
 export const getSettingTypes = async (req: Request) => {
   try {
-    const {SettingTypeData,Image} = initModels(req);
 
     let paginationProps = {};
 
@@ -120,8 +120,8 @@ export const getSettingTypes = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -129,7 +129,7 @@ export const getSettingTypes = async (req: Request) => {
               { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -161,7 +161,7 @@ export const getSettingTypes = async (req: Request) => {
         [Sequelize.literal("setting_type_image.image_path"), "image_path"],
         "is_active",
       ],
-      include: [{ model: Image, as: "setting_type_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "setting_type_image", attributes: [],required:false }],
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -172,10 +172,9 @@ export const getSettingTypes = async (req: Request) => {
 
 export const getByIdSettingType = async (req: Request) => {
   try {
-    const {SettingTypeData,Image} = initModels(req);
 
     const findSetting = await SettingTypeData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
       attributes: [
         "id",
         "name",
@@ -186,7 +185,7 @@ export const getByIdSettingType = async (req: Request) => {
         "is_active",
         "created_by",
       ],
-      include: [{ model: Image, as: "setting_type_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "setting_type_image", attributes: [],required:false }],
     });
 
     if (!(findSetting && findSetting.dataValues)) {
@@ -201,13 +200,12 @@ export const getByIdSettingType = async (req: Request) => {
 
 export const updateSettingType = async (req: Request) => {
   try {
-    const {SettingTypeData,Image} = initModels(req);
 
     const { name, sort_code, image_delete = "0" } = req.body;
     const id = req.params.id;
     const slug = createSlug(name);
     const findSettingType = await SettingTypeData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findSettingType && findSettingType.dataValues)) {
       return resNotFound();
@@ -217,7 +215,7 @@ export const updateSettingType = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -226,7 +224,7 @@ export const updateSettingType = async (req: Request) => {
         columnValueLowerCase("sort_code", sort_code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -235,23 +233,23 @@ export const updateSettingType = async (req: Request) => {
     ) {
       return resErrorDataExit();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findSettingType.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findSettingType.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: findSettingType.dataValues.id_image, },
           transaction: trn,
         });
       }
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.settingType,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
+          
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -274,19 +272,19 @@ export const updateSettingType = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
         },
         {
-          where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: id, is_deleted: DeletedStatus.No, },
           transaction: trn,
         }
       );
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage);
       }
 
       const afterUpdatefindSettingType = await SettingTypeData.findOne({
         where: { id: id, is_deleted: DeletedStatus.No },transaction:trn
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { setting_type_id: findSettingType?.dataValues?.id, data: {...findSettingType?.dataValues} },
         new_data: {
           setting_type_id: afterUpdatefindSettingType?.dataValues?.id, data: { ...afterUpdatefindSettingType?.dataValues }
@@ -306,10 +304,9 @@ export const updateSettingType = async (req: Request) => {
 
 export const deleteSettingType = async (req: Request) => {
   try {
-    const {SettingTypeData} = initModels(req);
 
     const findSetting = await SettingTypeData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findSetting && findSetting.dataValues)) {
@@ -321,9 +318,9 @@ export const deleteSettingType = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findSetting.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSetting.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { setting_type_id: findSetting?.dataValues?.id, data: {...findSetting?.dataValues} },
       new_data: {
         setting_type_id: findSetting?.dataValues?.id, data: {
@@ -342,10 +339,9 @@ export const deleteSettingType = async (req: Request) => {
 
 export const statusUpdateForSettingType = async (req: Request) => {
   try {
-    const {SettingTypeData} = initModels(req);
 
     const findSetting = await SettingTypeData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findSetting && findSetting.dataValues)) {
       return resNotFound();
@@ -356,9 +352,9 @@ export const statusUpdateForSettingType = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findSetting.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findSetting.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { setting_type_id: findSetting?.dataValues?.id, data: {...findSetting?.dataValues} },
       new_data: {
         setting_type_id: findSetting?.dataValues?.id, data: {

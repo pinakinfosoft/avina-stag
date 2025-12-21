@@ -27,11 +27,12 @@ import {
   RECORD_DELETE_SUCCESSFULLY,
   RECORD_UPDATE_SUCCESSFULLY,
 } from "../../../../utils/app-messages";
-import { initModels } from "../../../model/index.model";
+import { DiamondCaratSize } from "../../../model/master/attributes/caratSize.model";
+import { Image } from "../../../model/image.model";
+import dbContext from "../../../../config/db-context";
 
 export const addCaratSize = async (req: Request) => {
   try {
-    const {DiamondCaratSize,Image} = initModels(req);
     const { value } = req.body;
     const slug = createSlug(value);
     const sort_code_value = Math.round(parseFloat(value) * 100);
@@ -39,22 +40,22 @@ export const addCaratSize = async (req: Request) => {
       where: [
         columnValueLowerCase("value", value),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id}
+        {}
       ],
     });
     if (caratSizeValue && caratSizeValue.dataValues) {
       return resErrorDataExit();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let idImage = null;
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.caratSize,
           req.body.session_res.id_app_user,
           "",
-          req?.body?.session_res?.client_id
+          
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           trn.rollback();
@@ -72,12 +73,12 @@ export const addCaratSize = async (req: Request) => {
         is_active: ActiveStatus.Active,
         is_deleted: DeletedStatus.No,
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
+        
       };
 
       const DiamondCaratSizeData = await DiamondCaratSize.create(payload, { transaction: trn });
       
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           diamond_carat_size_id: DiamondCaratSizeData?.dataValues?.id, data: {
@@ -99,7 +100,6 @@ export const addCaratSize = async (req: Request) => {
 
 export const getCaratSizes = async (req: Request) => {
   try {
-    const { DiamondCaratSize,Image } = initModels(req);
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
     };
@@ -108,8 +108,8 @@ export const getCaratSizes = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       {
         [Op.or]: [
           { value: { [Op.iLike]: "%" + pagination.search_text + "%" } },
@@ -157,7 +157,7 @@ export const getCaratSizes = async (req: Request) => {
         "id_image",
         [Sequelize.literal("diamond_carat_image.image_path"), "image_path"],
       ],
-      include: [{ model: Image, as: "diamond_carat_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "diamond_carat_image", attributes: [],required:false }],
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -168,9 +168,8 @@ export const getCaratSizes = async (req: Request) => {
 
 export const getByIdCaratSize = async (req: Request) => {
   try {
-    const { DiamondCaratSize } = initModels(req);
     const findCaratSize = await DiamondCaratSize.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCaratSize && findCaratSize.dataValues)) {
@@ -184,13 +183,12 @@ export const getByIdCaratSize = async (req: Request) => {
 
 export const updateCaratSize = async (req: Request) => {
   try {
-    const { DiamondCaratSize,Image } = initModels(req);
     const { value, image_delete = "0" } = req.body;
 
     const sort_code_value = Math.round(parseFloat(value) * 100);
     const slug = createSlug(value);
     const findCaratSize = await DiamondCaratSize.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCaratSize && findCaratSize.dataValues)) {
       return resNotFound();
@@ -200,7 +198,7 @@ export const updateCaratSize = async (req: Request) => {
         columnValueLowerCase("value", value),
         { id: { [Op.ne]: req.params.id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id}
+        {}
       ],
     });
 
@@ -208,23 +206,23 @@ export const updateCaratSize = async (req: Request) => {
       return resErrorDataExit();
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findCaratSize.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findCaratSize.dataValues.id_image ,company_info_id :req?.body?.session_res?.client_id},
+          where: { id: findCaratSize.dataValues.id_image ,},
           transaction: trn,
         });
       }
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.caratSize,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
+          
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -246,18 +244,18 @@ export const updateCaratSize = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
         },
         {
-          where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: req.params.id, is_deleted: DeletedStatus.No, },
           transaction: trn,
         }
       );
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3((req.body.db_connection),findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage,);
       }
       const AfterUpdatefindCaratSize = await DiamondCaratSize.findOne({
-        where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },transaction:trn 
+        where: { id: req.params.id, is_deleted: DeletedStatus.No, },transaction:trn 
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { diamond_carat_size_id: findCaratSize?.dataValues?.id, data: {...findCaratSize?.dataValues} },
         new_data: {
           diamond_carat_size_id: AfterUpdatefindCaratSize?.dataValues?.id, data: { ...AfterUpdatefindCaratSize?.dataValues }
@@ -279,9 +277,8 @@ export const updateCaratSize = async (req: Request) => {
 
 export const deleteCaratSize = async (req: Request) => {
   try {
-    const { DiamondCaratSize } = initModels(req);
     const findCaratSize = await DiamondCaratSize.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCaratSize && findCaratSize.dataValues)) {
@@ -293,9 +290,9 @@ export const deleteCaratSize = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findCaratSize.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCaratSize.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { diamond_carat_size_id: findCaratSize?.dataValues?.id, data: {...findCaratSize?.dataValues }},
       new_data: {
         diamond_carat_size_id: findCaratSize?.dataValues?.id, data: {
@@ -315,9 +312,8 @@ export const deleteCaratSize = async (req: Request) => {
 
 export const statusUpdateForCaratSize = async (req: Request) => {
   try {
-    const { DiamondCaratSize } = initModels(req);
     const findCaratSize = await DiamondCaratSize.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCaratSize && findCaratSize.dataValues)) {
       return resNotFound();
@@ -328,9 +324,9 @@ export const statusUpdateForCaratSize = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findCaratSize.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCaratSize.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { diamond_carat_size_id: findCaratSize?.dataValues?.id, data: {...findCaratSize?.dataValues} },
       new_data: {
         diamond_carat_size_id: findCaratSize?.dataValues?.id, data: {

@@ -1,8 +1,9 @@
 import { DATE, INTEGER, STRING } from "sequelize";
-import {Action} from "./action.model";
+import dbContext from "../../config/db-context";
+import { Action } from "./action.model";
+import { RolePermission } from "./role-permission.model";
 
-export const RolePermissionAccess = (dbContext: any) => {
-  let rolePermissionAccess = dbContext.define("role_permission_accesses", {
+export const RolePermissionAccess = dbContext.define("role_permission_accesses", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -28,10 +29,15 @@ export const RolePermissionAccess = (dbContext: any) => {
   },
   modified_date: {
     type: DATE,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return rolePermissionAccess;
-}
+
+// Associations
+RolePermissionAccess.belongsTo(RolePermission, {
+  foreignKey: "id_role_permission",
+  as: "RP",
+});
+RolePermissionAccess.belongsTo(Action, {
+  foreignKey: 'id_action',
+  as: 'action',
+});

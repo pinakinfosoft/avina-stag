@@ -1,8 +1,8 @@
-import { INTEGER, STRING, DATE, DOUBLE } from "sequelize";
+import { INTEGER, STRING, DATE } from "sequelize";
+import dbContext from "../../../../config/db-context";
+import { ProductMetalOption } from "../../../product-metal-option.model";
 
-export const LengthData = (dbContext: any) => { 
-  
-let lengthData = dbContext.define("items_lengths", {
+export const LengthData = dbContext.define("items_lengths", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -36,10 +36,11 @@ let lengthData = dbContext.define("items_lengths", {
   },
   is_deleted: {
     type: STRING,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return lengthData;
-}
+
+// Associations
+LengthData.hasMany(ProductMetalOption, {
+  foreignKey: "id_length",
+  as: "PMO",
+});

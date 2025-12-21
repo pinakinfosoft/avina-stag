@@ -17,17 +17,15 @@ import {
   RECORD_DELETE_SUCCESSFULLY,
   RECORD_UPDATE_SUCCESSFULLY,
 } from "../../utils/app-messages";
-import { initModels } from "../model/index.model";
+import { FAQData } from "../model/faq-question-answer.model";
 
 export const addFAQCategory = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
     const { category_name, sort_order } = req.body;
     const findCategory = await FAQData.findOne({
       where: [
         columnValueLowerCase("category_name", category_name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
       ],
     });
     if (findCategory && findCategory.dataValues) {
@@ -41,10 +39,9 @@ export const addFAQCategory = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         faq_id: category?.dataValues?.id, data: {
@@ -61,7 +58,6 @@ export const addFAQCategory = async (req: Request) => {
 
 export const getAllFAQCategory = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     let paginationProps = {};
 
@@ -73,11 +69,10 @@ export const getAllFAQCategory = async (req: Request) => {
 
     let where = [
       { category_name: { [Op.not]: null } },
-      {company_info_id :req?.body?.session_res?.client_id},
       !noPagination
         ? { is_deleted: DeletedStatus.No }
         : { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -89,7 +84,7 @@ export const getAllFAQCategory = async (req: Request) => {
               { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -131,10 +126,9 @@ export const getAllFAQCategory = async (req: Request) => {
 
 export const getByIdFAQCategory = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     const result = await FAQData.findOne({
-      where: { is_deleted: DeletedStatus.No, id: req.params.id,company_info_id :req?.body?.session_res?.client_id, },
+      where: { is_deleted: DeletedStatus.No, id: req.params.id, },
       attributes: [
         "id",
         "category_name",
@@ -153,12 +147,11 @@ export const getByIdFAQCategory = async (req: Request) => {
 
 export const updateFAQCategory = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     const { category_name, sort_order } = req.body;
 
     const findCategory = await FAQData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id, },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCategory && findCategory.dataValues)) {
       return resNotFound();
@@ -167,8 +160,7 @@ export const updateFAQCategory = async (req: Request) => {
       where: [
         columnValueLowerCase("category_name", category_name),
         { is_deleted: DeletedStatus.No },
-        { id: { [Op.ne]: req.params.id } },
-        {company_info_id :req?.body?.session_res?.client_id}
+        { id: { [Op.ne]: req.params.id } }
       ],
     });
     if (sameDataFind && sameDataFind.dataValues) {
@@ -183,12 +175,12 @@ export const updateFAQCategory = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findCategory.dataValues.id,company_info_id :req?.body?.session_res?.client_id, } }
+      { where: { id: findCategory.dataValues.id, } }
     );
     const afterupdatefindCategory = await FAQData.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { faq_id: findCategory?.dataValues?.id, data: {...findCategory?.dataValues}},
       new_data: {
         faq_id: afterupdatefindCategory?.dataValues?.id, data: { ...afterupdatefindCategory?.dataValues }
@@ -203,7 +195,6 @@ export const updateFAQCategory = async (req: Request) => {
 
 export const addFAQQuestionAnswer = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     const { id_category, question, answer, sort_order } = req.body;
 
@@ -215,10 +206,9 @@ export const addFAQQuestionAnswer = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         faq_id: category?.dataValues?.id, data: {
@@ -235,7 +225,6 @@ export const addFAQQuestionAnswer = async (req: Request) => {
 
 export const getAllFAQQuestionAnswer = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     let paginationProps = {};
 
@@ -248,8 +237,7 @@ export const getAllFAQQuestionAnswer = async (req: Request) => {
     let where = [
       { category_name: { [Op.eq]: null } },
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -261,7 +249,7 @@ export const getAllFAQQuestionAnswer = async (req: Request) => {
               { answer: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -295,7 +283,7 @@ export const getAllFAQQuestionAnswer = async (req: Request) => {
         "sort_order",
         [Sequelize.literal(`"FAQ_category"."category_name"`), "category_name"],
       ],
-      include: [{ model: FAQData, as: "FAQ_category", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: FAQData, as: "FAQ_category", attributes: [],required:false }],
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -306,10 +294,9 @@ export const getAllFAQQuestionAnswer = async (req: Request) => {
 
 export const getByIdFAQQuestionAnswer = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     const result = await FAQData.findOne({
-      where: { is_deleted: DeletedStatus.No, id: req.params.id,company_info_id :req?.body?.session_res?.client_id, },
+      where: { is_deleted: DeletedStatus.No, id: req.params.id, },
       attributes: [
         "id",
         "question",
@@ -320,7 +307,7 @@ export const getByIdFAQQuestionAnswer = async (req: Request) => {
         "sort_order",
         [Sequelize.literal(`"FAQ_category"."category_name"`), "category_name"],
       ],
-      include: [{ model: FAQData, as: "FAQ_category", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: FAQData, as: "FAQ_category", attributes: [],required:false }],
     });
 
     return resSuccess({ data: result });
@@ -331,11 +318,10 @@ export const getByIdFAQQuestionAnswer = async (req: Request) => {
 
 export const updateFAQQuestionAnswer = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     const { id_category, question, answer, sort_order } = req.body;
     const findFAQQuestionAnswer = await FAQData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
     if (!(findFAQQuestionAnswer && findFAQQuestionAnswer.dataValues)) {
       return resNotFound();
@@ -349,12 +335,12 @@ export const updateFAQQuestionAnswer = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findFAQQuestionAnswer.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findFAQQuestionAnswer.dataValues.id } }
     );
     const afterupdatefindFAQQuestionAnswer = await FAQData.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { faq_id: findFAQQuestionAnswer?.dataValues?.id, data: {...findFAQQuestionAnswer?.dataValues}},
       new_data: {
         faq_id: afterupdatefindFAQQuestionAnswer?.dataValues?.id, data: { ...afterupdatefindFAQQuestionAnswer?.dataValues }
@@ -369,10 +355,9 @@ export const updateFAQQuestionAnswer = async (req: Request) => {
 
 export const deleteFAQSection = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     const findFAQSection = await FAQData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findFAQSection && findFAQSection.dataValues)) {
@@ -384,10 +369,10 @@ export const deleteFAQSection = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findFAQSection.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findFAQSection.dataValues.id } }
     );
 
-     await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+     await addActivityLogs([{
           old_data: { faq_id: findFAQSection?.dataValues?.id, data: {...findFAQSection?.dataValues}},
           new_data: {
             faq_id: findFAQSection?.dataValues?.id, data: {
@@ -406,10 +391,9 @@ export const deleteFAQSection = async (req: Request) => {
 
 export const statusUpdateForFAQSection = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
     const findFAQSection = await FAQData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
     if (!(findFAQSection && findFAQSection.dataValues)) {
       return resNotFound();
@@ -420,9 +404,9 @@ export const statusUpdateForFAQSection = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findFAQSection.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findFAQSection.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { faq_id: findFAQSection?.dataValues?.id, data: {...findFAQSection?.dataValues}},
       new_data: {
         faq_id: findFAQSection?.dataValues?.id, data: {
@@ -441,15 +425,10 @@ export const statusUpdateForFAQSection = async (req: Request) => {
 
 export const getAllFAQSectionForUser = async (req: Request) => {
   try {
-    const {FAQData} = initModels(req);
 
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const result = await FAQData.findAll({
       order: [["sort_order", "ASC"]],
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active,company_info_id:company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       attributes: [
         "id",
         "id_parent",

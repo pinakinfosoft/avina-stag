@@ -5,15 +5,17 @@ import { moveFileToS3ByType } from "../../helpers/file.helper";
 import { ActiveStatus, DeletedStatus, IMAGE_TYPE, LogsActivityType, LogsType } from "../../utils/app-enumeration";
 import { DEFAULT_STATUS_CODE_SUCCESS, RECORD_DELETE_SUCCESSFULLY, RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
 import { getInitialPaginationFromQuery, getLocalDate, resErrorDataExit, resNotFound, resSuccess, resBadRequest, addActivityLogs } from "../../utils/shared-functions";
-import { initModels } from "../model/index.model";
+import { HomeAboutMain } from "../model/home-about/home-about-main.model";
+import { HomeAboutSub } from "../model/home-about/home-about-sub.model";
+import { Image } from "../model/image.model";
+import dbContext from "../../config/db-context";
 
 export const addAndUpdateAboutMain = async (req: Request) => {
     const { id, sort_title, title, content, updated_by } = req.body
   try {
       
-      const {HomeAboutMain} = initModels(req);
 
-        const aboutMianId = await HomeAboutMain.findOne({where: {id: id,company_info_id :req?.body?.session_res?.client_id}});
+        const aboutMianId = await HomeAboutMain.findOne({where: {id: id}});
         if(aboutMianId) {
              await (HomeAboutMain.update(
                 {
@@ -23,11 +25,11 @@ export const addAndUpdateAboutMain = async (req: Request) => {
                   modified_date: getLocalDate(),
                   modified_by: req.body.session_res.id_app_user
                 },
-                { where: { id: id,company_info_id :req?.body?.session_res?.client_id } }
+                { where: { id: id } }
               ));
               
-                const CityInformation = await HomeAboutMain.findOne({ where: { id: id,company_info_id :req?.body?.session_res?.client_id} })
-                addActivityLogs(req,req?.body?.session_res?.client_id,[{
+                const CityInformation = await HomeAboutMain.findOne({ where: { id: id} })
+                addActivityLogs([{
                   old_data: { home_about_main_id: aboutMianId?.dataValues?.id, data: {...aboutMianId?.dataValues}},
                   new_data: {
                     home_about_main_id: CityInformation?.dataValues?.id, data: { ...CityInformation?.dataValues }
@@ -43,10 +45,9 @@ export const addAndUpdateAboutMain = async (req: Request) => {
             content: content,
             created_date: getLocalDate(),
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id 
           }
           const homeAboutMain =  await HomeAboutMain.create(payload)
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{
             old_data: null,
             new_data: {
               home_about_main_id: homeAboutMain?.dataValues?.id, data: {
@@ -65,7 +66,6 @@ export const addAndUpdateAboutMain = async (req: Request) => {
 
 export const getAllHomeAboutMainContent = async (req: Request) => {
   try {
-    const {HomeAboutMain} = initModels(req);
     const mainContentData = await HomeAboutMain.findAll();
     
    return resSuccess({data: mainContentData})
@@ -76,16 +76,13 @@ export const getAllHomeAboutMainContent = async (req: Request) => {
 
 export const addHomeAboutSubContent = async (req: Request) => {
   try {
-    const {HomeAboutSub,Image} = initModels(req);
     const { title, content, target_link, button_name, main_content_id, created_by } = req.body
   
       let imagePath = null;
       if (req.file) {
-        const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+        const moveFileResult = await moveFileToS3ByType(
           req.file,
           IMAGE_TYPE.homeAbout,
-          req?.body?.session_res?.client_id,
-        req
         );
   
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -95,7 +92,7 @@ export const addHomeAboutSubContent = async (req: Request) => {
         imagePath = moveFileResult.data;
       }
   
-      const trn = await (req.body.db_connection).transaction();
+      const trn = await dbContext.transaction();
   
       try {
         let idImage = null;
@@ -105,7 +102,6 @@ export const addHomeAboutSubContent = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.homeAbout,
               created_by: req.body.session_res.id_app_user,
-              company_info_id :req?.body?.session_res?.client_id,
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -120,7 +116,6 @@ export const addHomeAboutSubContent = async (req: Request) => {
           button_name: button_name,
           created_date: getLocalDate(),
           created_by: req.body.session_res.id_app_user,
-          company_info_id :req?.body?.session_res?.client_id,
           id_image: idImage,
           sort_order: 1.00,
           id_home_main: main_content_id,
@@ -135,7 +130,7 @@ export const addHomeAboutSubContent = async (req: Request) => {
           { transaction: trn }
         );
   
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             home_about_sub_content_id: homaAboutSubData?.dataValues?.id, data: {
@@ -159,14 +154,12 @@ export const addHomeAboutSubContent = async (req: Request) => {
 
   export const getAllHomeAboutSubContent = async (req: Request) => {
     try {
-      const {HomeAboutSub,Image} = initModels(req);
         let pagination: IQueryPagination = {
             ...getInitialPaginationFromQuery(req.query),
           };
       
           let where = [
             { is_deleted: DeletedStatus.No },
-            {company_info_id :req?.body?.session_res?.client_id},
             {
               [Op.or]: [
                   { title: { [Op.iLike]: "%" + pagination.search_text  + "%" } },
@@ -206,7 +199,7 @@ export const addHomeAboutSubContent = async (req: Request) => {
               "description_color",
               "created_by"
             ],
-            include: [{ model: Image, as: "image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+            include: [{ model: Image, as: "image", attributes: [],required:false }],
           });
         return resSuccess({ data: {pagination, result} })
 
@@ -218,8 +211,7 @@ export const addHomeAboutSubContent = async (req: Request) => {
 
 export const getByIdHomeAboutSubContent = async (req: Request) => {
   try {
-    const {HomeAboutSub,Image} = initModels(req);
-      const HomeAboutSubContentInfo = await HomeAboutSub.findOne({ where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },  attributes: [
+      const HomeAboutSubContentInfo = await HomeAboutSub.findOne({ where: { id: req.params.id, is_deleted: DeletedStatus.No },  attributes: [
         "title",
         "content",
         "target_link",
@@ -233,7 +225,7 @@ export const getByIdHomeAboutSubContent = async (req: Request) => {
         "is_active",
         "created_by"
       ],
-      include: [{ model: Image, as: "image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+            include: [{ model: Image, as: "image", attributes: [],required:false }],
     });
   
       if (!(HomeAboutSubContentInfo && HomeAboutSubContentInfo.dataValues)) {
@@ -252,8 +244,7 @@ export const updateHomeAboutSubContent = async (req: Request) => {
       const {id, title, content, target_link, button_name, updated_by} = req.body
     
     try {
-        const {HomeAboutSub,Image} = initModels(req);
-        const homeId = await HomeAboutSub.findOne({ where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } })
+        const homeId = await HomeAboutSub.findOne({ where: { id: id, is_deleted: DeletedStatus.No } })
       if (homeId == null) {
         return resErrorDataExit() 
       }
@@ -262,12 +253,10 @@ export const updateHomeAboutSubContent = async (req: Request) => {
   let imagePath = null;
 
   if (req.file) {
-    const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
-      req.file,
-      IMAGE_TYPE.homeAbout,
-      req?.body?.session_res?.client_id,
-        req
-    );
+        const moveFileResult = await moveFileToS3ByType(
+          req.file,
+          IMAGE_TYPE.homeAbout,
+        );
 
     if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return moveFileResult;
@@ -276,7 +265,7 @@ export const updateHomeAboutSubContent = async (req: Request) => {
     imagePath = moveFileResult.data;
   }
 
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
   try {
     if (imagePath) {
       const imageResult = await Image.create(
@@ -284,7 +273,6 @@ export const updateHomeAboutSubContent = async (req: Request) => {
           image_path: imagePath,
           image_type: IMAGE_TYPE.homeAbout,
           created_by: req.body.session_res.id_app_user,
-          company_info_id :req?.body?.session_res?.client_id,
           created_date: getLocalDate(),
         },
         { transaction: trn }
@@ -306,11 +294,11 @@ export const updateHomeAboutSubContent = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user
         },
     
-    { where: { id: homeId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },  transaction: trn  }
+    { where: { id: homeId.dataValues.id, is_deleted: DeletedStatus.No },  transaction: trn  }
   ));
   if (homeInfo) {
-    const homeInformation = await HomeAboutSub.findOne({ where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn })
-    addActivityLogs(req?.body?.session_res?.client_id,[{
+    const homeInformation = await HomeAboutSub.findOne({ where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn })
+    addActivityLogs([{
       old_data: { home_about_sub_content_id: homeId?.dataValues?.id, data: {...homeId?.dataValues}},
       new_data: {
         home_about_sub_content_id: homeInformation?.dataValues?.id, data: { ...homeInformation?.dataValues }
@@ -338,10 +326,10 @@ export const updateHomeAboutSubContent = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user
         },
     
-    { where: { id: homeId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },  transaction: trn  }
+    { where: { id: homeId.dataValues.id, is_deleted: DeletedStatus.No },  transaction: trn  }
   ));
   if (homeInfo) {
-    const homeInformation = await HomeAboutSub.findOne({ where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn })
+    const homeInformation = await HomeAboutSub.findOne({ where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn })
     await trn.commit();
     return resSuccess({data: homeInformation})
 
@@ -364,8 +352,7 @@ export const updateHomeAboutSubContent = async (req: Request) => {
   export const deleteHomeAboutSubContent = async (req: Request) => {
   
     try {
-        const {HomeAboutSub} = initModels(req);
-          const HomeAboutSubContentExists = await HomeAboutSub.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } });
+          const HomeAboutSubContentExists = await HomeAboutSub.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No } });
     
             if (!(HomeAboutSubContentExists && HomeAboutSubContentExists.dataValues)) {
               return resNotFound();
@@ -376,9 +363,9 @@ export const updateHomeAboutSubContent = async (req: Request) => {
                 modified_by: req.body.session_res.id_app_user,
                 modified_date: getLocalDate(),
               },
-              { where: { id: HomeAboutSubContentExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+              { where: { id: HomeAboutSubContentExists.dataValues.id } }
             );
-            await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+            await addActivityLogs([{
               old_data: { home_about_sub_content_id: HomeAboutSubContentExists?.dataValues?.id, data: {...HomeAboutSubContentExists?.dataValues}},
               new_data: {
                 home_about_sub_content_id: HomeAboutSubContentExists?.dataValues?.id, data: {
@@ -397,8 +384,7 @@ export const updateHomeAboutSubContent = async (req: Request) => {
     
 export const statusUpdateHomeAboutSubContent = async (req: Request) => {
   try {
-    const {HomeAboutSub} = initModels(req);
-      const HomeAboutSubContentExists = await HomeAboutSub.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } });
+      const HomeAboutSubContentExists = await HomeAboutSub.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No } });
       if (HomeAboutSubContentExists) {
           const HomeAboutSubContentActionInfo = await (HomeAboutSub.update(
               {
@@ -406,10 +392,10 @@ export const statusUpdateHomeAboutSubContent = async (req: Request) => {
                   modified_date: getLocalDate(),
                   modified_by: req.body.session_res.id_app_user
               },
-              { where: { id: HomeAboutSubContentExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+              { where: { id: HomeAboutSubContentExists.dataValues.id } }
           ));
           if (HomeAboutSubContentActionInfo) {
-            await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+            await addActivityLogs([{
               old_data: { home_about_sub_content_id: HomeAboutSubContentExists?.dataValues?.id, data: {...HomeAboutSubContentExists?.dataValues}},
               new_data: {
                 home_about_sub_content_id: HomeAboutSubContentExists?.dataValues?.id, data: {

@@ -4,15 +4,14 @@ import { addActivityLogs, getInitialPaginationFromQuery, getLocalDate, prepareMe
 import {  INVALID_MESSAGE_TYPE, MESSAGE_TYPE_MUST_BE_ARRAY, MESSAGE_VALUE_FROM_THIS_ONLY, NOTABLE_TO_INACTIVE_UNTILL_NOT_ASSIGN_OTHER_ONE, NOTABLE_TO_REMOVE_UNTILL_NOT_ASSIGN_OTHER_ONE, ONLY_ABLE_TO_TEMPLATE_EDIT_ERROR_MESSAGE, RECORD_DELETE_SUCCESSFULLY, RECORD_UPDATE_SUCCESSFULLY, TEMPLATE_CREATED_SUCCESS, TEMPLATE_NOT_FOUND, TEMPLATE_UPDATED_SUCCESS } from "../../utils/app-messages";
 import { Op } from "sequelize";
 import { LOG_FOR_SUPER_ADMIN } from "../../utils/app-constants";
-import { initModels } from "../model/index.model";
+import { EmailTemplate } from "../model/email-template.model";
+import dbContext from "../../config/db-context";
 
-const updateMessageTypesForOtherTemplates = async (templateId: string | null, message_type: any[], trn: any,client_id:number, req: Request) => {
+const updateMessageTypesForOtherTemplates = async (templateId: string | null, message_type: any[], trn: any, req: Request) => {
   try {
-    const {EmailTemplate} = initModels(req);
       const allTemplates: any = await EmailTemplate.findAll({
     where: {
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
       ...(templateId ? { id: { [Op.ne]: templateId } } : {}), // Exclude current template from being updated
     },
   });
@@ -46,15 +45,13 @@ const updateMessageTypesForOtherTemplates = async (templateId: string | null, me
   }
 };
 
-const checkIfMessageTypeAssignedElsewhere = async (messageType: number, templateId: number,client_id:number, req: Request) => {
+const checkIfMessageTypeAssignedElsewhere = async (messageType: number, templateId: number, req: Request) => {
   try {
-    const {EmailTemplate} = initModels(req);
     const templatesUsingMessageType = await EmailTemplate.findAll({
     where: {
       message_type: { [Op.contains]: [messageType] }, // Check if the message_type array contains the type
       id: { [Op.ne]: templateId }, // Exclude the current template from the check
       is_deleted: DeletedStatus.No,
-      company_info_id :client_id,
     },
   });
   return templatesUsingMessageType.length <= 0; // If the length is greater than 0, it means the message type is assigned elsewhere
@@ -68,7 +65,6 @@ export const addOrEditMailTemplate = async (req: Request) => {
   const templateId:any = req?.params?.id; // Get the template ID from URL params (if provided)
 
   try {
-    const {EmailTemplate} = initModels(req);
     const { template_name, subject, body, message_type = [], placeholders } = req.body;
     const isInvoiceRoute = (req as any).email_type; // boolean value you set
 
@@ -100,7 +96,7 @@ export const addOrEditMailTemplate = async (req: Request) => {
       validatedMessageType = message_type; // If valid, store it
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       if (templateId) {
@@ -109,7 +105,6 @@ export const addOrEditMailTemplate = async (req: Request) => {
           where: {
             id: templateId,
             is_deleted: DeletedStatus.No,
-            company_info_id :req?.body?.session_res?.client_id,
           },
           transaction: trn  // Ensure the transaction is passed correctly
         });
@@ -136,7 +131,7 @@ export const addOrEditMailTemplate = async (req: Request) => {
           );
           // Check if any of the removed types are still assigned to other templates
           for (const type of removedTypes) {
-            const isAssignedElsewhere = await checkIfMessageTypeAssignedElsewhere(type, templateId,req?.body?.session_res?.client_id, req);
+            const isAssignedElsewhere = await checkIfMessageTypeAssignedElsewhere(type, templateId, req);
             if (isAssignedElsewhere) {
               trn.rollback();
               
@@ -155,7 +150,7 @@ export const addOrEditMailTemplate = async (req: Request) => {
           const updatedMessageType = validatedMessageType;
 
           // Remove overlapping message types in other templates
-          await updateMessageTypesForOtherTemplates(templateId, validatedMessageType, trn,req?.body?.session_res?.client_id, req);
+          await updateMessageTypesForOtherTemplates(templateId, validatedMessageType, trn, req);
 
           // Update the current template with the new message type
           await existingTemplate.update(
@@ -174,7 +169,7 @@ export const addOrEditMailTemplate = async (req: Request) => {
           );
           const afterUpdateexistingTemplate = await EmailTemplate.findOne({ where: { id: req.params.id } })
 
-          await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+          await addActivityLogs([{
             old_data: { email_template_id: existingTemplate?.dataValues?.id, data: {...existingTemplate?.dataValues}},
             new_data: {
               email_template_id: afterUpdateexistingTemplate?.dataValues?.id, data: { ...afterUpdateexistingTemplate?.dataValues }
@@ -187,7 +182,7 @@ export const addOrEditMailTemplate = async (req: Request) => {
         }
       } else {
         // If no templateId, create a new template
-        await updateMessageTypesForOtherTemplates(null, validatedMessageType, trn,req?.body?.session_res?.client_id, req);
+        await updateMessageTypesForOtherTemplates(null, validatedMessageType, trn, req);
 
         // Create the new template
         const emailTemplates = await EmailTemplate.create(
@@ -200,13 +195,12 @@ export const addOrEditMailTemplate = async (req: Request) => {
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
             created_by: req?.body?.session_res?.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: new Date(),
             is_invoice :isInvoiceRoute
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             email_template_id: emailTemplates?.dataValues?.id, data: {
@@ -231,9 +225,8 @@ export const addOrEditMailTemplate = async (req: Request) => {
 
 export const deleteMailTemplate = async (req: Request) => {
   try {
-    const {EmailTemplate} = initModels(req);
     const MailTemplate:any = await EmailTemplate.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id},
+      where: { id: req.params.id, is_deleted: DeletedStatus.No},
     });
 
     if (!(MailTemplate && MailTemplate.dataValues)) {
@@ -256,9 +249,9 @@ export const deleteMailTemplate = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: MailTemplate.dataValues.id,company_info_id :req?.body?.session_res?.client_id} }
+      { where: { id: MailTemplate.dataValues.id} }
     );
-    await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: { email_template_id: MailTemplate?.dataValues?.id, data:{...MailTemplate?.dataValues}},
       new_data: {
         email_template_id: MailTemplate?.dataValues?.id, data: {
@@ -276,7 +269,6 @@ export const deleteMailTemplate = async (req: Request) => {
 
 export const getMailTemplate = async (req: Request) => {
   try {
-    const {EmailTemplate} = initModels(req);
 
     const templateId = req?.params?.id;  // Check if an 'id' is provided in the URL params
     const isInvoiceRoute = (req as any).email_type; // boolean value you set
@@ -288,7 +280,6 @@ export const getMailTemplate = async (req: Request) => {
           is_invoice : isInvoiceRoute,
           id: templateId,  // Match by template_id
           is_deleted: DeletedStatus.No,  // Ensure it's not deleted
-          company_info_id :req?.body?.session_res?.client_id,
         },
         attributes: [
           "id", 
@@ -324,7 +315,6 @@ export const getMailTemplate = async (req: Request) => {
     let where: any[] = [
       { is_invoice: isInvoiceRoute },
       { is_deleted: DeletedStatus.No },  // Only fetch templates that are not deleted
-      {company_info_id :req?.body?.session_res?.client_id},
     ];
 
     // Add search filters if search text is present
@@ -387,13 +377,11 @@ export const getMailTemplate = async (req: Request) => {
 
 export const statusUpdateForMailTemplate = async (req: Request) => {
   try {
-    const {EmailTemplate} = initModels(req);
 
     const MailTemplate:any = await EmailTemplate.findOne({
       where: {
         id: req.params.id,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
       },
     });
 
@@ -416,10 +404,10 @@ export const statusUpdateForMailTemplate = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: MailTemplate.dataValues.id,company_info_id :req?.body?.session_res?.client_id} }
+      { where: { id: MailTemplate.dataValues.id} }
     );
 
-    await addActivityLogs(req,LOG_FOR_SUPER_ADMIN,[{
+    await addActivityLogs([{
       old_data: { email_template_id: MailTemplate?.dataValues?.id, data: {...MailTemplate?.dataValues}},
       new_data: {
         email_template_id: MailTemplate?.dataValues?.id, data: {

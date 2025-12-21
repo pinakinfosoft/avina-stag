@@ -23,11 +23,10 @@ import {
   resSuccess,
 } from "../../../utils/shared-functions";
 import { statusUpdateValue } from "../../../utils/shared-functions";
-import { initModels } from "../../model/index.model";
+import { CountryData } from "../../model/master/country.model";
 
 export const addCountry = async (req: Request) => {
   try {
-    const { CountryData } = initModels(req);
     const { name, code } = req.body;
 
     const payload = {
@@ -37,14 +36,14 @@ export const addCountry = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findSortCode = await  CountryData.findOne({
       where: [
         columnValueLowerCase("country_code", code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -52,7 +51,7 @@ export const addCountry = async (req: Request) => {
       where: [
         columnValueLowerCase("country_name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -65,7 +64,7 @@ export const addCountry = async (req: Request) => {
     }
     const country = await  CountryData.create(payload);
     
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         country_id: country?.dataValues?.id, data: {
@@ -83,7 +82,6 @@ export const addCountry = async (req: Request) => {
 
 export const getAllCountry = async (req: Request) => {
   try {
-    const { CountryData } = initModels(req);
 
     let paginationProps = {};
 
@@ -95,8 +93,8 @@ export const getAllCountry = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -112,7 +110,7 @@ export const getAllCountry = async (req: Request) => {
               },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -188,10 +186,9 @@ export const getPresignedUrl = async (req: Request) => {
 
 export const getByIdCountry = async (req: Request) => {
   try {
-    const { CountryData } = initModels(req);
 
     const findCountry = await  CountryData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCountry && findCountry.dataValues)) {
@@ -205,12 +202,11 @@ export const getByIdCountry = async (req: Request) => {
 
 export const updateCountry = async (req: Request) => {
   try {
-    const { CountryData } = initModels(req);
 
     const { name, code } = req.body;
     const id = req.params.id;
     const findCountry = await  CountryData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCountry && findCountry.dataValues)) {
@@ -221,7 +217,7 @@ export const updateCountry = async (req: Request) => {
         columnValueLowerCase("country_name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     const findSortCode = await  CountryData.findOne({
@@ -229,7 +225,7 @@ export const updateCountry = async (req: Request) => {
         columnValueLowerCase("country_code", code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
     if (
@@ -247,12 +243,12 @@ export const updateCountry = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: id, is_deleted: DeletedStatus.No, } }
     );
     const afterUpdatefindCountry = await  CountryData.findOne({
       where: { id: id, is_deleted: DeletedStatus.No },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { country_id: findCountry?.dataValues?.id, data: {...findCountry?.dataValues} },
       new_data: {
         country_id: afterUpdatefindCountry?.dataValues?.id, data: { ...afterUpdatefindCountry?.dataValues }
@@ -267,10 +263,9 @@ export const updateCountry = async (req: Request) => {
 
 export const deleteCountry = async (req: Request) => {
   try {
-    const { CountryData } = initModels(req);
 
     const findCountry = await  CountryData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findCountry && findCountry.dataValues)) {
@@ -282,9 +277,9 @@ export const deleteCountry = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findCountry.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCountry.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { country_id: findCountry?.dataValues?.id, data: {...findCountry?.dataValues} },
       new_data: {
         country_id: findCountry?.dataValues?.id, data: {
@@ -303,10 +298,9 @@ export const deleteCountry = async (req: Request) => {
 
 export const statusUpdateForCountry = async (req: Request) => {
   try {
-    const { CountryData } = initModels(req);
 
     const findCountry = await  CountryData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findCountry && findCountry.dataValues)) {
       return resNotFound();
@@ -318,11 +312,11 @@ export const statusUpdateForCountry = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findCountry.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCountry.dataValues.id, } }
     );
 
     
-    await addActivityLogs(req,req?.body?.session_res?.client_id,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { country_id: findCountry?.dataValues?.id, data: {...findCountry?.dataValues} },
       new_data: {
         country_id: findCountry?.dataValues?.id, data: {

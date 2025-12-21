@@ -1,6 +1,9 @@
-import { INTEGER, STRING, DATE, DOUBLE } from "sequelize";
-export const SizeData = (dbContext: any) => {
-  let SizeData = dbContext.define("items_sizes", {
+import { INTEGER, STRING, DATE } from "sequelize";
+import dbContext from "../../../../config/db-context";
+import { ProductMetalOption } from "../../../product-metal-option.model";
+import { ProductWish } from "../../../produc-wish-list.model";
+
+export const SizeData = dbContext.define("items_sizes", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -34,11 +37,16 @@ export const SizeData = (dbContext: any) => {
   },
   is_deleted: {
     type: STRING,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
 
-  return SizeData;
-}
+// Associations
+SizeData.hasMany(ProductMetalOption, {
+  foreignKey: "id_size",
+  as: "PMO",
+});
+SizeData.hasOne(ProductWish, {
+  as: "size",
+  foreignKey: "id",
+  sourceKey: "id_size",
+});

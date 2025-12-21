@@ -3,11 +3,11 @@ import { getInitialPaginationFromQuery, resSuccess, resUnknownError } from "../.
 import { Request } from "express";
 import { AUDIT_LOG_HIDE_BASE_ON_ACTIVITY_TYPE, AUDIT_LOG_HIDE_BASE_ON_LOG_TYPE, LOG_FOR_SUPER_ADMIN } from "../../utils/app-constants";
 import { DEFAULT_STATUS_CODE_SUCCESS, NOTHING_CHANGED } from "../../utils/app-messages";
-import { initModels } from "../model/index.model";
+import { ActivityLogs } from "../model/activity-logs.model";
+import { AppUser } from "../model/app-user.model";
 import { LogsActivityType } from "../../utils/app-enumeration";
   export const getActivityLogsSection = async (req: Request) => {
     try {
-      const { ActivityLogs, AppUser} = initModels(req);
       let paginationProps = {};
   
       let pagination = {
@@ -25,14 +25,8 @@ import { LogsActivityType } from "../../utils/app-enumeration";
       let where:any = [
         req.body.session_res.is_super_admin !== true
           ? {
-              company_info_id:req?.body?.session_res?.client_id
             }
-          : {company_info_id: {
-            [Op.or]: [
-              req?.body?.session_res?.client_id,
-              LOG_FOR_SUPER_ADMIN
-            ]
-          }},
+          : 
         pagination.search_text
           ? {
               [Op.or]: [
@@ -44,14 +38,13 @@ import { LogsActivityType } from "../../utils/app-enumeration";
                 )
               ]
             }
-          : {},
+          : 
           {
             // Apply start and end date filter on created_date
             created_date: {
               [Op.between]: [startDateFilter, endDate]
             }
           },
-          {company_info_id: req?.body?.session_res?.client_id},
           {
             activity_type: {
               [Op.notIn]: AUDIT_LOG_HIDE_BASE_ON_ACTIVITY_TYPE 
@@ -198,7 +191,7 @@ import { LogsActivityType } from "../../utils/app-enumeration";
           newValue !== null &&
           !Array.isArray(newValue)
         ) {
-          const nestedResult = findJsonDifferences(oldValue || {}, newValue);
+          const nestedResult = findJsonDifferences(oldValue ||  newValue, newValue);
           if (Object.keys(nestedResult?.data || {}).length > 0) {
             diff[key] = nestedResult.data;
           }

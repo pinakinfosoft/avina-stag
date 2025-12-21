@@ -2,7 +2,6 @@ import { Request } from "express";
 import {
   addActivityLogs,
   columnValueLowerCase,
-  getCompanyIdBasedOnTheCompanyKey,
   getInitialPaginationFromQuery,
   getLocalDate,
   imageAddAndEditInDBAndS3,
@@ -30,19 +29,29 @@ import {
   LogsType,
 } from "../../utils/app-enumeration";
 import { Op, Sequelize } from "sequelize";
-import { initModels } from "../model/index.model";
+import { MegaMenus } from "../model/mega-menu/mega_menu.model";
+import { MegaMenuAttributes } from "../model/mega-menu/mega_menu_attributes.model";
+import { Image } from "../model/image.model";
+import { CategoryData } from "../model/category.model";
+import { Collection } from "../model/master/attributes/collection.model";
+import { SettingTypeData } from "../model/master/attributes/settingType.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { BrandData } from "../model/master/attributes/brands.model";
+import { MetalMaster } from "../model/master/attributes/metal/metal-master.model";
+import { MetalTone } from "../model/master/attributes/metal/metalTone.model";
+import { StaticPageData } from "../model/static_page.model";
+import { PageData } from "../model/pages.model";
+import dbContext from "../../config/db-context";
 
 // add mega menu
 export const addMegaMenu = async (req: Request) => {
   try {
-    const {MegaMenus} = initModels(req);
     const { name, menu_type } = req.body;
 
     const findSameName = await MegaMenus.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        { company_info_id: req.body.session_res.client_id },
         { menu_type: menu_type }
       ]
     })
@@ -51,17 +60,16 @@ export const addMegaMenu = async (req: Request) => {
       return resErrorDataExit()
     }
 
-    const activeCount = await MegaMenus.count({ where: { is_deleted: DeletedStatus.No, menu_type: menu_type, is_active: ActiveStatus.Active, company_info_id: req.body.session_res.client_id } })
+    const activeCount = await MegaMenus.count({ where: { is_deleted: DeletedStatus.No, menu_type: menu_type, is_active: ActiveStatus.Active } })
     const megaMenu = await MegaMenus.create({
       name,
       menu_type,
       is_active: activeCount > 0 ? ActiveStatus.InActive : ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_date: getLocalDate(),
-      created_by: req.body.session_res.id_app_user,
-      company_info_id: req.body.session_res.client_id
+      created_by: req.body.session_res.id_app_user
     });
-    await addActivityLogs(req,null, [{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         mega_menu_id: megaMenu?.dataValues?.id, data: megaMenu?.dataValues
@@ -77,7 +85,6 @@ export const addMegaMenu = async (req: Request) => {
 // get mega menu
 export const getMegaMenu = async (req: Request) => {
   try {
-    const {MegaMenus} = initModels(req);
 
     let paginationProps = {};
 
@@ -89,11 +96,10 @@ export const getMegaMenu = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      { company_info_id: req?.body?.session_res?.client_id },
       req.query.mega_menu && req.query.mega_menu !== "" ?
         { menu_type: req.query.mega_menu }
-        : {},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+        : 
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
           [Op.or]: [
@@ -103,7 +109,7 @@ export const getMegaMenu = async (req: Request) => {
             },
           ],
         }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -147,12 +153,11 @@ export const getMegaMenu = async (req: Request) => {
 
 export const updateMegaMenu = async (req: Request) => {
   try {
-    const {MegaMenus} = initModels(req);
 
     const { id } = req.params;
     const { name, menu_type } = req.body;
     const findMenu = await MegaMenus.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id }
+      where: { id: id, is_deleted: DeletedStatus.No }
     })
 
     if (!(findMenu && findMenu.dataValues)) {
@@ -163,7 +168,6 @@ export const updateMegaMenu = async (req: Request) => {
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        { company_info_id: req.body.session_res.client_id },
         { menu_type: menu_type },
         { id: { [Op.ne]: id } }
       ]
@@ -183,7 +187,7 @@ export const updateMegaMenu = async (req: Request) => {
       { where: { id } }
     );
 
-    await addActivityLogs(req,null, [{
+    await addActivityLogs([{
       old_data: { mega_menu_id: findMenu?.dataValues?.id, data: findMenu?.dataValues },
       new_data: {
         mega_menu_id: findMenu?.dataValues?.id, data: {
@@ -204,13 +208,12 @@ export const updateMegaMenu = async (req: Request) => {
 // delete mega menu
 
 export const deleteMegaMenu = async (req: Request) => {
-  const trn = await req.body.db_connection.transaction();
-    const {MegaMenus,MegaMenuAttributes} = initModels(req);
+  const trn = await dbContext.transaction();
 
   try {
     const { id } = req.params;
     const findMenu = await MegaMenus.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id }, transaction: trn
+      where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn
     })
 
     if (!(findMenu && findMenu.dataValues)) {
@@ -237,7 +240,7 @@ export const deleteMegaMenu = async (req: Request) => {
       { where: { id_menu: id }, transaction: trn }
     );
 
-    await addActivityLogs(req,null, [{
+    await addActivityLogs([{
       old_data: { mega_menu_id: findMenu?.dataValues?.id, data: findMenu?.dataValues, mega_menu_attribute: beforeUpdateFindMenuAttributes.map((t: any) => t.dataValues) },
       new_data: {
         mega_menu_id: findMenu?.dataValues?.id, data: {
@@ -266,13 +269,12 @@ export const deleteMegaMenu = async (req: Request) => {
 // status update for mega menu
 
 export const statusUpdateForMegaMenu = async (req: Request) => {
-  const {MegaMenus} = initModels(req);
 
-  const trn = await req.body.db_connection.transaction();
+  const trn = await dbContext.transaction();
   try {
     const { id } = req.params;
     const findMenu = await MegaMenus.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id }, transaction: trn
+      where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn
     })
 
     if (!(findMenu && findMenu.dataValues)) {
@@ -300,7 +302,7 @@ export const statusUpdateForMegaMenu = async (req: Request) => {
       { where: { id: { [Op.ne]: id }, menu_type: findMenu.dataValues.menu_type }, transaction: trn }
     );
 
-    await addActivityLogs(req,null, [{
+    await addActivityLogs([{
       old_data: { mega_menu_id: findMenu?.dataValues?.id, data: [...beforeUpdateMegaMenu?.map((t: any) => t.dataValues), { ...findMenu?.dataValues }] },
       new_data: {
         mega_menu_id: findMenu?.dataValues?.id,
@@ -333,7 +335,6 @@ export const statusUpdateForMegaMenu = async (req: Request) => {
 
 export const addMegaMenuAttribute = async (req: Request) => {
   try {
-    const {MegaMenus,MegaMenuAttributes} = initModels(req);
 
     const {
       title,
@@ -356,7 +357,7 @@ export const addMegaMenuAttribute = async (req: Request) => {
     } = req.body;
 
     const findMenu = await MegaMenus.findOne({
-      where: { id: id_menu, is_deleted: DeletedStatus.No, company_info_id: req.body.session_res.client_id }
+      where: { id: id_menu, is_deleted: DeletedStatus.No }
     })
 
     if (!(findMenu && findMenu.dataValues)) {
@@ -377,7 +378,6 @@ export const addMegaMenuAttribute = async (req: Request) => {
         columnValueLowerCase("title", title),
         { is_deleted: DeletedStatus.No },
         { id_menu: id_menu },
-        { company_info_id: req.body.session_res.client_id },
         {
           id_parent: {
             [Op.eq]: id_parent && id_parent != "" && id_parent != undefined
@@ -391,16 +391,15 @@ export const addMegaMenuAttribute = async (req: Request) => {
     if (findSameName && findSameName.dataValues) {
       return resErrorDataExit();
     }
-    const trn = await req.body.db_connection.transaction();
+    const trn = await dbContext.transaction();
     try {
       let idImage = null;
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.MegaMenu,
           req.body.session_res.id_app_user,
-          "",
-          req?.body?.session_res?.client_id
+          ""
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           await trn.rollback();
@@ -433,7 +432,6 @@ export const addMegaMenuAttribute = async (req: Request) => {
           id_metal: id_metal,
           id_static_page,
           created_by: req.body.session_res.id_app_user,
-          company_info_id: req?.body?.session_res?.client_id,
           created_date: getLocalDate(),
           id_page,
           id_menu,
@@ -441,7 +439,7 @@ export const addMegaMenuAttribute = async (req: Request) => {
         { transaction: trn }
       );
 
-      await addActivityLogs(req,null, [{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           mega_menu_id: megaMenuAttributesData?.dataValues?.id, data: megaMenuAttributesData?.dataValues
@@ -465,7 +463,6 @@ export const addMegaMenuAttribute = async (req: Request) => {
 
 export const updateMegaMenuAttribute = async (req: Request) => {
   try {
-    const {MegaMenus,MegaMenuAttributes,Image} = initModels(req);
 
     const {
       title,
@@ -489,7 +486,7 @@ export const updateMegaMenuAttribute = async (req: Request) => {
     } = req.body;
 
     const findMegaMenuAttribute = await MegaMenuAttributes.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findMegaMenuAttribute && findMegaMenuAttribute.dataValues)) {
@@ -497,7 +494,7 @@ export const updateMegaMenuAttribute = async (req: Request) => {
     }
 
     const findMenu = await MegaMenus.findOne({
-      where: { id: id_menu, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id }
+      where: { id: id_menu, is_deleted: DeletedStatus.No }
     })
 
     if (!(findMenu && findMenu.dataValues)) {
@@ -520,30 +517,28 @@ export const updateMegaMenuAttribute = async (req: Request) => {
         { id: { [Op.ne]: findMegaMenuAttribute.dataValues.id } },
         { is_deleted: DeletedStatus.No },
         { id_menu: id_menu },
-        { company_info_id: req.body.session_res.client_id },
       ],
     });
 
     if (megaMenu && megaMenu.dataValues) {
       return resErrorDataExit();
     }
-    const trn = await req.body.db_connection.transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findMegaMenuAttribute.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findMegaMenuAttribute.dataValues.id_image, company_info_id: req?.body?.session_res?.client_id },
+          where: { id: findMegaMenuAttribute.dataValues.id_image },
           transaction: trn,
         });
       }
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.MegaMenu,
           req.body.session_res.id_app_user,
-          findImage,
-          req?.body?.session_res?.client_id
+          findImage
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -584,16 +579,16 @@ export const updateMegaMenuAttribute = async (req: Request) => {
         await MegaMenuAttributes.update(
           payload,
           {
-            where: { id: findMegaMenuAttribute.dataValues.id, company_info_id: req?.body?.session_res?.client_id },
+            where: { id: findMegaMenuAttribute.dataValues.id },
             transaction: trn,
           }
         );
       }
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3(req,findImage, req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage);
       }
 
-      await addActivityLogs(req,null, [{
+      await addActivityLogs([{
         old_data: { mega_menu_id: findMegaMenuAttribute?.dataValues?.id, data: findMegaMenuAttribute?.dataValues },
         new_data: {
           mega_menu_id: findMegaMenuAttribute?.dataValues?.id, data: { ...findMegaMenuAttribute?.dataValues, ...payload }
@@ -615,25 +610,23 @@ export const updateMegaMenuAttribute = async (req: Request) => {
 // delete mega menu attribute
 export const deleteMegaMenuAttribute = async (req: Request) => {
   try {
-    const {MegaMenuAttributes} = initModels(req);
 
     const findMegaMenu = await MegaMenuAttributes.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findMegaMenu && findMegaMenu.dataValues)) {
       return resNotFound({ message: NOT_FOUND_MESSAGE });
     }
-    const deleteMegaMenuWithChildren = async (id, company_info_id, user_id) => {
+    const deleteMegaMenuWithChildren = async (id, user_id) => {
       const children = await MegaMenuAttributes.findAll({
         where: {
           id_parent: id,
-          company_info_id: company_info_id,
         },
       });
 
       for (const child of children) {
-        await deleteMegaMenuWithChildren(child.dataValues.id, company_info_id, user_id);
+        await deleteMegaMenuWithChildren(child.dataValues.id, user_id);
       }
 
       await MegaMenuAttributes.update(
@@ -645,16 +638,15 @@ export const deleteMegaMenuAttribute = async (req: Request) => {
         {
           where: {
             id: id,
-            company_info_id: company_info_id,
           },
         }
       );
     };
 
     // Usage
-    await deleteMegaMenuWithChildren(findMegaMenu.dataValues.id, req.body.session_res.client_id, req.body.session_res.id_app_user);
+    await deleteMegaMenuWithChildren(findMegaMenu.dataValues.id, req.body.session_res.id_app_user);
 
-    await addActivityLogs(req,null, [{
+    await addActivityLogs([{
       old_data: { mega_menu_id: findMegaMenu?.dataValues?.id, data: findMegaMenu?.dataValues },
       new_data: {
         mega_menu_id: findMegaMenu?.dataValues?.id, data: {
@@ -675,7 +667,6 @@ export const deleteMegaMenuAttribute = async (req: Request) => {
 
 export const getMegaMenuAttribute = async (req: Request) => {
   try {
-    const {MegaMenuAttributes,Image, CategoryData, Collection, DiamondShape, SettingTypeData, BrandData, MetalMaster, MetalTone, StaticPageData, PageData} = initModels(req);
     let paginationProps = {};
 
     let pagination = {
@@ -686,15 +677,14 @@ export const getMegaMenuAttribute = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      { company_info_id: req?.body?.session_res?.client_id },
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
           [Op.or]: [
             { title: { [Op.iLike]: "%" + pagination.search_text + "%" } },
           ],
         }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -776,16 +766,16 @@ export const getMegaMenuAttribute = async (req: Request) => {
         ]
       ],
       include: [
-        { required: false, model: Image, as: "menu_att_image", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: CategoryData, as: "category", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: SettingTypeData, as: "style", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: Collection, as: "collection", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: BrandData, as: "brand", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: DiamondShape, as: "diamond_shape", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: MetalMaster, as: "menu_att_metal", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: MetalTone, as: "menu_att_metal_tone", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: PageData, as: "page", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: StaticPageData, as: "static_pages", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
+        { required: false, model: Image, as: "menu_att_image", attributes: [] },
+        { required: false, model: CategoryData, as: "category", attributes: [] },
+        { required: false, model: SettingTypeData, as: "style", attributes: [] },
+        { required: false, model: Collection, as: "collection", attributes: [] },
+        { required: false, model: BrandData, as: "brand", attributes: [] },
+        { required: false, model: DiamondShape, as: "diamond_shape", attributes: [] },
+        { required: false, model: MetalMaster, as: "menu_att_metal", attributes: [] },
+        { required: false, model: MetalTone, as: "menu_att_metal_tone", attributes: [] },
+        { required: false, model: PageData, as: "page", attributes: [] },
+        { required: false, model: StaticPageData, as: "static_pages", attributes: [] },
 
       ],
     });
@@ -799,12 +789,10 @@ export const getMegaMenuAttribute = async (req: Request) => {
 // status update for mega menu attribute
 export const statusUpdateForMegaMenuAttribute = async (req: Request) => {
   try {
-    const { MegaMenuAttributes } = initModels(req);
     const findMegaMenu = await MegaMenuAttributes.findOne({
       where: {
         id: req.params.id,
         is_deleted: DeletedStatus.No,
-        company_info_id: req?.body?.session_res?.client_id
       },
     });
 
@@ -817,9 +805,9 @@ export const statusUpdateForMegaMenuAttribute = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findMegaMenu.dataValues.id, company_info_id: req?.body?.session_res?.client_id } }
+      { where: { id: findMegaMenu.dataValues.id } }
     );
-    await addActivityLogs(req,null, [{
+    await addActivityLogs([{
       old_data: { mega_menu_id: findMegaMenu?.dataValues?.id, data: findMegaMenu?.dataValues },
       new_data: {
         mega_menu_id: findMegaMenu?.dataValues?.id, data: {
@@ -840,13 +828,11 @@ export const statusUpdateForMegaMenuAttribute = async (req: Request) => {
 
 export const getMegaMenuAttributeDetail = async (req: Request) => {
   try {
-    const { Image,MegaMenuAttributes, CategoryData, SettingTypeData, Collection, BrandData, DiamondShape, MetalMaster, MetalTone, StaticPageData, PageData } = initModels(req);
 
     const findMegaMenu = await MegaMenuAttributes.findAll({
       where: {
         id_menu: req.params.id_menu,
         is_deleted: DeletedStatus.No,
-        company_info_id: req.body.session_res.client_id
       },
       attributes: [
         "id",
@@ -906,16 +892,16 @@ export const getMegaMenuAttributeDetail = async (req: Request) => {
         ]
       ],
       include: [
-        { required: false, model: Image, as: "menu_att_image", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: CategoryData, as: "category", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: SettingTypeData, as: "style", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: Collection, as: "collection", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: BrandData, as: "brand", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: DiamondShape, as: "diamond_shape", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: MetalMaster, as: "menu_att_metal", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: MetalTone, as: "menu_att_metal_tone", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: PageData, as: "page", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
-        { required: false, model: StaticPageData, as: "static_pages", attributes: [], where: { company_info_id: req.body.session_res.client_id } },
+        { required: false, model: Image, as: "menu_att_image", attributes: [] },
+        { required: false, model: CategoryData, as: "category", attributes: [] },
+        { required: false, model: SettingTypeData, as: "style", attributes: [] },
+        { required: false, model: Collection, as: "collection", attributes: [] },
+        { required: false, model: BrandData, as: "brand", attributes: [] },
+        { required: false, model: DiamondShape, as: "diamond_shape", attributes: [] },
+        { required: false, model: MetalMaster, as: "menu_att_metal", attributes: [] },
+        { required: false, model: MetalTone, as: "menu_att_metal_tone", attributes: [] },
+        { required: false, model: PageData, as: "page", attributes: [] },
+        { required: false, model: StaticPageData, as: "static_pages", attributes: [] },
       ],
     });
     return resSuccess({ data: findMegaMenu });
@@ -928,10 +914,9 @@ export const getMegaMenuAttributeDetail = async (req: Request) => {
 
 export const getMegaMenuForUser = async (req: Request) => {
   try {
-    const { MegaMenus, MegaMenuAttributes,Image, CategoryData, SettingTypeData, Collection, BrandData, DiamondShape, MetalMaster, MetalTone, StaticPageData, PageData } = initModels(req);
 
     const result = await MegaMenus.findAll({
-      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, company_info_id: (await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection)).data },
+      where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
       attributes: ["id", "name", "menu_type"],
       include: [{
         required: false,
@@ -1020,9 +1005,8 @@ export const getMegaMenuForUser = async (req: Request) => {
 export const updateSortOrderMegaMenuAttribute = async (req: Request) => {
   try {
     const { id_menu, attributes = [] } = req.body;
-    const { MegaMenus, MegaMenuAttributes } = initModels(req);
     const findMenu = await MegaMenus.findOne({
-      where: { id: id_menu, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id }
+      where: { id: id_menu, is_deleted: DeletedStatus.No }
     })
 
     if (!(findMenu && findMenu.dataValues)) {
@@ -1035,7 +1019,7 @@ export const updateSortOrderMegaMenuAttribute = async (req: Request) => {
       for (let index = 0; index < attributes.length; index++) {
         const element = attributes[index];
         const findMegaMenuAttribute = await MegaMenuAttributes.findOne({
-          where: { id: element.id, is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id },
+          where: { id: element.id, is_deleted: DeletedStatus.No },
         });
 
         if (!(findMegaMenuAttribute && findMegaMenuAttribute.dataValues)) {
@@ -1085,7 +1069,7 @@ export const updateSortOrderMegaMenuAttribute = async (req: Request) => {
           ],
         });
       }
-      await addActivityLogs(req,null, activityLog, findMenu?.dataValues?.id, LogsActivityType.Edit, LogsType.MegaMenuAttributes, req?.body?.session_res?.id_app_user)
+      await addActivityLogs(activityLog, findMenu?.dataValues?.id, LogsActivityType.Edit, LogsType.MegaMenuAttributes, req?.body?.session_res?.id_app_user)
     }
     return resSuccess()
   } catch (error) {

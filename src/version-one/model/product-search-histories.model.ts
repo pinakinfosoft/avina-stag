@@ -1,7 +1,7 @@
 import { DATE, INTEGER, STRING } from "sequelize";
-export const ProductSearchHistories = (dbContext: any) => {
-  
-let productSearchHistories = dbContext.define("product_search_histories", {
+import dbContext from "../../config/db-context";
+
+export const ProductSearchHistories = dbContext.define("product_search_histories", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -18,10 +18,5 @@ let productSearchHistories = dbContext.define("product_search_histories", {
   },
   modified_date: {
     type: DATE,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return productSearchHistories;
-}

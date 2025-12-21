@@ -8,9 +8,7 @@ import {
   CUSTOMER_USER_ROLE_ID,
   JWT_EXPIRED_ERROR_NAME,
   OTP_EXPIRATION_TIME,
-  PASSWORD_SOLT,
-  PAYMENT_METHOD_ID_FROM_LABEL,
-  SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY,
+  PASSWORD_SOLT
 } from "../../utils/app-constants";
 import {
   DEFAULT_STATUS_CODE_SUCCESS,
@@ -66,7 +64,6 @@ import {
   resUnprocessableEntity,
   sendMessageInWhatsApp,
   statusUpdateValue,
-  superAdminWhere,
 } from "../../utils/shared-functions";
 import bcrypt from "bcrypt";
 import {
@@ -96,8 +93,18 @@ import { moveFileToLocation, moveFileToS3ByType } from "../../helpers/file.helpe
 import { TResponseReturn } from "../../data/interfaces/common/common.interface";
 const readXlsxFile = require("read-excel-file/node");
 import { col, fn, Op, QueryTypes, Sequelize, where } from "sequelize";
-import { initModels } from "../model/index.model";
+import { SystemConfiguration } from "../model/system-configuration.model";
+import { MenuItem } from "../model/menu-items.model";
+import { RoleApiPermission } from "../model/role-api-permission.model";
+import { Action } from "../model/action.model";
+import { ProductBulkUploadFile } from "../model/product-bulk-upload-file.model";
 import { ConfigProduct } from "../model/config-product.model";
+import { AppUser } from "../model/app-user.model";
+import { CompanyInfo } from "../model/companyinfo.model";
+import { Role } from "../model/role.model";
+import { BusinessUser } from "../model/business-user.model";
+import { CustomerUser } from "../model/customer-user.model";
+import { Image } from "../model/image.model";
 import dbContext from "../../config/db-context";
 import axios from "axios";
 
@@ -989,11 +996,6 @@ export const test = async (req: any) => {
 export const registerSystemUser = async (req: Request) => {
   try {
     const { username, password, user_type } = req.body;
-    const {AppUser} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
 
     const pass_hash = await bcrypt.hash(password, Number(PASSWORD_SOLT));
     const payload = {
@@ -1001,11 +1003,10 @@ export const registerSystemUser = async (req: Request) => {
       pass_hash,
       user_type,
       created_at: getLocalDate(),
-      company_info_id:company_info_id?.data
     };
     const result = await AppUser.create(payload);
  
-    const jwtPayload = {
+    const jwtPayload:any = {
       id: result.dataValues.id,
       idAppUser: result.dataValues.id,
       userType: result.dataValues.user_type,
@@ -1015,7 +1016,7 @@ export const registerSystemUser = async (req: Request) => {
       jwtPayload,
       result.dataValues.user_type
     );
-    await addActivityLogs(req,company_info_id?.data,[{
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         user_id: result?.dataValues?.id, data: {
@@ -1038,7 +1039,6 @@ export const registerSystemUser = async (req: Request) => {
 
 export const authenticateSystemUser = async (req: Request) => {
   try {
-    const {CompanyInfo,AppUser, Role, BusinessUser, CustomerUser,Image} = initModels(req);
 
     const { username, password, company_key,detail_json } = req.body;
     let userDetails;
@@ -1048,16 +1048,7 @@ export const authenticateSystemUser = async (req: Request) => {
       return resNotFound({ message: prepareMessageFromParams(ERROR_NOT_FOUND, [["field_name", "Company key"]]) });
     }
     const appUser = await AppUser.findOne({
-      where: { username, is_deleted: DeletedStatus.No, user_type: [USER_TYPE.Administrator, USER_TYPE.BusinessUser] , 
-        [Op.or]: [
-        { is_super_admin: true },
-        {
-          [Op.and]: [
-            { company_info_id: companyInfo?.dataValues?.id },
-            { is_super_admin: false }
-          ]
-        }
-      ]},
+      where: { username, is_deleted: DeletedStatus.No, user_type: [USER_TYPE.Administrator, USER_TYPE.BusinessUser] }
     });
 
     if (!appUser) {
@@ -1095,7 +1086,7 @@ export const authenticateSystemUser = async (req: Request) => {
     }
     
     const role = await Role.findOne({
-      where: { id: appUser?.dataValues?.id_role, is_deleted: DeletedStatus.No,company_info_id:[companyInfo?.dataValues?.id , SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY]},
+      where: { id: appUser?.dataValues?.id_role, is_deleted: DeletedStatus.No },
     });
 
     if (!role) {
@@ -1107,10 +1098,10 @@ export const authenticateSystemUser = async (req: Request) => {
     }
 
     // super admin send the otp and verified the account
-    if (appUser.dataValues.user_type === USER_TYPE.Administrator && appUser.dataValues.is_super_admin === true || appUser.dataValues.user_type === USER_TYPE.BusinessUser && appUser.dataValues.is_super_admin === true) {
+    if (appUser.dataValues.user_type === USER_TYPE.Administrator) {
       const currentDate = getLocalDate(); // Get current time
       
-      // const configData = await getWebSettingData(req.body.db_connection,companyInfo?.dataValues?.id)
+      // const configData = await getWebSettingData(dbContext,companyInfo?.dataValues?.id)
       const expireDate = new Date(currentDate.getTime() + OTP_EXPIRATION_TIME);
       const digits = "0123456789";
       let OTP = "";
@@ -1137,9 +1128,9 @@ export const authenticateSystemUser = async (req: Request) => {
         attributes: ["id", "username", "user_type", "id_role", "is_email_verified", "is_super_admin", "otp_create_date", "otp_expire_date", "one_time_pass"],
       });
       // send mail for otp
-      await mailRegistrationOtp(mailPayload,companyInfo?.dataValues?.id, req);
+      await mailRegistrationOtp(mailPayload);
 
-      await addActivityLogs(req,companyInfo?.dataValues?.id,[{
+      await addActivityLogs([{
         old_data: { user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues}},
         new_data: {
           user_id: userDetails?.dataValues?.id, data: {...userDetails?.dataValues, detail_json: detail_json || {}}
@@ -1156,11 +1147,11 @@ export const authenticateSystemUser = async (req: Request) => {
 
     if (appUser.dataValues.user_type === USER_TYPE.Administrator) {
       userDetails = await AppUser.findOne({
-        where: { id: appUser.dataValues.id,company_info_id:companyInfo?.dataValues?.id },
+        where: { id: appUser.dataValues.id },
       });
     } else if (appUser.dataValues.user_type === USER_TYPE.BusinessUser) {
       userDetails = await BusinessUser.findOne({
-        where: { id_app_user: appUser.dataValues.id,company_info_id:companyInfo?.dataValues?.id },
+        where: { id_app_user: appUser.dataValues.id },
         attributes: [
           "id",
           "id_app_user",
@@ -1177,7 +1168,7 @@ export const authenticateSystemUser = async (req: Request) => {
     } else if (appUser.dataValues.user_type === USER_TYPE.Customer) {
 
       userDetails = await CustomerUser.findOne({
-        where: { id_app_user: appUser.dataValues.id,company_info_id:companyInfo?.dataValues?.id },
+        where: { id_app_user: appUser.dataValues.id },
       });
       if (userDetails && userDetails.dataValues && userDetails.dataValues.sign_up_type !== SIGN_UP_TYPE.System) {
         {
@@ -1193,9 +1184,7 @@ export const authenticateSystemUser = async (req: Request) => {
           : appUser.dataValues.id,
       id_app_user: appUser.dataValues.id,
       user_type: appUser.dataValues.user_type,
-      id_role: appUser.dataValues.id_role,
-      client_id: companyInfo.dataValues.id,
-      client_key: companyInfo.dataValues.key,
+      id_role: appUser.dataValues.id_role
     };
 
     const data = createUserJWT(
@@ -1205,9 +1194,9 @@ export const authenticateSystemUser = async (req: Request) => {
     );
 
     const AfterUpdateappUser = await AppUser.findOne({
-      where: { id: req.body.session_res.id_app_user,company_info_id:companyInfo?.dataValues?.id },
+      where: { id: req.body.session_res.id_app_user },
     });
-    await addActivityLogs(req,companyInfo?.dataValues?.id,[{
+    await addActivityLogs([{
       old_data: { user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues}},
       new_data: {
         user_id: AfterUpdateappUser?.dataValues?.id, data: {...AfterUpdateappUser?.dataValues,token: data, detail_json: detail_json || {}}
@@ -1229,24 +1218,18 @@ export const authenticateSystemUser = async (req: Request) => {
 
 export const authenticateCustomerUserWithOTP = async (req: Request) => {
   try {
-    const {CustomerUser,AppUser,BusinessUser,Image} = initModels(req);
     const {
       username,
       password,
       login_with_otp = false,
       remember_me = false,
     } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let userDetails: any;
     const findUserEMail = await CustomerUser.findOne({
       where: [
         columnValueLowerCase("email", username),
         { sign_up_type: SIGN_UP_TYPE.System },
         { is_deleted: DeletedStatus.No },
-        {company_info_id:company_info_id?.data},
       ],
     });
 
@@ -1256,7 +1239,6 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
         mobile: username,
         sign_up_type: SIGN_UP_TYPE.System,
         is_deleted: DeletedStatus.No,
-        company_info_id:company_info_id?.data,
 
       },
     });
@@ -1270,7 +1252,6 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
         where: [
           columnValueLowerCase("email", username),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
         ],
       });
 
@@ -1279,7 +1260,6 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
           where: {
             mobile: username,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
 
           },
         });
@@ -1299,7 +1279,6 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
       where: {
         id: userDetails.dataValues.id_app_user,
         is_deleted: DeletedStatus.No,
-        company_info_id:company_info_id?.data,
       },
     });
     if (login_with_otp == false) {
@@ -1339,11 +1318,11 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
 
       if (appUser.dataValues.user_type === USER_TYPE.Administrator) {
         userDetails = await AppUser.findOne({
-          where: { id: appUser.dataValues.id,company_info_id:company_info_id?.data },
+          where: { id: appUser.dataValues.id },
         });
       } else if (appUser.dataValues.user_type === USER_TYPE.BusinessUser) {
         userDetails = await BusinessUser.findOne({
-          where: { id_app_user: appUser.dataValues.id,company_info_id:company_info_id?.data},
+          where: { id_app_user: appUser.dataValues.id },
           attributes: [
             "id",
             "id_app_user",
@@ -1355,11 +1334,11 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
             "created_date",
             [Sequelize.literal("image.image_path"), "image_path"],
           ],
-          include: [{ model: Image, as: "image", attributes: [], where:{company_info_id:company_info_id?.data} ,required:false }],
+          include: [{ model: Image, as: "image", attributes: [] ,required:false }],
         });
       } else if (appUser.dataValues.user_type === USER_TYPE.Customer) {
         userDetails = await CustomerUser.findOne({
-          where: { id_app_user: appUser.dataValues.id, company_info_id:company_info_id?.data },
+          where: { id_app_user: appUser.dataValues.id },
         });
       }
 
@@ -1370,9 +1349,7 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
             : appUser.dataValues.id,
         id_app_user: appUser.dataValues.id,
         user_type: appUser.dataValues.user_type,
-        id_role: appUser.dataValues.id_role,
-        client_id:  appUser?.dataValues?.company_info_id || 0,
-        client_key: req?.query?.company_key,
+        id_role: appUser.dataValues.id_role
       };
 
       const data = createUserJWT(
@@ -1380,9 +1357,7 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
         jwtPayload,
         remember_me && remember_me == true ? 5 : appUser.dataValues.user_type
       );
-      await addActivityLogs(req,
-      company_info_id?.data,
-      [{
+      await addActivityLogs([{
         old_data: { user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues}},
         new_data: {
           user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues, token: data, detail_json: req?.body?.detail_json || {}}
@@ -1397,7 +1372,7 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
         },
       });
     } else {
-      const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data)
+      const configData = await getWebSettingData()
       const currentDate = getLocalDate(); // Get current time
       const expireDate = new Date(currentDate.getTime() + OTP_EXPIRATION_TIME);
       const digits = "0123456789";
@@ -1411,13 +1386,13 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
           otp_create_date: currentDate,
           otp_expire_date: expireDate,
         },
-        { where: { id: appUser.dataValues.id, company_info_id:company_info_id?.data } }
+        { where: { id: appUser.dataValues.id } }
       );
       const mailPayload = {
         toEmailAddress: appUser.dataValues.username,
         contentTobeReplaced: { name: userDetails.dataValues.full_name, OTP },
       };
-      await mailRegistrationOtp(mailPayload,company_info_id?.data,req);
+      await mailRegistrationOtp(mailPayload);
       if (
         appUser.dataValues.user_type === USER_TYPE.Customer &&
         userDetails &&
@@ -1429,12 +1404,11 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
       }
 
       const AfterUpdateappUser = await AppUser.findOne({
-        where: { id: appUser?.dataValues?.id, company_info_id:company_info_id?.data },
+        where: { id: appUser?.dataValues?.id },
       });
 
-      await addActivityLogs(req,
-        company_info_id?.data,
-        [{
+      await addActivityLogs(
+        [{  
           old_data: { user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues}},
           new_data: {
             user_id: AfterUpdateappUser?.dataValues?.id, data: {...AfterUpdateappUser?.dataValues, detail_json: req?.body?.detail_json || {}}
@@ -1461,7 +1435,6 @@ export const authenticateCustomerUserWithOTP = async (req: Request) => {
 export const refreshAuthorizationToken = async (req: Request) => {
   try {
     const refreshToken = req.body.refresh_token;
-    const {AppUser} = initModels(req);
     const result:any = await verifyJWT(refreshToken);
     if (result.code === DEFAULT_STATUS_CODE_SUCCESS) {
       
@@ -1470,9 +1443,7 @@ export const refreshAuthorizationToken = async (req: Request) => {
         result.data.id,
         id_app_user: result.data.id_app_user,
         user_type: result.data.user_type,
-        id_role: result.data.id_role,
-        client_id: result.data.client_id || 0,
-        client_key: result.data.client_key || ""
+        id_role: result.data.id_role
       };
       const data = createUserJWT(
         result.data.id,
@@ -1481,9 +1452,9 @@ export const refreshAuthorizationToken = async (req: Request) => {
       );
       
       const AfterUpdateappUser = await AppUser.findOne({
-        where: { id: req.body.session_res.id_app_user , company_info_id:result.data.client_id || 0 },
+        where: { id: req.body.session_res.id_app_user  },
       });
-      await addActivityLogs(req,result.data.client_id,[{
+      await addActivityLogs([{
         old_data: { user_id: AfterUpdateappUser?.dataValues?.id, data: {...AfterUpdateappUser?.dataValues}},
         new_data: {
           user_id: AfterUpdateappUser?.dataValues?.id, data: { ...AfterUpdateappUser?.dataValues }
@@ -1506,19 +1477,9 @@ export const refreshAuthorizationToken = async (req: Request) => {
 
 export const changePassword = async (req: Request) => {
   try {
-    const {AppUser} = initModels(req);
-    let client_id:any;
-    if(req.body.session_res.client_id){
-      client_id = req.body.session_res.client_id
-    }else{
-      const company_info_id:any = getCompanyIdBasedOnTheCompanyKey(req?.query, req.body.db_connection);
-      if(company_info_id !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
-      client_id = company_info_id?.data
-    }
+    
     const appUser = await AppUser.findOne({
-      where: { id: req.body.session_res.id_app_user,...superAdminWhere(client_id) },
+      where: { id: req.body.session_res.id_app_user},
     });
     if (!appUser) {
       return resBadRequest({ message: USER_NOT_FOUND });
@@ -1545,9 +1506,9 @@ export const changePassword = async (req: Request) => {
       { where: { id: appUser.dataValues.id } }
     );
     const AfterUpdateappUser = await AppUser.findOne({
-      where: { id: req.body.session_res.id_app_user,...superAdminWhere(client_id) },
+      where: { id: req.body.session_res.id_app_user },
     });
-    await addActivityLogs(req,client_id,[{
+    await addActivityLogs([{
       old_data: { user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues}},
       new_data: {nuser_id: AfterUpdateappUser?.dataValues?.id, data: {...AfterUpdateappUser?.dataValues} }
     }], appUser?.dataValues?.id,LogsActivityType.ChangePassword, LogsType.Auth, req?.body?.session_res?.id_app_user)
@@ -1560,13 +1521,9 @@ export const changePassword = async (req: Request) => {
 
 export const forgotPassword = async (req: Request) => {
   try {
-    const {AppUser,BusinessUser,CustomerUser} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     const appUser = await AppUser.findOne({
-      where: { username: req.body.username, is_deleted: DeletedStatus.No ,...superAdminWhere(company_info_id?.data)},
+      where: { username: req.body.username, is_deleted: DeletedStatus.No },
     });
     if (!appUser) {
       return resBadRequest({ message: USER_NOT_FOUND });
@@ -1575,7 +1532,7 @@ export const forgotPassword = async (req: Request) => {
     let name;
     if (appUser.dataValues.user_type === USER_TYPE.BusinessUser) {
       const businessUser = await BusinessUser.findOne({
-        where: { id_app_user: appUser.dataValues.id ,...superAdminWhere(company_info_id?.data)},
+        where: { id_app_user: appUser.dataValues.id },
       });
       if (!(businessUser && businessUser.dataValues)) {
         return resBadRequest({ message: USER_NOT_FOUND });
@@ -1583,14 +1540,14 @@ export const forgotPassword = async (req: Request) => {
       name = businessUser.dataValues.name;
     } else if (appUser.dataValues.user_type === USER_TYPE.Customer) {
       const customer = await CustomerUser.findOne({
-        where: { id_app_user: appUser.dataValues.id ,company_info_id:company_info_id?.data},
+        where: { id_app_user: appUser.dataValues.id },
       });
       if (!(customer && customer.dataValues)) {
         return resBadRequest({ message: USER_NOT_FOUND });
       }
 
       const customerUserFind = await CustomerUser.findOne({
-        where: { id_app_user: appUser.dataValues.id, sign_up_type: { [Op.ne]: SIGN_UP_TYPE.System } ,company_info_id:company_info_id?.data},
+        where: { id_app_user: appUser.dataValues.id, sign_up_type: { [Op.ne]: SIGN_UP_TYPE.System } },
       })
       if (customerUserFind && customerUserFind.dataValues) {
         return resNotFound({ message: prepareMessageFromParams(RESET_PASSWORD_TYPE_WRONG_ERROR_MESSAGE, [["field_name", customerUserFind.dataValues.sign_up_type]]) });
@@ -1598,10 +1555,9 @@ export const forgotPassword = async (req: Request) => {
       name = customer.dataValues.full_name;
     }
 
-    const token = createResetToken(appUser.dataValues.id,company_info_id?.data);
+    const token = createResetToken(appUser.dataValues.id);
 
-    console.log("token", token)
-    const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+    const configData =  await getWebSettingData();
     let link = `${configData.fronted_base_url}/${configData.reset_pass_url}${token}`;
     let logo_image = configData.image_base_url;
     let frontend_url = configData.fronted_base_url;
@@ -1609,7 +1565,7 @@ export const forgotPassword = async (req: Request) => {
       toEmailAddress: appUser.dataValues.username,
       contentTobeReplaced: { name, link, logo_image, frontend_url },
     };
-    await mailPasswordResetLink(mailPayload,company_info_id?.data, req);
+    await mailPasswordResetLink(mailPayload);
 
     await AppUser.update(
       {
@@ -1617,12 +1573,12 @@ export const forgotPassword = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: appUser.dataValues.id,
       },
-      { where: { id: appUser.dataValues.id,...superAdminWhere(company_info_id?.data) } }
+      { where: { id: appUser.dataValues.id } }
     );
     const AfterUpdateappUser = await AppUser.findOne({
-      where: { id: req.body.session_res.id_app_user,...superAdminWhere(company_info_id?.data)},
+      where: { id: req.body.session_res.id_app_user },
     });
-    await addActivityLogs(req,company_info_id?.data,[{
+    await addActivityLogs([{
       old_data: { user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues}},
       new_data: {
         user_id: AfterUpdateappUser?.dataValues?.id, data: {...AfterUpdateappUser?.dataValues} 
@@ -1637,13 +1593,12 @@ export const forgotPassword = async (req: Request) => {
 
 export const resetPassword = async (req: Request) => {
   try {
-    const {AppUser} = initModels(req);
     const tokenRes = await verifyJWT(req.body.token);
     if (tokenRes.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return tokenRes;
     }
     const appUser = await AppUser.findOne({
-      where: { id: tokenRes.data.id,...superAdminWhere(tokenRes?.data?.client_id) },
+      where: { id: tokenRes.data.id },
     });
     if (!appUser) {
       return resUnprocessableEntity({ message: USER_NOT_FOUND });
@@ -1668,9 +1623,9 @@ export const resetPassword = async (req: Request) => {
       { where: { id: appUser.dataValues.id } }
     );
     const AfterUpdateappUser = await AppUser.findOne({
-      where: { id: appUser.dataValues.id, ...superAdminWhere(tokenRes?.data?.client_id) },
+          where: { id: appUser.dataValues.id },
     });
-    await addActivityLogs(req,tokenRes?.data?.client_id,[{
+    await addActivityLogs([{
       old_data: { user_id: appUser?.dataValues?.id, data: {...appUser?.dataValues}},
       new_data: {user_id: appUser?.dataValues?.id, data: {...AfterUpdateappUser?.dataValues}}
     }], appUser?.dataValues?.id,LogsActivityType.ResetPassword, LogsType.Auth, tokenRes.data.id)
@@ -1683,11 +1638,10 @@ export const resetPassword = async (req: Request) => {
 
 export const changeAnyUserPassword = async (req: Request) => {
   try {
-    const {AppUser} = initModels(req);
     const { id_app_user, new_password, session_res } = req.body;
 
     const loginedUser = await AppUser.findOne({
-      where: { id: req.body.session_res.id_app_user, is_deleted: DeletedStatus.No,...superAdminWhere(session_res?.client_id) },
+      where: { id: req.body.session_res.id_app_user, is_deleted: DeletedStatus.No },
     });
 
     if (!(loginedUser && loginedUser.dataValues)) {
@@ -1698,10 +1652,9 @@ export const changeAnyUserPassword = async (req: Request) => {
       });    
     }
 
-    let userToUpdateWhere = loginedUser?.dataValues?.is_super_admin !== true ? {company_info_id : session_res?.client_id} : {} ;
 
     const userToUpdate = await AppUser.findOne({
-      where: { id: id_app_user, is_deleted: DeletedStatus.No, ...userToUpdateWhere  },
+      where: { id: id_app_user, is_deleted: DeletedStatus.No  },
     });
 
     if (!(userToUpdate && userToUpdate.dataValues)) {
@@ -1716,13 +1669,13 @@ export const changeAnyUserPassword = async (req: Request) => {
         modified_at: getLocalDate(),
         modified_by: session_res.id_app_user,
       },
-      { where: { id: userToUpdate.dataValues.id,...userToUpdateWhere } }
+      { where: { id: userToUpdate.dataValues.id } }
     );
 
     const AfterUpdateappUser = await AppUser.findOne({
-      where: { id: id_app_user,...userToUpdateWhere },
+      where: { id: id_app_user },
     });
-    await addActivityLogs(req,session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { user_id: userToUpdate?.dataValues?.id, data: {...userToUpdate?.dataValues}},
       new_data: {
         user_id: userToUpdate?.dataValues?.id, data: {...AfterUpdateappUser?.dataValues}
@@ -1735,9 +1688,8 @@ export const changeAnyUserPassword = async (req: Request) => {
   }
 };
 
-export const fetchConfigurationByKey = async (key: string,req: Request) => {
+export const fetchConfigurationByKey = async (key: string) => {
   try {
-    const { SystemConfiguration } = initModels(req);
     const config = await SystemConfiguration.findOne({
       where: { config_key: key },
     });
@@ -1760,30 +1712,25 @@ export const registerCustomerUser = async (req: Request) => {
       country_id,
       confirm_password,
     } = req.body;
-    const {CustomerUser, AppUser} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-    const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data)
-    const digits = "0123456789";
+   
+    const configData = await getWebSettingData()
+    const digits = "0123456789";    
     let OTP = "";
     for (let i = 0; i < configData.otp_generate_digit_count; i++) {
       OTP += digits[Math.floor(Math.random() * 10)];
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       const pass_hash = await bcrypt.hash(password, Number(PASSWORD_SOLT));
 
       const emailExists = await CustomerUser.findOne({
-        where: [columnValueLowerCase("email", username), { is_deleted: DeletedStatus.No },{company_info_id:company_info_id?.data}],
+        where: [columnValueLowerCase("email", username), { is_deleted: DeletedStatus.No }],
       });
       const emailIdExists = await AppUser.findOne({
         where: [
           columnValueLowerCase("username", username),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:[company_info_id?.data,0]},
         ],
       });
 
@@ -1800,7 +1747,6 @@ export const registerCustomerUser = async (req: Request) => {
             one_time_pass: OTP,
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data
           },
           { transaction: trn }
         );
@@ -1816,11 +1762,10 @@ export const registerCustomerUser = async (req: Request) => {
             created_by: appUserPayload.dataValues.id,
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             app_user_id: appUserPayload?.dataValues?.id,
@@ -1836,7 +1781,7 @@ export const registerCustomerUser = async (req: Request) => {
           toEmailAddress: username,
           contentTobeReplaced: { name: full_name, OTP },
         };
-        await mailRegistrationOtp(mailPayload,company_info_id?.data, req);
+        await mailRegistrationOtp(mailPayload);
         if (
           CustomerUserPayload &&
           CustomerUserPayload.dataValues &&
@@ -1883,21 +1828,17 @@ export const registrationCustomerUserWithThirdParty = async (req: Request) => {
 
 const customerRegistrationWithSystem = async (req: Request) => {
   try {
-    const {CustomerUser, AppUser} = initModels(req);
     const { full_name, username, mobile, password, country_id, sign_up_type } =
       req.body;
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-    }
-    const configData = await getWebSettingData(req.body.db_connection,company_info_id?.data)
+      
+    const configData = await getWebSettingData()
     const digits = "0123456789";
     let OTP = "";
     for (let i = 0; i < configData.otp_generate_digit_count; i++) {
       OTP += digits[Math.floor(Math.random() * 10)];
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       const pass_hash = await bcrypt.hash(password, Number(PASSWORD_SOLT));
 
@@ -1905,7 +1846,6 @@ const customerRegistrationWithSystem = async (req: Request) => {
         where: [
           columnValueLowerCase("email", username),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
         ],
         transaction: trn,
       });
@@ -1944,9 +1884,8 @@ const customerRegistrationWithSystem = async (req: Request) => {
           columnValueLowerCase("username", username),
           // emailExists && emailExists.dataValues
           //   ? { id: { [Op.ne]: emailExists.dataValues.id_app_user } }
-          //   : {},
+          //   : 
           { is_deleted: DeletedStatus.No },
-          {company_info_id:[company_info_id?.data,0]},
         ],
         transaction: trn,
       });
@@ -1972,8 +1911,7 @@ const customerRegistrationWithSystem = async (req: Request) => {
           { is_deleted: DeletedStatus.No },
           // emailExists && emailExists.dataValues
           //   ? { id: { [Op.ne]: emailExists.dataValues.id } }
-          //   : {},
-          {company_info_id:company_info_id?.data},
+          //   : 
         ],
         transaction: trn,
       });
@@ -2002,7 +1940,6 @@ const customerRegistrationWithSystem = async (req: Request) => {
           otp_expire_date: expireDate,
           is_active: ActiveStatus.Active,
           is_deleted: DeletedStatus.No,
-          company_info_id:company_info_id?.data
         },
         { transaction: trn }
       );
@@ -2019,7 +1956,6 @@ const customerRegistrationWithSystem = async (req: Request) => {
           is_active: ActiveStatus.Active,
           sign_up_type: SIGN_UP_TYPE.System,
           is_deleted: DeletedStatus.No,
-          company_info_id:company_info_id?.data
         },
         { transaction: trn }
       );
@@ -2028,7 +1964,7 @@ const customerRegistrationWithSystem = async (req: Request) => {
         toEmailAddress: username,
         contentTobeReplaced: { name: full_name, OTP },
       };
-      await mailRegistrationOtp(mailPayload,company_info_id?.data, req);
+      await mailRegistrationOtp(mailPayload);
       if (
         CustomerUserPayload &&
         CustomerUserPayload.dataValues &&
@@ -2038,8 +1974,7 @@ const customerRegistrationWithSystem = async (req: Request) => {
         await sendMessageInWhatsApp(OTP, CustomerUserPayload.dataValues.mobile, configData);
       }
 
-        await addActivityLogs(req, 
-        company_info_id?.data,
+        await addActivityLogs(
         [{
           old_data: null,
           new_data: {
@@ -2075,18 +2010,12 @@ const customerRegistrationWithGoogle = async (req: Request) => {
       third_party_response,
       token,
     } = req.body;
-    const {CustomerUser, AppUser,Image} = initModels(req);
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
       const emailExists = await CustomerUser.findOne({
         where: [
           columnValueLowerCase("email", username),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
         ],
         transaction: trn,
       });
@@ -2100,7 +2029,6 @@ const customerRegistrationWithGoogle = async (req: Request) => {
           where: [
             columnValueLowerCase("username", username),
             { is_deleted: DeletedStatus.No },
-            {company_info_id:[company_info_id?.data,0]},
           ],
         });
 
@@ -2122,7 +2050,6 @@ const customerRegistrationWithGoogle = async (req: Request) => {
             id_role: CUSTOMER_USER_ROLE_ID,
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
 
           },
           { transaction: trn }
@@ -2140,12 +2067,11 @@ const customerRegistrationWithGoogle = async (req: Request) => {
             sign_up_type: SIGN_UP_TYPE.Google,
             third_party_response: third_party_response,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { transaction: trn }
         );
 
-        const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+        const configData =  await getWebSettingData();
         let logo_image = configData.image_base_url;
         let frontend_url = configData.fronted_base_url;
 
@@ -2157,7 +2083,7 @@ const customerRegistrationWithGoogle = async (req: Request) => {
             frontend_url,
           },
         };
-        await successRegistration(mailPayload,company_info_id?.data, req);
+        await successRegistration(mailPayload);
         const jwtPayload = {
           id: appUserPayload && appUserPayload.dataValues.id,
           id_app_user: appUserPayload.dataValues.id,
@@ -2171,7 +2097,7 @@ const customerRegistrationWithGoogle = async (req: Request) => {
           appUserPayload.dataValues.user_type
         );
         const userDetails = await CustomerUser.findOne({
-          where: { id_app_user: appUserPayload.dataValues.id, is_deleted: DeletedStatus.No, company_info_id:company_info_id?.data },
+          where: { id_app_user: appUserPayload.dataValues.id, is_deleted: DeletedStatus.No },
           attributes: [
             "id",
             "full_name",
@@ -2185,8 +2111,7 @@ const customerRegistrationWithGoogle = async (req: Request) => {
           include: [{ model: Image, as: "image", attributes: [] }],
         });
 
-        await addActivityLogs(req,
-          company_info_id?.data,
+        await addActivityLogs(
           [{
           old_data: null,
           new_data: {
@@ -2210,7 +2135,6 @@ const customerRegistrationWithGoogle = async (req: Request) => {
           where: {
             sign_up_type: { [Op.eq]: SIGN_UP_TYPE.System },
             id: { [Op.eq]: emailExists.dataValues.id },
-            company_info_id:company_info_id?.data,
           },
         });
 
@@ -2228,7 +2152,6 @@ const customerRegistrationWithGoogle = async (req: Request) => {
             { id: { [Op.ne]: emailExists.dataValues.id_app_user } },
             columnValueLowerCase("username", username),
             { is_deleted: DeletedStatus.No },
-            {company_info_id:[company_info_id?.data,0]},
           ],
         });
 
@@ -2242,7 +2165,7 @@ const customerRegistrationWithGoogle = async (req: Request) => {
         }
 
         const beforUpdateAppUser = await AppUser.findOne({
-          where: { id: emailExists.dataValues.id_app_user, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id_app_user },
         });
 
         const CustomerUserPayload = await CustomerUser.update(
@@ -2250,17 +2173,16 @@ const customerRegistrationWithGoogle = async (req: Request) => {
             full_name: full_name,
             third_party_response: third_party_response,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { where: { id: emailExists.dataValues.id }, transaction: trn }
         );
 
         const updateUserDetail = await CustomerUser.findOne({
-          where: { id: emailExists.dataValues.id, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id },
         });
 
         const appUser = await AppUser.findOne({
-          where: { id: emailExists.dataValues.id_app_user, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id_app_user },
         });
         const jwtPayload = {
           id: appUser && appUser.dataValues.id,
@@ -2274,8 +2196,7 @@ const customerRegistrationWithGoogle = async (req: Request) => {
           jwtPayload,
           appUser.dataValues.user_type
         );
-        await addActivityLogs(req,
-          company_info_id?.data,
+        await addActivityLogs(
           [{
           old_data: { app_user_id: beforUpdateAppUser?.dataValues?.id,
             app_user_data: {
@@ -2321,18 +2242,12 @@ const customerRegistrationWithFacebook = async (req: Request) => {
       third_party_response,
       token,
     } = req.body;
-    const {CustomerUser, AppUser,Image} = initModels(req);
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
       const emailExists = await CustomerUser.findOne({
         where: [
           columnValueLowerCase("email", username),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
         ],
         transaction: trn,
       });
@@ -2346,7 +2261,6 @@ const customerRegistrationWithFacebook = async (req: Request) => {
           where: [
             columnValueLowerCase("username", username),
             { is_deleted: DeletedStatus.No },
-            {company_info_id:[company_info_id?.data,0]},
           ],
         });
 
@@ -2368,7 +2282,6 @@ const customerRegistrationWithFacebook = async (req: Request) => {
             id_role: CUSTOMER_USER_ROLE_ID,
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
 
           },
           { transaction: trn }
@@ -2386,13 +2299,12 @@ const customerRegistrationWithFacebook = async (req: Request) => {
             sign_up_type: SIGN_UP_TYPE.Facebook,
             third_party_response: third_party_response,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { transaction: trn }
         );
 
         await trn.commit();
-        const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+        const configData =  await getWebSettingData();
         let logo_image = configData.image_base_url;
         let frontend_url = configData.fronted_base_url;
 
@@ -2404,7 +2316,7 @@ const customerRegistrationWithFacebook = async (req: Request) => {
             frontend_url,
           },
         };
-        await successRegistration(mailPayload,company_info_id?.data, req);
+        await successRegistration(mailPayload);
         const jwtPayload = {
           id: appUserPayload && appUserPayload.dataValues.id,
           id_app_user: appUserPayload.dataValues.id,
@@ -2418,7 +2330,7 @@ const customerRegistrationWithFacebook = async (req: Request) => {
           appUserPayload.dataValues.user_type
         );
         const userDetails = await CustomerUser.findOne({
-          where: { id_app_user: appUserPayload.dataValues.id, is_deleted: DeletedStatus.No, company_info_id:company_info_id?.data },
+          where: { id_app_user: appUserPayload.dataValues.id, is_deleted: DeletedStatus.No },
           attributes: [
             "id",
             "full_name",
@@ -2431,8 +2343,7 @@ const customerRegistrationWithFacebook = async (req: Request) => {
           ],
           include: [{ model: Image, as: "image", attributes: [] }],
         });
-        await addActivityLogs(req,
-          company_info_id?.data,
+        await addActivityLogs(
           [{
           old_data: null,
           new_data: {
@@ -2445,7 +2356,7 @@ const customerRegistrationWithFacebook = async (req: Request) => {
               ...CustomerUserPayload?.dataValues
             },
             detail_json: req?.body?.detail_json || {},
-            token: data,
+            token: data
           }
         }], appUserPayload?.dataValues?.id, LogsActivityType.customerRegistrationWithGoogle, LogsType.Auth, appUserPayload?.dataValues?.id,trn)   
         return resSuccess({ data: { tokens: data, user_detail: userDetails } });
@@ -2454,7 +2365,6 @@ const customerRegistrationWithFacebook = async (req: Request) => {
           where: {
             sign_up_type: { [Op.ne]: SIGN_UP_TYPE.Facebook },
             id: { [Op.eq]: emailExists.dataValues.id },
-            company_info_id:company_info_id?.data,
           },
         });
 
@@ -2472,7 +2382,6 @@ const customerRegistrationWithFacebook = async (req: Request) => {
             { id: { [Op.ne]: emailExists.dataValues.id_app_user } },
             columnValueLowerCase("username", username),
             { is_deleted: DeletedStatus.No },
-            {company_info_id:[company_info_id?.data,0]},
           ],
         });
 
@@ -2486,7 +2395,7 @@ const customerRegistrationWithFacebook = async (req: Request) => {
         }
 
         const beforUpdateAppUser = await AppUser.findOne({
-          where: { id: emailExists.dataValues.id_app_user, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id_app_user },
         });
 
         const CustomerUserPayload = await CustomerUser.update(
@@ -2494,17 +2403,16 @@ const customerRegistrationWithFacebook = async (req: Request) => {
             full_name: full_name,
             third_party_response: third_party_response,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { where: { id: emailExists.dataValues.id }, transaction: trn }
         );
 
         const updateUserDetail = await CustomerUser.findOne({
-          where: { id: emailExists.dataValues.id, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id },
         });
 
         const appUser = await AppUser.findOne({
-          where: { id: emailExists.dataValues.id_app_user, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id_app_user },
         });
         const jwtPayload = {
           id: appUser && appUser.dataValues.id,
@@ -2518,9 +2426,8 @@ const customerRegistrationWithFacebook = async (req: Request) => {
           jwtPayload,
           appUser.dataValues.user_type
         );
-        await addActivityLogs(req,
-          company_info_id?.data,
-          [{
+        await addActivityLogs(
+          [{  
           old_data: { app_user_id: beforUpdateAppUser?.dataValues?.id,
             app_user_data: {
               ...beforUpdateAppUser?.dataValues
@@ -2561,18 +2468,12 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
       username,
       password,
     } = req.body;
-    const {CustomerUser, AppUser,Image} = initModels(req);
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
       const emailExists = await CustomerUser.findOne({
         where: [
           columnValueLowerCase("email", username),
           { is_deleted: DeletedStatus.No },
-          {company_info_id:company_info_id?.data},
         ],
         transaction: trn,
       });
@@ -2597,7 +2498,6 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
           where: [
             columnValueLowerCase("username", username),
             { is_deleted: DeletedStatus.No },
-            {company_info_id:[company_info_id?.data,0]},
           ],
         });
 
@@ -2620,7 +2520,6 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
             id_role: CUSTOMER_USER_ROLE_ID,
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { transaction: trn }
         );
@@ -2637,13 +2536,12 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
             sign_up_type: SIGN_UP_TYPE.CadcoPanel,
             third_party_response: cadcoLoginApI.data,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { transaction: trn }
         );
 
         await trn.commit();
-        const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+        const configData =  await getWebSettingData();
         let logo_image = configData.image_base_url;
         let frontend_url = configData.fronted_base_url;
 
@@ -2655,7 +2553,7 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
             frontend_url,
           },
         };
-        await successRegistration(mailPayload,company_info_id?.data, req);
+        await successRegistration(mailPayload);
         const jwtPayload = {
           id: appUserPayload && appUserPayload.dataValues.id,
           id_app_user: appUserPayload.dataValues.id,
@@ -2669,7 +2567,7 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
           appUserPayload.dataValues.user_type
         );
         const userDetails = await CustomerUser.findOne({
-          where: { id_app_user: appUserPayload.dataValues.id, is_deleted: DeletedStatus.No, company_info_id:company_info_id?.data },
+          where: { id_app_user: appUserPayload.dataValues.id, is_deleted: DeletedStatus.No },
           attributes: [
             "id",
             "full_name",
@@ -2682,8 +2580,7 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
           ],
           include: [{ model: Image, as: "image", attributes: [] }],
         });
-        await addActivityLogs(req,
-          company_info_id?.data,
+        await addActivityLogs(
           [{
           old_data: null,
           new_data: {
@@ -2705,7 +2602,6 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
           where: {
             sign_up_type: { [Op.ne]: SIGN_UP_TYPE.CadcoPanel },
             id: { [Op.eq]: emailExists.dataValues.id },
-            company_info_id:company_info_id?.data,
           },
         });
 
@@ -2723,7 +2619,6 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
             { id: { [Op.ne]: emailExists.dataValues.id_app_user } },
             columnValueLowerCase("username", username),
             { is_deleted: DeletedStatus.No },
-            { company_info_id: [company_info_id?.data, 0]},
           ],
         });
 
@@ -2737,7 +2632,7 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
         }
 
         const beforUpdateAppUser = await AppUser.findOne({
-          where: { id: emailExists.dataValues.id_app_user, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id_app_user },
         });
 
         const CustomerUserPayload = await CustomerUser.update(
@@ -2746,17 +2641,16 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
             password: password,
             third_party_response: cadcoLoginApI.data,
             is_deleted: DeletedStatus.No,
-            company_info_id:company_info_id?.data,
           },
           { where: { id: emailExists.dataValues.id }, transaction: trn }
         );
 
         const updateUserDetail = await CustomerUser.findOne({
-          where: { id: emailExists.dataValues.id, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id },
         });
 
         const appUser = await AppUser.findOne({
-          where: { id: emailExists.dataValues.id_app_user, company_info_id:company_info_id?.data },
+          where: { id: emailExists.dataValues.id_app_user },
         });
         const jwtPayload = {
           id: appUser && appUser.dataValues.id,
@@ -2770,8 +2664,7 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
           jwtPayload,
           appUser.dataValues.user_type
         );
-        await addActivityLogs(req,
-          company_info_id?.data,
+        await addActivityLogs(
           [{
           old_data: { app_user_id: beforUpdateAppUser?.dataValues?.id,
             app_user_data: {
@@ -2809,14 +2702,9 @@ const customerRegistrationWithCadcoPanel = async (req: Request) => {
 
 export const customerRegisterOtpVerified = async (req: Request) => {
   try {
-    const {AppUser,CustomerUser,Image} = initModels(req);
     const { remember_me = false } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const userData = await AppUser.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(userData && userData.dataValues)) {
@@ -2848,16 +2736,14 @@ export const customerRegisterOtpVerified = async (req: Request) => {
           modified_date: getLocalDate(),
         },
 
-        { where: { id: userData.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data } }
+        { where: { id: userData.dataValues.id, is_deleted: DeletedStatus.No } }
       );
 
       const jwtPayload = {
         id: userData && userData.dataValues.id,
         id_app_user: userData.dataValues.id,
         user_type: userData.dataValues.user_type,
-        id_role: userData.dataValues.id_role,
-        client_id:  userData?.dataValues?.company_info_id || 0,
-        client_key: req?.query?.company_key || "",
+        id_role: userData.dataValues.id_role
       };
 
       const data = createUserJWT(
@@ -2866,7 +2752,7 @@ export const customerRegisterOtpVerified = async (req: Request) => {
         remember_me && remember_me == true ? 5 : userData.dataValues.user_type
       );
       const userDetails = await CustomerUser.findOne({
-        where: { id_app_user: userData.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+        where: { id_app_user: userData.dataValues.id, is_deleted: DeletedStatus.No },
         attributes: [
           "id",
           "full_name",
@@ -2882,7 +2768,7 @@ export const customerRegisterOtpVerified = async (req: Request) => {
         ],
         include: [{ model: Image, as: "image", attributes: [] }],
       });
-      const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+      const configData =  await getWebSettingData();
       let logo_image = configData.image_base_url;
       let frontend_url = configData.fronted_base_url;
 
@@ -2895,10 +2781,9 @@ export const customerRegisterOtpVerified = async (req: Request) => {
             frontend_url,
           },
         };
-        await successRegistration(mailPayload,company_info_id?.data, req);
+      await successRegistration(mailPayload);
       }
-      await addActivityLogs(req,
-        company_info_id?.data,
+      await addActivityLogs(
         [{
         old_data: null,
         new_data: {
@@ -2931,20 +2816,15 @@ export const customerRegisterOtpVerified = async (req: Request) => {
 
 export const resendOtpVerification = async (req: Request) => {
   try {
-    const {AppUser,CustomerUser} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const userData:any = await AppUser.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No,...superAdminWhere(company_info_id?.data)},
+      where: { id: req.body.id, is_deleted: DeletedStatus.No},
     });
     const customer = await CustomerUser.findOne({
-      where: { id_app_user: userData?.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { id_app_user: userData?.dataValues.id, is_deleted: DeletedStatus.No },
     });
    
     if (userData) {
-      const configWebData:any = await getWebSettingData(req.body.db_connection,company_info_id?.data)
+      const configWebData:any = await getWebSettingData()
       const digits = "0123456789";
       let OTP = "";
       for (let i = 0; i < (userData.dataValues.user_type == USER_TYPE.Administrator && userData.dataValues.is_super_admin == true ? 6  : configWebData.otp_generate_digit_count); i++) {
@@ -2959,10 +2839,10 @@ export const resendOtpVerification = async (req: Request) => {
           otp_expire_date: expireDate,
         },
 
-        { where: { id: userData.dataValues.id, is_deleted: DeletedStatus.No, ...superAdminWhere(company_info_id?.data) } }
+        { where: { id: userData.dataValues.id, is_deleted: DeletedStatus.No } }
       );
 
-      const configData =  await getWebSettingData(req.body.db_connection,company_info_id?.data);
+      const configData =  await getWebSettingData();
       const name = customer?.dataValues.full_name;
       let logo_image = configData.image_base_url;
       let frontend_url = configData.fronted_base_url;
@@ -2971,7 +2851,7 @@ export const resendOtpVerification = async (req: Request) => {
         contentTobeReplaced: { name, OTP, logo_image, frontend_url },
       };
 
-      await mailRegistrationOtp(mailPayload,company_info_id?.data, req);
+      await mailRegistrationOtp(mailPayload);
       if (
         userData.dataValues.user_type === USER_TYPE.Customer &&
         customer &&
@@ -2983,10 +2863,10 @@ export const resendOtpVerification = async (req: Request) => {
       }
 
       const afterUpdateUserData = await AppUser.findOne({
-        where: { id: req.body.id, is_deleted: DeletedStatus.No,...superAdminWhere(company_info_id?.data)},
+        where: { id: req.body.id, is_deleted: DeletedStatus.No},
       });
 
-      await addActivityLogs(req,company_info_id?.data,[{
+      await addActivityLogs([{
         old_data: {
           app_user_id: userData?.dataValues?.id,
           app_user_data: {
@@ -3006,7 +2886,7 @@ export const resendOtpVerification = async (req: Request) => {
           customer_user_data:{
             ...customer?.dataValues
           }, 
-          detail_json: req?.body?.detail_json || {},
+          detail_json: req?.body?.detail_json || {}
         }
       }], userData?.dataValues?.id, LogsActivityType.ResendOTPVerification,LogsType.Auth, userData?.dataValues?.id)         
     
@@ -3031,16 +2911,11 @@ export const resendOtpVerification = async (req: Request) => {
 
 export const getProfileForCustomer = async (req: Request) => {
   try {
-    const {CustomerUser,Image} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+    
     const data = await CustomerUser.findOne({
       where: {
         id_app_user: Number(req.params.id),
         is_deleted: DeletedStatus.No,
-        company_info_id:company_info_id?.data
       },
       attributes: [
         "id",
@@ -3069,13 +2944,8 @@ export const updateProfileForCustomer = async (req: Request) => {
   const { full_name, mobile, gender = null, country_id, id } = req.body;
 
   try {
-    const {CustomerUser,Image,AppUser} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     const CustomerId = await CustomerUser.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+      where: { id: id, is_deleted: DeletedStatus.No },
     });
 
     if (CustomerId == null) {
@@ -3087,11 +2957,8 @@ export const updateProfileForCustomer = async (req: Request) => {
 
     if (req.file) {
       const moveFileResult = await moveFileToS3ByType(
-        req.body.db_connection,
         req.file,
-        IMAGE_TYPE.profile,
-        company_info_id?.data,
-        req
+        IMAGE_TYPE.profile  
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -3101,7 +2968,7 @@ export const updateProfileForCustomer = async (req: Request) => {
       imagePath = moveFileResult.data;
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       if (imagePath) {
         const imageResult = await Image.create(
@@ -3109,7 +2976,6 @@ export const updateProfileForCustomer = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.profile,
             created_by: req.body.session_res.id_app_user,
-            company_info_id:company_info_id?.data,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -3118,23 +2984,12 @@ export const updateProfileForCustomer = async (req: Request) => {
         id_image = imageResult.dataValues.id;
       }
 
-      const appUserInfo = await AppUser.update(
-        {
-          modified_date: getLocalDate(),
-          modified_by: req.body.session_res.id_app_user,
-        },
-
-        {
-          where: { id: CustomerId.dataValues.id_app_user, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
-          transaction: trn,
-        }
-      );
+    
       const customerNumber = await CustomerUser.findOne({
         where: {
           mobile: mobile,
           id: { [Op.ne]: id },
           is_deleted: DeletedStatus.No,
-          company_info_id:company_info_id?.data,
         },
         transaction: trn,
       });
@@ -3159,16 +3014,16 @@ export const updateProfileForCustomer = async (req: Request) => {
         },
 
         {
-          where: { id: CustomerId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+          where: { id: CustomerId.dataValues.id, is_deleted: DeletedStatus.No },
           transaction: trn,
         }
       );
       if (CustomerInfo) {
         const CustomerInformation = await CustomerUser.findOne({
-          where: { id: id, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data },
+          where: { id: id, is_deleted: DeletedStatus.No },
           transaction: trn,
         });
-        await addActivityLogs(req,company_info_id?.data,[{
+        await addActivityLogs([{
           old_data: { 
             customer_user_id: CustomerId?.dataValues?.id,
             customer_user_data:{
@@ -3200,7 +3055,6 @@ export const updateProfileForCustomer = async (req: Request) => {
 // Start Admin Panel Menu Access & Permission API Management
 
 export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
-    const { MenuItem, RoleApiPermission, Action } = initModels(req);
     const { 
       id,  // The ID of the menu item to update (if provided)
       name, 
@@ -3218,13 +3072,12 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
 
     let transaction:any;
     try {
-       transaction = await (req.body.db_connection).transaction();
+       transaction = await dbContext.transaction();
 
         // Dynamically build the where condition using OR for `name` and `id`
       let whereCondition: any = {
-        company_info_id :req?.body?.session_res?.client_id,
+        
         is_deleted: DeletedStatus.No,
-        [Op.or]: []  // Initialize an array for OR conditions
       };
 
       // Add the name condition
@@ -3272,13 +3125,11 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
             icon,
             created_by: req?.body?.session_res?.id_app_user, // Example: Replace with logged-in user's ID
             created_date: getLocalDate(),
-            company_info_id :req?.body?.session_res?.client_id
           },
           { transaction }
         );
 
-        await addActivityLogs(req,
-          req?.body?.session_res?.client_id,
+        await addActivityLogs(
           [{
           old_data: null,
           new_data: {
@@ -3310,8 +3161,7 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
           where: whereCondition
         });
 
-        await addActivityLogs(req,
-          req?.body?.session_res?.client_id,
+        await addActivityLogs(
           [{
           old_data: { menu_item_id: menuItem?.dataValues?.id,menu_item_data:{...menuItem?.dataValues}},
           new_data: {
@@ -3342,7 +3192,7 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
             where: {
               id: id,
               id_menu_item: menuItem.id,  // Ensure it belongs to the current MenuItem
-              company_info_id :req?.body?.session_res?.client_id,
+              
             },
             transaction
           });
@@ -3370,11 +3220,10 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
             where: {
               id: id,
               id_menu_item: menuItem.id,  // Ensure it belongs to the current MenuItem
-              company_info_id :req?.body?.session_res?.client_id
             },
             transaction
           });
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{
             old_data: { role_permission_id: existingPermission?.dataValues?.id, data: {...existingPermission?.dataValues} },
             new_data: {
               role_permission_id: AfterUpdateexistingPermission?.dataValues?.id, data: {...AfterUpdateexistingPermission?.dataValues}
@@ -3392,12 +3241,12 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
               api_endpoint,
               http_method,
               is_active,
-              company_info_id :req?.body?.session_res?.client_id,
+              
             },
             { transaction }
           );
           
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{
             old_data: null,
             new_data: {
               role_permission_id: RoleApiPermissionData?.dataValues?.id,
@@ -3425,12 +3274,11 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
 
   export const getMenuItemWithPermissions = async (req: Request) => {
     try {
-      const { MenuItem, RoleApiPermission, Action } = initModels(req);
       const pagination = getInitialPaginationFromQuery(req.query);
       let paginationProps:any = {};
       // Initialize where condition for filtering menu_items
       let whereCondition: any = {
-        company_info_id :req?.body?.session_res?.client_id,
+        
         is_deleted: DeletedStatus.No, // Ensure deleted flag is not true
       };
   
@@ -3495,7 +3343,7 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
             model: RoleApiPermission,
             as: 'rap',
             attributes: ['id', 'id_menu_item', 'id_action', 'api_endpoint', 'http_method', 'is_active','master_type'],
-            where: { is_active: ActiveStatus.Active,company_info_id :req?.body?.session_res?.client_id }, // Exclude deleted permissions
+            where: { is_active: ActiveStatus.Active }, // Exclude deleted permissions
             required: false, // Include even if no permissions are associated
             include: [
               {
@@ -3503,7 +3351,6 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
                 model: Action,
                 as: 'action',
                 attributes: ['id', 'action_name'],
-                where:{company_info_id :req?.body?.session_res?.client_id}
               },
             ],
           },
@@ -3511,7 +3358,7 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
             model: MenuItem,
             as: 'parent_menu',
             attributes: ['id', 'name'],
-            where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, // Exclude deleted parent menus
+            where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No }, // Exclude deleted parent menus
             required: false, // Include even if no parent menu is associated
           },
         ],
@@ -3539,7 +3386,6 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
   };  
   export const importMenuItemsWithPermission = async (req: Request) => {
     try {
-      const {ProductBulkUploadFile} = initModels(req);
       if (!req.file) {
         return resUnprocessableEntity({ message: FILE_NOT_FOUND });
       }
@@ -3549,7 +3395,6 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
         req.file.destination,
         PRODUCT_CSV_FOLDER_PATH,
         req.file.originalname,
-        req
       );
   
       if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -3566,9 +3411,7 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
       const resPDBUF = await processMenuItemsWithPermissionBulkUploadFile(
         resPBUF.dataValues.id,
         resMFTL.data,
-        req.body.session_res.id_app_user,
-        req?.body?.session_res?.client_id,
-        req
+        req.body.session_res.id_app_user
       );
   
       return resPDBUF;
@@ -3582,12 +3425,9 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
     id: number,
     path: string,
     idAppUser: number,
-    clientId: number,
-    req: Request
   ) => {
     try {
-      const { ProductBulkUploadFile } = initModels(req);
-      const data = await processCSVFile(path, idAppUser,clientId, req);
+      const data = await processCSVFile(path, idAppUser);
 
       if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         await ProductBulkUploadFile.update(
@@ -3614,12 +3454,11 @@ export const addOrUpdateMenuItemWithPermission = async (req: Request) => {
       return data;
     } catch (error) {
       console.error(error);
-      await handleProcessingError(id, error, req);
+      await handleProcessingError(id, error);
     }
   };
   
-const handleProcessingError = async (id: number, error: any, req: any) => {
-    const { ProductBulkUploadFile } = initModels(req);
+const handleProcessingError = async (id: number, error: any) => {
     try {
 
       await ProductBulkUploadFile.update(
@@ -3644,9 +3483,8 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
     }
   };
   
-  const processCSVFile = async (path: string, idAppUser: number,client_id:number, req: Request) => {
+  const processCSVFile = async (path: string, idAppUser: number) => {
     try {
-      const { Action, MenuItem } = initModels(req);
       const actionList = await Action.findAll({
         attributes: ['id', 'action_name']
       });
@@ -3654,10 +3492,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
       let menuItems = await MenuItem.findAll({
         where: {
           is_deleted: DeletedStatus.No,
-          [Op.or]: [
-            { company_info_id: client_id },                       // this client’s data
-            { company_info_id: SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY } // global / super‑admin data
-          ]
         },
         include: [
           {
@@ -3680,7 +3514,7 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
         return resVH;
       }
   
-      const resProducts = await getMenuItemsWithPermissionFromRows(resRows.data.results,actionList,menuItems, client_id, idAppUser, req)
+      const resProducts = await getMenuItemsWithPermissionFromRows(resRows.data.results,actionList,menuItems, idAppUser)
       if (resProducts.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return resProducts;
       }
@@ -3752,20 +3586,20 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
     return errors.length ? resUnprocessableEntity({ data: errors }) : resSuccess();
   };
   
-  const getIdFromName = (name: string, list: any, fieldName: string, companyId:any) => {
+  const getIdFromName = (name: string, list: any, fieldName: string) => {
     if (name == "" || !name || name == null || name == undefined) {
       return "0";
     }
     let findItem = list.find(
       (item: any) =>
         item.dataValues[fieldName].trim() ==
-        name.toString().trim() &&  ( item?.company_info_id ? item?.company_info_id === companyId : true || item?.company_info_id === SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY )
+        name.toString().trim()
     );
   
     return findItem ? parseInt(findItem.dataValues.id) : "0";
   };
 
-  const getDataFromName = (name: string,parent_menu_name:any, list: any, fieldName: string,perantFieldName:any,client_id:any) => {
+  const getDataFromName = (name: string,parent_menu_name:any, list: any, fieldName: string,perantFieldName:any) => {
     if (name == "" || !name || name == null || name == undefined) {
       return "0";
     }
@@ -3774,7 +3608,7 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
       (item: any) =>
         item.dataValues[fieldName].trim() ==
         name.toString().trim() && ( item?.dataValues?.['parent_menu'] ? item?.dataValues['parent_menu'][perantFieldName]?.trim() ==
-        parent_menu_name.toString().trim() : true ) &&( item?.dataValues?.company_info_id ? item?.dataValues?.company_info_id === client_id : true || item?.company_info_id === SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY)
+        parent_menu_name.toString().trim() : true )
 
     );
   
@@ -3785,7 +3619,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
     row: any,
     rows: any[],
     parentMenuList: any[],
-    req: any
   ) => {
     if (!row?.parent_menu_name) return;
   
@@ -3799,20 +3632,19 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
   
     if (!alreadyExists) {
       if (parent.parent_menu_name) {
-        collectParentMenus(parent, rows, parentMenuList,req); // Recursive call
+        collectParentMenus(parent, rows, parentMenuList); // Recursive call
       }
       parentMenuList.push(parent); // Only push after processing its parents
     }
   };
   
-  const getMenuItemsWithPermissionFromRows = async (rows: any[],actionList: any,menuItems: any, client_id: number, idAppUser: number, req: any) => {
+  const getMenuItemsWithPermissionFromRows = async (rows: any[],actionList: any,menuItems: any, idAppUser: number) => {
     const errors: any[] = [];
     let parentMenuList = [];
     const addParent = [];
-    const { MenuItem,RoleApiPermission } = initModels(req);
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
-      const action_id = getIdFromName(row.action_name, actionList, 'action_name',client_id);
+      const action_id = getIdFromName(row.action_name, actionList, 'action_name');
       const http_method_data = getEnumValue(row.http_method);
       
       if (!row.menu_name) {
@@ -3837,13 +3669,13 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
         }
       }
 
-      collectParentMenus(row, rows, parentMenuList,req);
+      collectParentMenus(row, rows, parentMenuList);
 
     }
     for (let index = 0; index < parentMenuList.length; index++) {
       const menu = parentMenuList[index];
-      const findInDb = getDataFromName(menu.menu_name, menu.parent_menu_name,menuItems, 'name','name',client_id)
-      const action_id = getIdFromName(menu.action_name, actionList, 'action_name',client_id);
+      const findInDb = getDataFromName(menu.menu_name, menu.parent_menu_name,menuItems, 'name','name')
+      const action_id = getIdFromName(menu.action_name, actionList, 'action_name');
       const http_method_data = getEnumValue(menu.http_method);
 
       if (findInDb === "0") {
@@ -3869,7 +3701,7 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
 
     const bulkRoleApiPermissions = [];
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       
       // create parent
@@ -3883,7 +3715,7 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
         if (menu.parent_menu_name) {
           const normalizedParentName = menu.parent_menu_name.trim();
       
-          const existingParent = getIdFromName(menu?.parent_menu_name, menuItems, 'name',client_id);
+          const existingParent = getIdFromName(menu?.parent_menu_name, menuItems, 'name');
           if (existingParent !== "0") {
             idParent = existingParent;
           }
@@ -3901,7 +3733,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           menu_location: menu.menu_location,
           icon: menu.icon,
           created_date: getLocalDate(),
-          company_info_id: menu.is_for_super_admin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY :client_id,
           is_for_super_admin: menu.is_for_super_admin,
           is_active: ActiveStatus.Active
         }, { transaction: trn });
@@ -3917,7 +3748,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           id_menu_item: currentMenuItem.dataValues.id,
           master_type: String(menu.master_type),
           created_date: getLocalDate(),
-          company_info_id: menu.is_for_super_admin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY :client_id,
         });
       }
       
@@ -3928,7 +3758,7 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
       // create array for add and update
       for (let index = 0; index < rows.length; index++) {
         const row = rows[index];
-        const action_id = getIdFromName(row.action_name, actionList, 'action_name',client_id);
+        const action_id = getIdFromName(row.action_name, actionList, 'action_name');
         const http_method_data = getEnumValue(row.http_method);
 
         if (!row.menu_name) {
@@ -3953,12 +3783,12 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           }
         }
 
-        const findInDb = getDataFromName(row.menu_name,row.parent_menu_name, menuItems, 'name','name',client_id)
+        const findInDb = getDataFromName(row.menu_name,row.parent_menu_name, menuItems, 'name','name')
         const findInBulk = bulkRoleApiPermissions?.find((item) => item.menu_name === row?.menu_name)
 
         let idParent = null;
         if (row.parent_menu_name) {
-          const findInDb = getIdFromName(row.parent_menu_name, menuItems, 'name',client_id)
+          const findInDb = getIdFromName(row.parent_menu_name, menuItems, 'name')
           if (findInDb === "0") {
             const findInBulk = bulkRoleApiPermissions?.find((item) => item.menu_name === row.parent_menu_name)
             if (findInBulk) {
@@ -4013,7 +3843,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
     where: {
       name: trimmedName,
       id_parent_menu: menu?.parent_menu_name ? menu?.parent_menu_name : null,
-      company_info_id: menu.is_for_super_admin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY :client_id,
       menu_location : menu.menu_location,
       is_deleted: DeletedStatus.No
     },
@@ -4032,7 +3861,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
       created_date: getLocalDate(),
       created_by:idAppUser,
       is_for_super_admin: menu.is_for_super_admin,
-      company_info_id: menu.is_for_super_admin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY :client_id,
       is_active: ActiveStatus.Active
     }, { transaction: trn });
   }
@@ -4044,8 +3872,7 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           is_active: ActiveStatus.Active,
           menu_name: menu.menu_name,
           id_menu_item: currentMenuItem?.dataValues?.id,
-          master_type: String(menu.master_type),
-          company_info_id: menu.is_for_super_admin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY :client_id,
+          master_type: String(menu.master_type),    
         });
       }
 
@@ -4062,7 +3889,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           modified_date: getLocalDate(),
           modified_by:idAppUser,
           is_for_super_admin: menu.is_for_super_admin,
-          company_info_id: menu.is_for_super_admin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY :client_id,
           is_active: ActiveStatus.Active
         }, { where: { id: menu.id }, transaction: trn });
 
@@ -4074,7 +3900,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           menu_name: menu.menu_name,
           id_menu_item: menu?.id,
           master_type: String(menu.master_type),
-          company_info_id: menu.is_for_super_admin ? SUPER_ADMIN_CREATED_ROLES_COMPANY_KEY :client_id,
         });
       }
 
@@ -4096,7 +3921,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
             http_method: item.http_method,
             id_menu_item: item.id_menu_item,
             master_type: String(item.master_type),
-            company_info_id: item.company_info_id
           },
           transaction: trn
         });
@@ -4121,7 +3945,6 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
         const element = data[index].dataValues;
         ActivityLogs.push({ old_data: null, new_data: { ...element } })
       }
-      await addActivityLogs(req,client_id, ActivityLogs, null, LogsActivityType.Add, LogsType.MenuItemWithPermission, idAppUser, trn)
       await trn.commit();
       return resSuccess({
         data: data
@@ -4141,9 +3964,8 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
  */
 
     try {
-      const { MenuItem } = initModels(req);
       const findCoupon = await MenuItem.findOne({
-        where: { id: req.params.id, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id},
+        where: { id: req.params.id, is_deleted: DeletedStatus.No },
       });
   
       if (!(findCoupon && findCoupon.dataValues)) {
@@ -4155,9 +3977,9 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           deleted_by: req.body.session_res.id_app_user,
           deleted_date: getLocalDate(),
         },
-        { where: { id: findCoupon.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+        { where: { id: findCoupon.dataValues.id } }
       );
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { menu_item_id: findCoupon?.dataValues?.id, data: {...findCoupon?.dataValues}},
         new_data: {
           menu_item_id: findCoupon?.dataValues?.id, data: {
@@ -4176,9 +3998,8 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
   
   export const statusUpdateForMenuItem= async (req: Request) => {
     try {
-      const { MenuItem } = initModels(req);
       const findCoupon = await MenuItem.findOne({
-        where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { id: req.params.id, is_deleted: DeletedStatus.No },
       });
   
       if (!(findCoupon && findCoupon.dataValues)) {
@@ -4190,9 +4011,9 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
           updated_date: getLocalDate(),
           updated_by: req.body.session_res.id_app_user,
         },
-        { where: { id: findCoupon.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+        { where: { id: findCoupon.dataValues.id } }
       );
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { menu_item_id: findCoupon?.dataValues?.id, data: {...findCoupon?.dataValues}},
         new_data: {
           menu_item_id: findCoupon?.dataValues?.id, data: {
@@ -4211,12 +4032,7 @@ const handleProcessingError = async (id: number, error: any, req: any) => {
 
 export const superAdminOtpVerified = async (req: Request) => {
   try {
-    
-    const {AppUser} = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+
     const userData = await AppUser.findOne({
       where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
@@ -4259,8 +4075,6 @@ export const superAdminOtpVerified = async (req: Request) => {
         user_type: userData.dataValues.user_type,
         id_role: userData.dataValues.id_role,
         otp: req.body.OTP,
-        client_id: company_info_id?.data,
-        client_key: req?.query?.company_key,
       };
 
       const data = createUserJWT(

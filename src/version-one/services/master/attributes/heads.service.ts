@@ -26,24 +26,25 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../utils/shared-functions";
-import { initModels } from "../../../model/index.model";
+import { HeadsData } from "../../../model/master/attributes/heads.model";
+import { Image } from "../../../model/image.model";
+import dbContext from "../../../../config/db-context";
 
 export const addHead = async (req: Request) => {
   try {
-    const { HeadsData,Image } = initModels(req);
     const { name, sort_code } = req.body;
     const slug = createSlug(name);
     const findName = await HeadsData.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        { company_info_id :req?.body?.session_res?.client_id },
+        {  },
       ],
     });
     const findSortCode = await HeadsData.findOne({
       where: [
         columnValueLowerCase("sort_code", sort_code),
-        { is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        { is_deleted: DeletedStatus.No, },
       ],
     });
     if (
@@ -52,16 +53,15 @@ export const addHead = async (req: Request) => {
     ) {
       return resErrorDataExit();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let idImage = null;
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.caratSize,
           req.body.session_res.id_app_user,
-          "",
-          req?.body?.session_res?.client_id
+          ""
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           trn.rollback();
@@ -74,7 +74,7 @@ export const addHead = async (req: Request) => {
         slug: slug,
         created_date: getLocalDate(),
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
+        
         sort_code: sort_code,
         id_image: idImage,
         is_active: ActiveStatus.Active,
@@ -83,7 +83,7 @@ export const addHead = async (req: Request) => {
 
       const head = await HeadsData.create(payload, { transaction: trn });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           head_id: head?.dataValues?.id, data: {
@@ -105,7 +105,6 @@ export const addHead = async (req: Request) => {
 
 export const getHeads = async (req: Request) => {
   try {
-    const { HeadsData,Image } = initModels(req);
     let paginationProps = {};
 
     let pagination = {
@@ -116,8 +115,8 @@ export const getHeads = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -125,7 +124,7 @@ export const getHeads = async (req: Request) => {
               { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
             ],
           }
-        : {},
+        : {}
     ];
 
     if (!noPagination) {
@@ -157,7 +156,7 @@ export const getHeads = async (req: Request) => {
         [Sequelize.literal("head_image.image_path"), "image_path"],
         "is_active",
       ],
-      include: [{ model: Image, as: "head_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "head_image", attributes: []}],
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -168,9 +167,8 @@ export const getHeads = async (req: Request) => {
 
 export const getByIdHead = async (req: Request) => {
   try {
-    const { HeadsData,Image } = initModels(req);
     const findHead = await HeadsData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id},
+      where: { id: req.params.id, is_deleted: DeletedStatus.No ,},
       attributes: [
         "id",
         "name",
@@ -190,7 +188,7 @@ export const getByIdHead = async (req: Request) => {
         "is_active",
         "created_by",
       ],
-      include: [{ model: Image, as: "image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "image", attributes: []}],
     });
 
     if (!(findHead && findHead.dataValues)) {
@@ -205,12 +203,11 @@ export const getByIdHead = async (req: Request) => {
 
 export const updateHead = async (req: Request) => {
   try {
-    const { HeadsData,Image } = initModels(req);
     const { name, sort_code, image_delete = "0" } = req.body;
     const id = req.params.id;
     const slug = createSlug(name);
     const findHead = await HeadsData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findHead && findHead.dataValues)) {
       return resNotFound();
@@ -220,7 +217,7 @@ export const updateHead = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        { company_info_id :req?.body?.session_res?.client_id },
+        {  },
       ],
     });
 
@@ -229,7 +226,7 @@ export const updateHead = async (req: Request) => {
         columnValueLowerCase("sort_code", sort_code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        { company_info_id :req?.body?.session_res?.client_id },
+        {  },
       ],
     });
 
@@ -240,23 +237,22 @@ export const updateHead = async (req: Request) => {
       return resErrorDataExit();
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findHead.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findHead.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: findHead.dataValues.id_image, },
           transaction: trn,
         });
       }
       if (req.file) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           req.file,
           IMAGE_TYPE.heads,
           req.body.session_res.id_app_user,
-          findImage,
-          req?.body?.session_res?.client_id
+          findImage,          
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -278,19 +274,19 @@ export const updateHead = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
         },
         {
-          where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: id, is_deleted: DeletedStatus.No, },
           transaction: trn,
         }
       );
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage);
       }
       const afterUpdatefindHead = await HeadsData.findOne({
         where: { id: id, is_deleted: DeletedStatus.No },transaction:trn
       });
 
     
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { head_id:findHead?.dataValues?.id, data:{...findHead?.dataValues} },
         new_data: {
           head_id:afterUpdatefindHead?.dataValues?.id, data: { ...afterUpdatefindHead?.dataValues }
@@ -311,9 +307,8 @@ export const updateHead = async (req: Request) => {
 
 export const deleteHead = async (req: Request) => {
   try {
-    const { HeadsData } = initModels(req);
     const headExists = await HeadsData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(headExists && headExists.dataValues)) {
@@ -325,9 +320,9 @@ export const deleteHead = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: headExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: headExists.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { head_id: headExists?.dataValues?.id, data:{... headExists?.dataValues} },
       new_data: {
         head_id: headExists?.dataValues?.id, data: {
@@ -346,9 +341,8 @@ export const deleteHead = async (req: Request) => {
 
 export const statusUpdateForHead = async (req: Request) => {
   try {
-    const { HeadsData } = initModels(req);
     const findHead = await HeadsData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findHead && findHead.dataValues)) {
       return resNotFound();
@@ -359,9 +353,9 @@ export const statusUpdateForHead = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findHead.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findHead.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { head_id: findHead?.dataValues?.id, data: {...findHead?.dataValues}},
       new_data: {
         head_id: findHead?.dataValues?.id, data: {

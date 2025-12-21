@@ -1,12 +1,11 @@
 import { RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
 import { getLocalDate, resSuccess } from "../../utils/shared-functions";
-import { initModels } from "../model/index.model";
+import { PriceCorrection } from "../model/price-correction.model";
 
 export const getPriceCorrection = async (req: any) => {
     try {
-        const { PriceCorrection } = initModels(req);
         const findPriceCorrection = await PriceCorrection.findAll({
-            where: { company_info_id: req.body.session_res.client_id },
+            where: { },
             attributes: [
                 'id',
                 'round_off',
@@ -23,10 +22,9 @@ export const getPriceCorrection = async (req: any) => {
 
 export const addOrUpdatePriceCorrection = async (req: any) => {
     try {
-        const { PriceCorrection } = initModels(req);
 
         const findPriceCorrection = await PriceCorrection.findOne({
-            where: { company_info_id: req.body.session_res.client_id, product_type: req.body.product_type }
+            where: { product_type: req.body.product_type }
         })
 
         if(!(findPriceCorrection && findPriceCorrection.dataValues)){
@@ -34,7 +32,6 @@ export const addOrUpdatePriceCorrection = async (req: any) => {
                 round_off: req.body.round_off,
                 product_type: req.body.product_type,
                 is_active: req.body.is_active,
-                company_info_id: req.body.session_res.client_id,
                 created_by: req.body.session_res.id_app_user,
                 created_date: getLocalDate()
             })
@@ -46,7 +43,7 @@ export const addOrUpdatePriceCorrection = async (req: any) => {
                 modified_by: req.body.session_res.id_app_user,
                 modified_date: getLocalDate()
             }, {
-                where: { id: findPriceCorrection.dataValues.id, company_info_id: req.body.session_res.client_id }
+                where: { id: findPriceCorrection.dataValues.id }
             })
         }
 

@@ -3,22 +3,22 @@ import { ActiveStatus, DeletedStatus, DYNAMIC_MAIL_TYPE, EmailLogType, WantToSen
 import {  getLocalDate, getWebSettingData, prepareMessageFromParams, resBadRequest } from "../../utils/shared-functions";
 import { Op } from "sequelize";
 import { EMAIL_TEMPLATE_NOT_FOUND } from "../../utils/app-messages";
-import { initModels } from "../model/index.model";
+import { CompanyInfo } from "../model/companyinfo.model";
+import { Image } from "../model/image.model";
+import { EmailTemplate } from "../model/email-template.model";
+import { EamilLog } from "../model/email-logs.model";
 
 async function prepareAndSendEmail(
-  req: any,
   mailTemplate: string,
   mailSubject: string,
   messageType: number,
   payload: any,
-  client_id?:number,
   EamilLogInstance?:any,
   appUserId?: any,
 ) {
   try {
-    const {CompanyInfo,Image} = initModels(req);
     const companyInfo = await (<any>CompanyInfo.findOne({
-      where: { id: client_id },
+      where: { },
       attributes: [
         "id",
         "company_name",
@@ -43,7 +43,7 @@ async function prepareAndSendEmail(
       ],
     }));
 
-    const configData = await getWebSettingData(req.body.db_connection,client_id);
+    const configData = await getWebSettingData();
 
     const mailLogoPath = await Image.findOne({where:{id:companyInfo.dataValues.mail_tem_logo}})
    
@@ -73,7 +73,6 @@ async function prepareAndSendEmail(
       messageType: messageType,
       attachments: payload.attachments,
       dynamic: payload?.dynamic ? payload?.dynamic : false,
-      client_id: configData
 
     };
     await objMail.prepareEmail(mailInfo);
@@ -90,67 +89,66 @@ async function prepareAndSendEmail(
   }
 }
 
-export const mailPasswordResetLink = async (payload: any,clientId:number, req: any) => {
+export const mailPasswordResetLink = async (payload: any) => {
 
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.ResetPassword,clientId, req);
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.ResetPassword);
 
 };
 
-export const mailRegistrationOtp = async (payload: any,clientId:number, req: any) => {
-      await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CustomerOtp,clientId, req);
+export const mailRegistrationOtp = async (payload: any) => {
+      await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CustomerOtp);
  
 };
 
-export const configuratoreVerificationOtp = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.configuratorOtp,clientId, req);
+export const configuratoreVerificationOtp = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.configuratorOtp);
 };
 
-export const successRegistration = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.Registration,clientId, req);
+export const successRegistration = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.Registration);
 };
 
-export const mailNewOrderReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.UserOrderPurchase,clientId, req);
+export const mailNewOrderReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.UserOrderPurchase);
 };
 
-export const mailOrderInvoiceReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.EmailAttachmentInvoice,clientId, req);
+export const mailOrderInvoiceReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.EmailAttachmentInvoice);
 };
 
-export const mailProductInquiryFoeCustomerReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CustomerProductInquiry,clientId, req);
+export const mailProductInquiryFoeCustomerReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CustomerProductInquiry);
 };
 
-export const mailAppointmentForCustomerReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CustomerAppointment,clientId, req);
+export const mailAppointmentForCustomerReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CustomerAppointment);
 };
 
-export const mailProductInquiryForAdminReceived = async (payload: any,clientId:number, req: any) => {
-  await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.AdminProductInquiry,clientId, req);
+export const mailProductInquiryForAdminReceived = async (payload: any) => {
+  await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.AdminProductInquiry);
 };
 
-export const mailAppointmentForAdminReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.AdminAppointment,clientId, req);
+export const mailAppointmentForAdminReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.AdminAppointment);
 };
 
-export const mailNewOrderAdminReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.NewOrderReceivedAdmin,clientId, req);
+export const mailNewOrderAdminReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.NewOrderReceivedAdmin);
 };
 
-export const mailCatalogueNewOrderAdminReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CataloguesNewOrderReceivedAdmin,clientId, req);
+export const mailCatalogueNewOrderAdminReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CataloguesNewOrderReceivedAdmin);
 };
 
-export const mailCatalogueNewOrderUserReceived = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CataloguesNewOrderReceivedUser,clientId, req);
+export const mailCatalogueNewOrderUserReceived = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.CataloguesNewOrderReceivedUser);
 };
-export const mailSendForOrderStatusUpdate = async (payload: any,clientId:number, req: any) => {
-    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.AdminChangeOrderStatus,clientId, req);
+export const mailSendForOrderStatusUpdate = async (payload: any) => {
+    await sendMailByMessageType(payload, DYNAMIC_MAIL_TYPE.AdminChangeOrderStatus);
 };
 
-export const sendMailByMessageType = async (payload: any,DYNAMIC_MAIL_TYPE:any,clientId:number, req: any, appUserId:any=null) => {
+export const sendMailByMessageType = async (payload: any,DYNAMIC_MAIL_TYPE:any, appUserId:any=null) => {
   payload.dynamic = true;
-  const {EmailTemplate, EamilLog} = initModels(req);    
   try {
   // If no template ID is provided, we are creating a new template
   const existingTemplate = await EmailTemplate.findOne({
@@ -160,7 +158,6 @@ export const sendMailByMessageType = async (payload: any,DYNAMIC_MAIL_TYPE:any,c
       },
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      company_info_id: clientId
     },
   });  
   if(existingTemplate){
@@ -173,18 +170,15 @@ export const sendMailByMessageType = async (payload: any,DYNAMIC_MAIL_TYPE:any,c
       mail_for:DYNAMIC_MAIL_TYPE,
       response_status: EmailLogType.Pending,
       is_dunamic: true,
-      company_info_id:clientId,
       created_by: appUserId ? appUserId : null ,
       created_at: getLocalDate(),
       updated_at: getLocalDate()
     });
     await prepareAndSendEmail(
-      req,
       rawHtmlContent,
       existingTemplate.dataValues.subject,
       DYNAMIC_MAIL_TYPE,
       payload,
-      clientId,
       EamilLogData,
       appUserId
     );  
@@ -195,7 +189,6 @@ export const sendMailByMessageType = async (payload: any,DYNAMIC_MAIL_TYPE:any,c
       response_status: EmailLogType.Pending,
       error_message: prepareMessageFromParams(EMAIL_TEMPLATE_NOT_FOUND, [["templateName", DYNAMIC_MAIL_TYPE],]),
       is_dunamic: true,
-      company_info_id:clientId,
       created_by: appUserId ? appUserId : null ,
       created_at: getLocalDate(),
       updated_at: getLocalDate(),
@@ -207,7 +200,6 @@ export const sendMailByMessageType = async (payload: any,DYNAMIC_MAIL_TYPE:any,c
     response_status: EmailLogType.Pending,
     error_message: e,
     is_dunamic: true,
-    company_info_id:clientId,
     created_by: appUserId ? appUserId : null ,
     created_at: getLocalDate(),
     updated_at: getLocalDate(),

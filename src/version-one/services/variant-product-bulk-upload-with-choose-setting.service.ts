@@ -51,12 +51,34 @@ import {
   GET_DIAMOND_PLACE_ID_FROM_LABEL,
 } from "../../utils/app-constants";
 import { Op } from "sequelize";
-import { initModels } from "../model/index.model";
 const readXlsxFile = require("read-excel-file/node");
+import { ProductBulkUploadFile } from "../model/product-bulk-upload-file.model";
+import { Tag } from "../model/master/attributes/tag.model";
+import { SettingTypeData } from "../model/master/attributes/settingType.model";
+import { SizeData } from "../model/master/attributes/item-size.model";
+import { LengthData } from "../model/master/attributes/item-length.model";
+import { Collection } from "../model/master/attributes/collection.model";
+import { CategoryData } from "../model/category.model";
+import { BrandData } from "../model/master/attributes/brands.model";
+import { Product } from "../model/product.model";
+import { MetalMaster } from "../model/master/attributes/metal/metal-master.model";
+import { GoldKarat } from "../model/master/attributes/metal/gold-karat.model";
+import { MetalTone } from "../model/master/attributes/metal/metalTone.model";
+import { DiamondCaratSize } from "../model/master/attributes/caratSize.model";
+import { DiamondShape } from "../model/master/attributes/diamondShape.model";
+import { MMSizeData } from "../model/master/attributes/mmSize.model";
+import { Colors } from "../model/master/attributes/colors.model";
+import { ClarityData } from "../model/master/attributes/clarity.model";
+import { CutsData } from "../model/master/attributes/cuts.model";
+import { StoneData } from "../model/master/attributes/gemstones.model";
+import { DiamondGroupMaster } from "../model/master/attributes/diamond-group-master.model";
+import { ProductCategory } from "../model/product-category.model";
+import { ProductMetalOption } from "../model/product-metal-option.model";
+import { ProductDiamondOption } from "../model/product-diamond-option.model";
+import dbContext from "../../config/db-context";
 
 export const addChooseSettingProductsFromCSVFile = async (req: Request) => {
   try {
-    const {ProductBulkUploadFile} = initModels(req);
     if (!req.file) {
       return resUnprocessableEntity({
         message: FILE_NOT_FOUND,
@@ -79,7 +101,6 @@ export const addChooseSettingProductsFromCSVFile = async (req: Request) => {
       req.file.destination,
       PRODUCT_CSV_FOLDER_PATH,
       req.file.originalname,
-      req
     );
 
     if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -91,7 +112,6 @@ export const addChooseSettingProductsFromCSVFile = async (req: Request) => {
       status: FILE_STATUS.Uploaded,
       file_type: FILE_BULK_UPLOAD_TYPE.ProductUpload,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
 
@@ -99,8 +119,7 @@ export const addChooseSettingProductsFromCSVFile = async (req: Request) => {
       resPBUF.dataValues.id,
       resMFTL.data,
       req.body.session_res.id_app_user,
-      req?.body?.session_res?.client_id,
-      req
+      
     );
 
     return PPBUF;
@@ -127,13 +146,11 @@ const processProductBulkUploadFile = async (
   id: number,
   path: string,
   idAppUser: number,
-  clientId: number,
-  req: Request
+ 
 ) => {
-  const {ProductBulkUploadFile} = initModels(req);
   try {
 
-    const data = await processCSVFile(path, idAppUser,clientId, req);
+    const data = await processCSVFile(path, idAppUser);
     if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       await ProductBulkUploadFile.update(
         {
@@ -171,7 +188,7 @@ const processProductBulkUploadFile = async (
   }
 };
 
-const processCSVFile = async (path: string, idAppUser: number,client_id:number, req: Request) => {
+const processCSVFile = async (path: string, idAppUser: number) => {
   try {
     const resRows = await getArrayOfRowsFromCSVFile(path);
 
@@ -189,12 +206,12 @@ const processCSVFile = async (path: string, idAppUser: number,client_id:number, 
     //   });
     // }
 
-    const resProducts = await getProductsFromRows(resRows.data.results,client_id, req);
+    const resProducts = await getProductsFromRows(resRows.data.results);
     if (resProducts.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resProducts;
     }
 
-    const resAPTD = await addProductToDB(resProducts.data, idAppUser,client_id, req);
+    const resAPTD = await addProductToDB(resProducts.data, idAppUser);
     if (resAPTD.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resAPTD;
     }
@@ -367,7 +384,7 @@ const validateHeaders = async (headers: string[]) => {
   return resSuccess();
 };
 
-const getProductsFromRows = async (rows: any,client_id:number, req: Request) => {
+const getProductsFromRows = async (rows: any) => {
   let currentProductIndex = -1;
   let productList = [];
   try {
@@ -376,58 +393,57 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
       product_sku: string;
       error_message: string;
     }[] = [];
-    const {Tag, SettingTypeData, SizeData, LengthData, Collection, CategoryData, BrandData, Product, MetalMaster, GoldKarat, MetalTone, DiamondCaratSize, DiamondShape, MMSizeData, Colors, ClarityData, CutsData, StoneData} = initModels(req);
 
     const tagList = await Tag.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const settingTypeList = await SettingTypeData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const itemSizeList = await SizeData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const itemlengthList = await LengthData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const collectionList = await Collection.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const categoryList = await CategoryData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const brandList = await BrandData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const metalMasterList = await MetalMaster.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const karatList = await GoldKarat.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const metaToneList = await MetalTone.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const gemstoneList = await StoneData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const diamondShapeList = await DiamondShape.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const diamondSizeList = await DiamondCaratSize.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const mmSizeList = await MMSizeData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const diamondColorList = await Colors.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const diamondClarityList = await ClarityData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
     const diamondCutList = await CutsData.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id :client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     });
 
     for (const row of rows) {
@@ -435,7 +451,7 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
         currentProductIndex++;
 
         const productsku = await Product.findOne({
-          where: { sku: row.sku, is_deleted: DeletedStatus.No,company_info_id :client_id },
+          where: { sku: row.sku, is_deleted: DeletedStatus.No },
         });
 
         if (productsku != null) {
@@ -554,7 +570,6 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
             settingTypeList,
             row.setting_style_type,
             "name",
-            req
           ),
           id_brand: row.brand
             ? getIdFromName(row.brand, brandList, "name")
@@ -657,7 +672,6 @@ const getProductsFromRows = async (rows: any,client_id:number, req: Request) => 
       diamondColorList,
       diamondClarityList,
       diamondCutList,
-      req
     );
     if (resSDO.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       resSDO.data.map((t: any) =>
@@ -751,10 +765,8 @@ const getPipedTagIdFromFieldValue = async (
 const getPipedSettingIdFromFieldValue = async (
   list: any,
   fieldValue: string,
-  fieldName: string,
-  req: Request
+  fieldName: string
 ) => {
-  const {SettingTypeData} = initModels(req);
 
   if (fieldValue == null || fieldValue === "") {
     return "";
@@ -1111,9 +1123,7 @@ const setDiamondOptions = async (
   diamondColorList: any,
   diamondClarityList: any,
   diamondCutList,
-  req: Request
 ) => {
-  const {DiamondGroupMaster} = initModels(req);
   let configGroupNameList = [],
     configStoneSettingList = [],
     pmo,
@@ -1299,9 +1309,8 @@ const prepareDynamicMessage = (fieldName: string, value: any) => {
   }
 };
 
-const addProductToDB = async (productList: any, idAppUser: number,client_id:number, req: Request) => {
-  const trn = await (req.body.db_connection).transaction();
-  const {Product, ProductCategory, ProductMetalOption, ProductDiamondOption} = initModels(req)
+const addProductToDB = async (productList: any, idAppUser: number) => {
+  const trn = await dbContext.transaction();
   let resProduct,
     productCategory,
     pmo,
@@ -1323,7 +1332,6 @@ const addProductToDB = async (productList: any, idAppUser: number,client_id:numb
         where: [
           columnValueLowerCase("name", product.name),
           { is_deleted: DeletedStatus.No },
-          {company_info_id :client_id},
         ],
         transaction: trn,
       });
@@ -1377,7 +1385,6 @@ const addProductToDB = async (productList: any, idAppUser: number,client_id:numb
           setting_diamond_shapes: product.setting_diamond_shapes,
           is_active: ActiveStatus.Active,
           is_deleted: DeletedStatus.No,
-          company_info_id :client_id,
         },
         { transaction: trn }
       );
@@ -1392,7 +1399,6 @@ const addProductToDB = async (productList: any, idAppUser: number,client_id:numb
           created_date: getLocalDate(),
           is_active: ActiveStatus.Active,
           is_deleted: DeletedStatus.No,
-          company_info_id :client_id,
         });
       }
 
@@ -1420,7 +1426,6 @@ const addProductToDB = async (productList: any, idAppUser: number,client_id:numb
           created_date: getLocalDate(),
           is_active: ActiveStatus.Active,
           is_deleted: DeletedStatus.No,
-          company_info_id :client_id,
         });
       }
 
@@ -1443,7 +1448,6 @@ const addProductToDB = async (productList: any, idAppUser: number,client_id:numb
           created_date: getLocalDate(),
           is_active: ActiveStatus.Active,
           is_deleted: DeletedStatus.No,
-          company_info_id :client_id,
         });
       }
     }
@@ -1458,12 +1462,12 @@ const addProductToDB = async (productList: any, idAppUser: number,client_id:numb
     const ProductMetalsData = await ProductDiamondOption.bulkCreate(pdoPayload, { transaction: trn });
     // await ProductImage.bulkCreate(imgPayload, { transaction: trn });
      activitylogs = {...activitylogs,category:Productcategory.map((t)=>t.dataValues),Metal:ProductMetalsData.map((t)=>t.dataValues),diamonds:ProductDiamondsData.map((t)=>t.dataValues)}
-        await addActivityLogs(req,client_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: activitylogs}], null, LogsActivityType.Add, LogsType.ProductBulkUploadWithChooseSetting, idAppUser,trn)
         
     await trn.commit();
-    // await refreshMaterializedProductListView(req.body.db_connection);
+    // await refreshMaterializedProductListViewdbContext;
     return resSuccess();
   } catch (e) {
     await trn.rollback();

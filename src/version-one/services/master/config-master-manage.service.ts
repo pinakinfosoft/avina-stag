@@ -11,18 +11,28 @@ import {
 import { Op, QueryTypes, Transaction } from "sequelize";
 import { addActivityLogs, getCompanyIdBasedOnTheCompanyKey, getLocalDate, imageAddAndEditInDBAndS3, resSuccess, resUnknownError } from "../../../utils/shared-functions";
 import { DEFAULT_STATUS_CODE_SUCCESS } from "../../../utils/app-messages";
-import { initModels } from "../../model/index.model";
+import { DiamondShape } from "../../model/master/attributes/diamondShape.model";
+import { HeadsData } from "../../model/master/attributes/heads.model";
+import { SideSettingStyles } from "../../model/master/attributes/side-setting-styles.model";
+import { DiamondCaratSize } from "../../model/master/attributes/caratSize.model";
+import { ShanksData } from "../../model/master/attributes/shanks.model";
+import { GoldKarat } from "../../model/master/attributes/metal/gold-karat.model";
+import { DiamondGroupMaster } from "../../model/master/attributes/diamond-group-master.model";
+import { MetalMaster } from "../../model/master/attributes/metal/metal-master.model";
+import { StoneData } from "../../model/master/attributes/gemstones.model";
+import { MetalTone } from "../../model/master/attributes/metal/metalTone.model";
+import { CutsData } from "../../model/master/attributes/cuts.model";
+import dbContext from "../../../config/db-context";
+import { Image } from "../../model/image.model";
 
 const updateConfigFlag = async (
   list: any,
   configType: any,
   model: any,
-  trn: Transaction,
-  client_id: number,
-  req: any
+  trn: Transaction
 ) => {
   try {
-    let where: any = { is_deleted: DeletedStatus.No, company_info_id: client_id };
+    let where: any = { is_deleted: DeletedStatus.No };
     let oldDataUpdatePayload: any = {};
     let newDataUpdatePayload: any = {};
     let columnKey: string = "";
@@ -84,13 +94,12 @@ const updateConfigFlag = async (
     const newItems = await model.findAll({
       where: {
         id: { [Op.in]: list },
-        company_info_id: client_id,
       },
       transaction: trn,
     });
 
     await model.update(newDataUpdatePayload, {
-      where: { id: { [Op.in]: list }, company_info_id: client_id },
+      where: { id: { [Op.in]: list } },
       transaction: trn,
     });
 
@@ -107,8 +116,7 @@ const updateConfigFlag = async (
       });
     }
     if (editActivityLogs.length > 0) {
-      await addActivityLogs(req,
-        client_id,
+      await addActivityLogs(
         editActivityLogs,
         null,
         LogsActivityType.Edit,
@@ -128,12 +136,9 @@ const updateDiamondShape = async (
   list: any,
   configType: any,
   trn: Transaction,
-  client_id: number,
-  req: Request
 ) => {
   try {
-    const { DiamondShape, HeadsData, SideSettingStyles } = initModels(req);
-    let where: any = { is_deleted: DeletedStatus.No, company_info_id: client_id };
+    let where: any = { is_deleted: DeletedStatus.No };
     let oldDataUpdatePayload: any = {};
 
     if (configType === ConfiguratorManageKeys.RingConfigurator) {
@@ -160,7 +165,7 @@ const updateDiamondShape = async (
       transaction: trn,
     });
     const diamondShape = await DiamondShape.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: client_id },
+      where: { is_deleted: DeletedStatus.No },
       transaction: trn,
     });
     const updatedList = [];
@@ -315,7 +320,7 @@ const updateDiamondShape = async (
 
     // in active data detail remove 
     const inActiveData = []
-    const diamondShapeList = await DiamondShape.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, company_info_id: client_id }, transaction: trn });
+    const diamondShapeList = await DiamondShape.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No }, transaction: trn });
 
     for (let index = 0; index < diamondShapeList.length; index++) {
       const element = diamondShapeList[index].dataValues;
@@ -442,8 +447,7 @@ const updateDiamondShape = async (
 
 
       if (editActivityLogs.length > 0) {
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           editActivityLogs,
           null,
           LogsActivityType.Edit,
@@ -453,14 +457,14 @@ const updateDiamondShape = async (
         );
       }
     }
-    const diamondShapeData = await DiamondShape.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, company_info_id: client_id }, transaction: trn });
+    const diamondShapeData = await DiamondShape.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No }, transaction: trn });
 
     // remove inactive diamond shape id in heads master config setting
     const inactiveDataId = diamondShapeData.map((item: any) => item.dataValues.id);
     if (inactiveDataId.length > 0) {
 
       if(configType == ConfiguratorManageKeys.RingConfigurator || configType == ConfiguratorManageKeys.EarringConfigurator){
-        const findHeads = await HeadsData.findAll({ where: {is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
+        const findHeads = await HeadsData.findAll({ where: {is_deleted: DeletedStatus.No } })
         let updateHeadData: any = [];
         
       for (let index = 0; index < findHeads.length; index++) {
@@ -473,7 +477,6 @@ const updateDiamondShape = async (
         updateHeadData.push({
           ...element.dataValues,
           diamond_shape_id: data,
-          modified_by: req.body.session_res.id_app_user,
           modified_date: getLocalDate(),
         })
         }
@@ -481,7 +484,7 @@ const updateDiamondShape = async (
 
         // remove inactive diamond shape id in side setting master config setting
       } else if (configType == ConfiguratorManageKeys.EternityBandConfigurator || configType == ConfiguratorManageKeys.BraceletConfigurator) {
-        const findSetting = await SideSettingStyles.findAll({ where: {is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
+        const findSetting = await SideSettingStyles.findAll({ where: {is_deleted: DeletedStatus.No } })
         let updateSideSettingData: any = [];
         
       for (let index = 0; index < findSetting.length; index++) {
@@ -494,7 +497,6 @@ const updateDiamondShape = async (
         updateSideSettingData.push({
           ...element.dataValues,
           diamond_shape_id: data,
-          modified_by: req.body.session_res.id_app_user,
           modified_date: getLocalDate(),
         })
         }
@@ -514,13 +516,10 @@ const updateDiamondCaratSize = async (
   list: any,
   configType: any,
   trn: Transaction,
-  client_id: number,
-  req: Request
 ) => {
   try {
-    const { DiamondCaratSize, DiamondShape, HeadsData, SideSettingStyles } = initModels(req);
 
-    let where: any = { is_deleted: DeletedStatus.No, company_info_id: client_id };
+    let where: any = { is_deleted: DeletedStatus.No };
     let oldDataUpdatePayload: any = {};
 
     if (configType === ConfiguratorManageKeys.RingConfigurator) {
@@ -547,7 +546,7 @@ const updateDiamondCaratSize = async (
       transaction: trn,
     });
     const diamondSize = await DiamondCaratSize.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: client_id },
+      where: { is_deleted: DeletedStatus.No },
       transaction: trn,
     });
     const updatedList = [];
@@ -711,15 +710,13 @@ const updateDiamondCaratSize = async (
         transaction: trn,
       });
       if (editActivityLogs.length > 0) {
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           editActivityLogs,
           null,
-          LogsActivityType.Edit,
+          LogsActivityType.Edit, 
           LogsType.configurator_setting,
           null,
-          trn
-        );
+          trn);
       }
     }
     if (updatedList.length > 0) {
@@ -736,8 +733,7 @@ const updateDiamondCaratSize = async (
         transaction: trn,
       });
       if (editActivityLogs.length > 0) {
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           editActivityLogs,
           null,
           LogsActivityType.Edit,
@@ -749,14 +745,14 @@ const updateDiamondCaratSize = async (
     }
 
     // remove inactive diamond size id in diamond shape master, head master & side setting config setting
-    const diamondCaratData = await DiamondCaratSize.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, company_info_id: client_id }, transaction: trn });
+    const diamondCaratData = await DiamondCaratSize.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No }, transaction: trn });
 
     const inactiveDataId = diamondCaratData.map((item: any) => item.dataValues.id);
     if (inactiveDataId.length > 0) {
 
       if (configType == ConfiguratorManageKeys.RingConfigurator || configType == ConfiguratorManageKeys.EarringConfigurator) {
-        const findDiamondShape = await DiamondShape.findAll({ where: { is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
-        const findHeads = await HeadsData.findAll({ where: { is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
+        const findDiamondShape = await DiamondShape.findAll({ where: { is_deleted: DeletedStatus.No } })
+        const findHeads = await HeadsData.findAll({ where: { is_deleted: DeletedStatus.No } })
         let updateDiamondShapeData: any = [];
         for (let index = 0; index < findDiamondShape.length; index++) {
           const element = findDiamondShape[index];
@@ -769,7 +765,6 @@ const updateDiamondCaratSize = async (
           updateDiamondShapeData.push({
             ...element.dataValues,
             diamond_size_id: data,
-            modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
           })
         }
@@ -787,7 +782,6 @@ const updateDiamondCaratSize = async (
           updateHeadData.push({
             ...element.dataValues,
             diamond_size_id: data,
-            modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
           })
         }
@@ -795,9 +789,9 @@ const updateDiamondCaratSize = async (
 
         // remove inactive diamond shape id in side setting master config setting
       } else if (configType == ConfiguratorManageKeys.EternityBandConfigurator || configType == ConfiguratorManageKeys.BraceletConfigurator) {
-        const findDiamondShape = await DiamondShape.findAll({ where: { is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
+        const findDiamondShape = await DiamondShape.findAll({ where: { is_deleted: DeletedStatus.No } })
         
-        const findSetting = await SideSettingStyles.findAll({ where: { is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
+        const findSetting = await SideSettingStyles.findAll({ where: { is_deleted: DeletedStatus.No } })
         let updateDiamondShapeData: any = [];
         
         for (let index = 0; index < findDiamondShape.length; index++) {
@@ -810,7 +804,6 @@ const updateDiamondCaratSize = async (
           updateDiamondShapeData.push({
             ...element.dataValues,
             diamond_size_id: data,
-            modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
           })
         }
@@ -827,13 +820,12 @@ const updateDiamondCaratSize = async (
           updateSideSettingData.push({
             ...element.dataValues,
             diamond_size_id: data,
-            modified_by: req.body.session_res.id_app_user,
             modified_date: getLocalDate(),
           })
         }
         await SideSettingStyles.bulkCreate(updateSideSettingData, { updateOnDuplicate: ['diamond_size_id'], transaction: trn });
       } else if (configType == ConfiguratorManageKeys.ThreeStoneConfigurator) {
-        const findDiamondShape = await DiamondShape.findAll({ where: {is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
+        const findDiamondShape = await DiamondShape.findAll({ where: {is_deleted: DeletedStatus.No } })
         let updateDiamondShapeData: any = [];
         
         for (let index = 0; index < findDiamondShape.length; index++) {
@@ -846,7 +838,6 @@ const updateDiamondCaratSize = async (
         updateDiamondShapeData.push({
           ...element.dataValues,
           diamond_size_id: data,
-          modified_by: req.body.session_res.id_app_user,
           modified_date: getLocalDate(),
         })
         }
@@ -860,10 +851,9 @@ const updateDiamondCaratSize = async (
   }
 };
 
-const updateHead = async (list: any, configType: any, trn: Transaction, client_id: number, req: Request) => {
-  try {
-    const { HeadsData } = initModels(req);
-    let where: any = { is_deleted: DeletedStatus.No, company_info_id: client_id };
+const updateHead = async (list: any, configType: any, trn: Transaction) => {
+    try {
+    let where: any = { is_deleted: DeletedStatus.No };
     let oldDataUpdatePayload: any = {};
 
     if (configType === ConfiguratorManageKeys.RingConfigurator) {
@@ -890,7 +880,7 @@ const updateHead = async (list: any, configType: any, trn: Transaction, client_i
       transaction: trn,
     });
     const heads = await HeadsData.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: client_id },
+        where: { is_deleted: DeletedStatus.No },
       transaction: trn,
     });
     const updatedList = [];
@@ -1166,8 +1156,7 @@ const updateHead = async (list: any, configType: any, trn: Transaction, client_i
         transaction: trn,
       });
       if (editActivityLogs.length > 0) {
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           editActivityLogs,
           null,
           LogsActivityType.Edit,
@@ -1183,11 +1172,10 @@ const updateHead = async (list: any, configType: any, trn: Transaction, client_i
     return resUnknownError({ data: error });
   }
 };
-const updateShank = async (list: any, configType: any, trn: Transaction, client_id: number, req: Request) => {
+const updateShank = async (list: any, configType: any, trn: Transaction) => {
   try {
-    const { ShanksData } = initModels(req);
 
-    let where: any = { is_deleted: DeletedStatus.No, company_info_id: client_id };
+    let where: any = { is_deleted: DeletedStatus.No };
     let oldDataUpdatePayload: any = {};
 
     if (configType === ConfiguratorManageKeys.RingConfigurator) {
@@ -1214,7 +1202,7 @@ const updateShank = async (list: any, configType: any, trn: Transaction, client_
       transaction: trn,
     });
     const shanks = await ShanksData.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: client_id },
+      where: { is_deleted: DeletedStatus.No },
       transaction: trn,
     });
     const updatedList = [];
@@ -1445,8 +1433,7 @@ const updateShank = async (list: any, configType: any, trn: Transaction, client_
         transaction: trn,
       });
       if (editActivityLogs.length > 0) {
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           editActivityLogs,
           null,
           LogsActivityType.Edit,
@@ -1464,11 +1451,10 @@ const updateShank = async (list: any, configType: any, trn: Transaction, client_
 };
 
 
-const updateMetalKarat = async (list: any, configType: any, trn: Transaction, client_id: number, req: Request) => {
+const updateMetalKarat = async (list: any, configType: any, trn: Transaction) => {
   try {
-    const { GoldKarat } = initModels(req);
 
-    let where: any = { is_deleted: DeletedStatus.No, company_info_id: client_id };
+    let where: any = { is_deleted: DeletedStatus.No };
     let oldDataUpdatePayload: any = {};
 
     if (configType === ConfiguratorManageKeys.RingConfigurator) {
@@ -1495,7 +1481,7 @@ const updateMetalKarat = async (list: any, configType: any, trn: Transaction, cl
       transaction: trn,
     });
     const karats = await GoldKarat.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: client_id },
+      where: { is_deleted: DeletedStatus.No },
       transaction: trn,
     });
     const updatedList = [];
@@ -1726,8 +1712,7 @@ const updateMetalKarat = async (list: any, configType: any, trn: Transaction, cl
         transaction: trn,
       });
       if (editActivityLogs.length > 0) {
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           editActivityLogs,
           null,
           LogsActivityType.Edit,
@@ -1748,13 +1733,10 @@ const updateSideSetting = async (
   list: any,
   configType: any,
   trn: Transaction,
-  client_id: number,
-  req: any
 ) => {
   try {
-    const { SideSettingStyles, ShanksData } = initModels(req);
 
-    let where: any = { is_deleted: DeletedStatus.No, company_info_id: client_id };
+    let where: any = { is_deleted: DeletedStatus.No };
     let oldDataUpdatePayload: any = {};
 
     if (configType === ConfiguratorManageKeys.RingConfigurator) {
@@ -1781,7 +1763,7 @@ const updateSideSetting = async (
       transaction: trn,
     });
     const sideSetting = await SideSettingStyles.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: client_id },
+      where: { is_deleted: DeletedStatus.No },
       transaction: trn,
     });
     const updatedList = [];
@@ -2083,8 +2065,7 @@ const updateSideSetting = async (
         transaction: trn,
       });
       if (editActivityLogs.length > 0) {
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           editActivityLogs,
           null,
           LogsActivityType.Edit,
@@ -2095,13 +2076,13 @@ const updateSideSetting = async (
       }
     }
     // remove inactive side setting style id in shank master config setting
-    const sideSettingData = await SideSettingStyles.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No, company_info_id: client_id }, transaction: trn });
+    const sideSettingData = await SideSettingStyles.findAll({ where: { ...oldDataUpdatePayload, is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No }, transaction: trn });
 
     const inactiveDataId = sideSettingData.map((item: any) => item.dataValues.id);
     if (inactiveDataId.length > 0) {
 
       if (configType == ConfiguratorManageKeys.ThreeStoneConfigurator || configType == ConfiguratorManageKeys.RingConfigurator) {
-        const findShanks = await ShanksData.findAll({ where: {is_deleted: DeletedStatus.No, company_info_id: req?.body?.session_res?.client_id } })
+        const findShanks = await ShanksData.findAll({ where: {is_deleted: DeletedStatus.No } })
         let updateShanksData: any = [];
         
         for (let index = 0; index < findShanks.length; index++) {
@@ -2114,7 +2095,6 @@ const updateSideSetting = async (
         updateShanksData.push({
           ...element.dataValues,
           side_setting_id: data,
-          modified_by: req.body.session_res.id_app_user,
           modified_date: getLocalDate(),
         })
         }
@@ -2132,16 +2112,12 @@ const updateDiamondColorClarity = async (
   list: any,
   configType: any,
   trn: Transaction,
-  client_id: number,
-  req: any
 ) => {
   try {
-    const { DiamondGroupMaster } = initModels(req);
 
     let where: any = {
       is_deleted: DeletedStatus.No,
       is_active: ActiveStatus.Active,
-      company_info_id: client_id
     };
     let oldDataUpdatePayload: any = {};
 
@@ -2172,7 +2148,7 @@ const updateDiamondColorClarity = async (
     //   where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
     //   transaction: trn,
     // });
-    const diamondGroupMaster = await (req.body.db_connection).query(
+    const diamondGroupMaster = await dbContext.query(
       `WITH ranked_diamonds AS (
     SELECT 
         id_color, 
@@ -2187,7 +2163,7 @@ const updateDiamondColorClarity = async (
         MAX(CAST(diamond_group_masters.is_earring AS int)) AS is_earring,
         ROW_NUMBER() OVER (PARTITION BY id_color, id_clarity ORDER BY id ASC) AS row_num
     FROM diamond_group_masters 
-    WHERE id_color IS NOT NULL AND company_info_id = ${client_id}
+    WHERE id_color IS NOT NULL
     GROUP BY id_color, id_clarity, id, is_diamond_type::TEXT -- Cast JSON to TEXT for grouping
 )
 SELECT 
@@ -2467,12 +2443,11 @@ GROUP BY id_color, id_clarity, id, is_diamond_type;
             is_pendant: data.is_pendant,
             is_earring: data.is_earring,
           },
-          { where: { id: data.id, company_info_id: client_id }, transaction: trn }
-        );
+          { where: { id: data.id }, transaction: trn }
+        );    
         const afterData = await DiamondGroupMaster.findOne({ where: { id: data.id } });
 
-        await addActivityLogs(req,
-          client_id,
+        await addActivityLogs(
           [{ old_data: { diamond_group_id: beforData?.dataValues.id, data: { ...beforData?.dataValues } }, new_data: { diamond_group_id: afterData?.dataValues.id, data: { ...afterData?.dataValues } } }],
           null,
           LogsActivityType.Edit,
@@ -2489,8 +2464,7 @@ GROUP BY id_color, id_clarity, id, is_diamond_type;
   }
 };
 export const updateConfiguratorMasterData = async (req: Request) => {
-  const { MetalMaster, GoldKarat, StoneData, MetalTone, CutsData } = initModels(req);
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
   try {
     const {
       metal_master,
@@ -2512,8 +2486,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         req.params.config_type,
         MetalMaster,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (metalData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2526,8 +2498,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         req.params.config_type,
         MetalTone,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (metalToneData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2539,8 +2509,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         metal_karat_master,
         req.params.config_type,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (metalKaratData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2553,8 +2521,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         req.params.config_type,
         StoneData,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (stoneData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2567,8 +2533,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         req.params.config_type,
         CutsData,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (cutData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2580,8 +2544,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         diamond_shape_master,
         req.params.config_type,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (diamondShapeData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2593,8 +2555,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         diamond_carat_size_master,
         req.params.config_type,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (diamondCaratData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2606,8 +2566,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         head_master,
         req.params.config_type,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (headData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2619,8 +2577,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         shank_master,
         req.params.config_type,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (shankData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2632,8 +2588,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         side_setting_master,
         req.params.config_type,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (sideSettingData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2645,8 +2599,6 @@ export const updateConfiguratorMasterData = async (req: Request) => {
         color_clarity_master,
         req.params.config_type,
         trn,
-        req?.body?.session_res?.client_id,
-        req
       );
       if (colorClarityData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         trn.rollback();
@@ -2664,12 +2616,10 @@ export const updateConfiguratorMasterData = async (req: Request) => {
 
 export const allMasterListData = async (req: Request) => {
   try {
-    const { MetalMaster, MetalTone, GoldKarat, StoneData, CutsData, DiamondShape, DiamondCaratSize, HeadsData, ShanksData, SideSettingStyles } = initModels(req);
   
     const where = {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
-      company_info_id: req?.body?.session_res?.client_id,
     };
 
     const order: any = [["id", "ASC"]]
@@ -2844,7 +2794,7 @@ export const allMasterListData = async (req: Request) => {
       ],
     });
 
-    const colorClarityData = await (req.body.db_connection).query(
+    const colorClarityData = await dbContext.query(
       `WITH ranked_diamonds AS (
     SELECT 
         id_color, 
@@ -2863,7 +2813,7 @@ export const allMasterListData = async (req: Request) => {
     FROM diamond_group_masters 
 	LEFT JOIN colors ON colors.id = diamond_group_masters.id_color
 	LEFT JOIN clarities ON clarities.id = diamond_group_masters.id_clarity
-    WHERE id_color IS NOT NULL AND diamond_group_masters.is_deleted = '0' AND diamond_group_masters.is_active = '1' AND diamond_group_masters.company_info_id =${req?.body?.session_res?.client_id}
+    WHERE id_color IS NOT NULL AND diamond_group_masters.is_deleted = '0' AND diamond_group_masters.is_active = '1' 
     GROUP BY id_color, id_clarity, diamond_group_masters.id, colors.name, clarity_name
 )
 SELECT 
@@ -2959,28 +2909,14 @@ GROUP BY id_color, id_clarity, id, color_name, clarity_name ORDER BY ID ASC;`,
 /* ---------------- update image for side setting master for all configurator ---------------- */
 
 export const updateImageForSideSettingForConfig = async (req: Request) => {
-  const { SideSettingStyles } = initModels(req);
-  const trn = await (req.body.db_connection).transaction();
+  const trn = await dbContext.transaction();
   try {
     const { side_setting = [] } = req.body
     const { config_type } = req.params
     const files: any = req.files as { [fieldname: string]: Express.Multer.File[] }
-    let company_info_id: any = {};
-    
-        if (req?.body?.session_res?.client_id) {
-          company_info_id.data = req.body.session_res.client_id;
-        } else {
-          const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-    
-          if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-            return decrypted;
-          }
-    
-          company_info_id = decrypted;
-        }
     const diamondShape = await SideSettingStyles.findAll({
       where: {
-        is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data
+        is_deleted: DeletedStatus.No
       },
       transaction: trn,
     });
@@ -2994,12 +2930,12 @@ export const updateImageForSideSettingForConfig = async (req: Request) => {
       const imageFile = files.find((t: any) => t.fieldname === `side_setting[${index}][image]`)
       let idImage = null;
       if (imageFile) {
-        const imageData = await imageAddAndEditInDBAndS3(req,
+        const imageData = await imageAddAndEditInDBAndS3(
           imageFile,
           IMAGE_TYPE.sideSetting,
           req.body.session_res.id_app_user,
           "",
-          company_info_id?.data
+
         );
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           trn.rollback();
@@ -3090,8 +3026,7 @@ export const updateImageForSideSettingForConfig = async (req: Request) => {
         });
 
         if (editActivityLogs.length > 0) {
-          await addActivityLogs(req,
-            company_info_id?.data,
+          await addActivityLogs(
             editActivityLogs,
             null,
             LogsActivityType.Edit,
@@ -3113,24 +3048,11 @@ export const updateImageForSideSettingForConfig = async (req: Request) => {
 
 export const getSideSettingImageForConfig = async (req: Request) => {
   try {
-    const { SideSettingStyles, Image } = initModels(req);
-   let company_info_id: any = {};
-
-    if (req?.body?.session_res?.client_id) {
-      company_info_id.data = req.body.session_res.client_id;
-    } else {
-      const decrypted = await getCompanyIdBasedOnTheCompanyKey(req.query, req.body.db_connection);
-
-      if (decrypted.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return decrypted;
-      }
-
-      company_info_id = decrypted;
-    }
+    
     const { config_type } = req.params
     const sideSetting = await SideSettingStyles.findAll({
       order: [["id", "ASC"]],
-      where: { is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data, is_active: ActiveStatus.Active },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       attributes: [
         "id",
         "name",
@@ -3140,7 +3062,7 @@ export const getSideSettingImageForConfig = async (req: Request) => {
       ],
     });
     const findImages = await Image.findAll({
-      where: { is_deleted: DeletedStatus.No, company_info_id: company_info_id?.data },
+      where: { is_deleted: DeletedStatus.No },
     })
     let sideSettingImage = [];
     for (let index = 0; index < sideSetting.length; index++) {

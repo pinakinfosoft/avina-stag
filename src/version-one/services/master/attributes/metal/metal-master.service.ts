@@ -30,12 +30,15 @@ import {
   resUnknownError,
   statusUpdateValue,
 } from "../../../../../utils/shared-functions";
-import { initModels } from "../../../../model/index.model";
+import { MetalMaster } from "../../../../model/master/attributes/metal/metal-master.model";
+import dbContext from "../../../../../config/db-context";
+import { GoldKarat } from "../../../../model/master/attributes/metal/gold-karat.model";
+import { ActivityLogs } from "../../../../model/activity-logs.model";
+import { AppUser } from "../../../../model/app-user.model";
 
 export const addMetal = async (req: Request) => {
   const { name } = req.body;
   try {
-    const { MetalMaster } = initModels(req);
     const payload = {
       slug: createSlug(name),
       name: name,
@@ -43,14 +46,14 @@ export const addMetal = async (req: Request) => {
       is_active: ActiveStatus.Active,
       is_deleted: DeletedStatus.No,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
+      
     };
 
     const findName = await MetalMaster.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -58,8 +61,8 @@ export const addMetal = async (req: Request) => {
       return resErrorDataExit();
     }
     const metalMasert  = await MetalMaster.create(payload);
-    await refreshAllMaterializedView(req.body.db_connection);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await refreshAllMaterializedView(dbContext);
+    await addActivityLogs([{
       old_data: null,
       new_data: {
         metal_master_id: metalMasert?.dataValues?.id, data: {
@@ -76,14 +79,13 @@ export const addMetal = async (req: Request) => {
 
 export const getMetals = async (req: Request) => {
   try {
-    const { MetalMaster } = initModels(req);
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
     };
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
+      
       {
         [Op.or]: [
           { slug: { [Op.iLike]: "%" + pagination.search_text + "%" } },
@@ -132,9 +134,8 @@ export const getMetals = async (req: Request) => {
 
 export const getByIdMetal = async (req: Request) => {
   try {
-    const { MetalMaster } = initModels(req);
     const masterData = await MetalMaster.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id},
+      where: { id: req.params.id, is_deleted: DeletedStatus.No,},
     });
 
     if (!(masterData && masterData.dataValues)) {
@@ -148,11 +149,10 @@ export const getByIdMetal = async (req: Request) => {
 
 export const updateMetal = async (req: Request) => {
   try {
-    const { MetalMaster } = initModels(req);
     const { name } = req.body;
     const id = req.params.id;
     const findMetal = await MetalMaster.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findMetal && findMetal.dataValues)) {
@@ -163,7 +163,7 @@ export const updateMetal = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -181,7 +181,7 @@ export const updateMetal = async (req: Request) => {
         where: {
           id: findMetal.dataValues.id,
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id
+          
         },
       }
     );
@@ -190,9 +190,9 @@ export const updateMetal = async (req: Request) => {
       where: { id: id, is_deleted: DeletedStatus.No },
     });
 
-    await refreshAllMaterializedView(req.body.db_connection);
+    await refreshAllMaterializedView(dbContext);
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { metal_master_id: findMetal?.dataValues?.id, data: {...findMetal?.dataValues} },
       new_data: {
         metal_master_id: AfterUpdatefindMetal?.dataValues?.id, data: { ...AfterUpdatefindMetal?.dataValues }
@@ -210,9 +210,8 @@ export const updateMetal = async (req: Request) => {
 
 export const deleteMetal = async (req: Request) => {
   try {
-    const { MetalMaster } = initModels(req);
     const findMetal = await MetalMaster.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
 
     if (!(findMetal && findMetal.dataValues)) {
@@ -224,10 +223,10 @@ export const deleteMetal = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findMetal.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findMetal.dataValues.id, } }
     );
-    await refreshAllMaterializedView(req.body.db_connection);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await refreshAllMaterializedView(dbContext);  
+    await addActivityLogs([{
       old_data: { mental_master_id: findMetal?.dataValues?.id, data: {...findMetal?.dataValues} },
       new_data: {
         mental_master_id: findMetal?.dataValues?.id, data: {
@@ -246,9 +245,8 @@ export const deleteMetal = async (req: Request) => {
 
 export const statusUpdateForMetal = async (req: Request) => {
   try {
-    const { MetalMaster } = initModels(req);
     const findMetal = await MetalMaster.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findMetal && findMetal.dataValues)) {
       return resNotFound();
@@ -259,9 +257,9 @@ export const statusUpdateForMetal = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findMetal.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findMetal.dataValues.id, } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { metal_id: findMetal.dataValues.id, data: {...findMetal.dataValues} },
       new_data: {
         metal_id: findMetal.dataValues.id, data: {
@@ -271,7 +269,7 @@ export const statusUpdateForMetal = async (req: Request) => {
         }
       }
     }], findMetal.dataValues.id, LogsActivityType.StatusUpdate, LogsType.MetalMaster, req.body.session_res.id_app_user)
-    await refreshAllMaterializedView(req.body.db_connection);
+    await refreshAllMaterializedView(dbContext);
     return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
   } catch (error) {
     throw error;
@@ -280,10 +278,9 @@ export const statusUpdateForMetal = async (req: Request) => {
 
 export const getMetalActiveList = async (req: Request) => {
   try {
-    const { MetalMaster } = initModels(req);
    
     const findMetals = await MetalMaster.findAll({
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active, company_info_id:  req?.body?.session_res?.client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       attributes: ["id", "name", "slug", "metal_rate", "created_date"],
     });
 
@@ -301,12 +298,11 @@ export const updateMetalRate = async (req: Request) => {
       return resBadRequest({ message: INVALID_METAL_ID });
     }
 
-    const { MetalMaster } = initModels(req);
     if (!rate) {
       return resBadRequest({ message: RATE_IS_REQUIRED });
     }
     const metalMasterId = await MetalMaster.findOne({
-      where: { id: req.params.metal_id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.metal_id, is_deleted: DeletedStatus.No, },
     });
     if (!(metalMasterId && metalMasterId.dataValues)) {
       return resNotFound();
@@ -322,18 +318,18 @@ export const updateMetalRate = async (req: Request) => {
         where: {
           id: metalMasterId.dataValues.id,
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id
+          
         },
       }
     );
     const afterUpdateMetalMasterId = await MetalMaster.findOne({
-      where: { id: req.params.metal_id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.metal_id, is_deleted: DeletedStatus.No, },
     });
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { metal_id: metalMasterId.dataValues.id, data:{...metalMasterId.dataValues.metal_rate} },
       new_data: { metal_id: afterUpdateMetalMasterId, data: {...afterUpdateMetalMasterId?.dataValues} }
     }], metalMasterId.dataValues.id, LogsActivityType.RateUpdate, LogsType.MetalMaster, req.body.session_res.id_app_user)
-    await refreshAllMaterializedView(req.body.db_connection);
+    await refreshAllMaterializedView(dbContext);
     return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
   } catch (error) {
     throw error;
@@ -342,11 +338,10 @@ export const updateMetalRate = async (req: Request) => {
 
 export const goldKaratRateList = async (req: Request) => {
   try {
-    const { GoldKarat, MetalMaster } = initModels(req);
     
     const karatList = await GoldKarat.findAll({
       order: ["name"],
-      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active,company_info_id : req?.body?.session_res?.client_id },
+      where: { is_deleted: DeletedStatus.No, is_active: ActiveStatus.Active },
       attributes: [
         "id",
         "name",
@@ -359,7 +354,7 @@ export const goldKaratRateList = async (req: Request) => {
           "karat_rate",
         ],
       ],
-      include: [{ model: MetalMaster, attributes: [], as: "metal", where:{company_info_id :req?.body?.session_res?.client_id },required:false }],
+      include: [{ model: MetalMaster, attributes: [], as: "metal", where:{ },required:false }],
     });
 
     return resSuccess({ data: karatList });
@@ -370,7 +365,6 @@ export const goldKaratRateList = async (req: Request) => {
 
 export const getActivityLogsForMetalRate = async (req: Request) => {
   try {
-      const { ActivityLogs,AppUser } = initModels(req);
       let paginationProps = {};
   
       let pagination = {
@@ -409,14 +403,13 @@ export const getActivityLogsForMetalRate = async (req: Request) => {
                 )
               ]
             }
-          : {},
+          : 
           {
             // Apply start and end date filter on created_date
             created_date: {
               [Op.between]: [startDateFilter, endDate]
             }
           },
-          {company_info_id: req?.body?.session_res?.client_id},
           {
             log_type: {
               [Op.eq]: LogsType.MetalMaster 
@@ -558,7 +551,7 @@ export const getActivityLogsForMetalRate = async (req: Request) => {
           newValue !== null &&
           !Array.isArray(newValue)
         ) {
-          const nestedResult = findJsonDifferences(oldValue || {}, newValue);
+          const nestedResult = findJsonDifferences(oldValue ||  newValue, newValue);
           if (Object.keys(nestedResult?.data || {}).length > 0) {
             diff[key] = nestedResult.data;
           }

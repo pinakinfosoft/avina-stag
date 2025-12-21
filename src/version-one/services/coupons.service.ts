@@ -41,7 +41,10 @@ import {
 } from "../../utils/app-messages";
 import { Op, Sequelize } from "sequelize";
 import { IQueryPagination } from "../../data/interfaces/common/common.interface";
-import { initModels } from "../model/index.model";
+import { CouponData } from "../model/coupon.model";
+import { AppUser } from "../model/app-user.model";
+import { CartProducts } from "../model/cart-product.model";
+import { Orders } from "../model/order.model";
 
 
 export const addCoupon = async (req: Request) => {
@@ -62,7 +65,6 @@ export const addCoupon = async (req: Request) => {
       usage_limit,
       user_limits,
     } = req.body;
-    const {CouponData} = initModels(req);
     const couponCode = coupon_code.toUpperCase().replace(/\s/g, "");
 
     let records: any = {
@@ -83,12 +85,11 @@ export const addCoupon = async (req: Request) => {
       is_deleted: DeletedStatus.No,
       created_date: getLocalDate(),
       created_by: req.body?.session_res?.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       user_limits: user_limits,
     };
 
     const findCoupon = await CouponData.findOne({
-      where: { coupon_code: couponCode, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { coupon_code: couponCode, is_deleted: DeletedStatus.No },
     });
 
     if (findCoupon && findCoupon.dataValues) {
@@ -97,7 +98,7 @@ export const addCoupon = async (req: Request) => {
       });
     }
     const coupon = await CouponData.create(records);
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: null,
         new_data: {
           coupon_id: coupon?.dataValues?.id, data: {
@@ -132,12 +133,10 @@ export const editCoupon = async (req: Request) => {
       user_limits,
     } = req.body;
     const { id } = req.params;
-    const {CouponData} = initModels(req);
     const findCoupon = await CouponData.findOne({
       where: {
         id: id,
         is_deleted: DeletedStatus.No,
-        company_info_id :req?.body?.session_res?.client_id,
       },
     });
 
@@ -152,7 +151,6 @@ export const editCoupon = async (req: Request) => {
         coupon_code: couponCode,
         is_deleted: DeletedStatus.No,
         id: { [Op.ne]: req.params.id },
-        company_info_id :req?.body?.session_res?.client_id,
       },
     });
 
@@ -184,7 +182,6 @@ export const editCoupon = async (req: Request) => {
     await CouponData.update(records, {
       where: {
         id: id,
-        company_info_id :req?.body?.session_res?.client_id,
       },
     });
 
@@ -195,7 +192,7 @@ export const editCoupon = async (req: Request) => {
       },
     });
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { coupon_id: findCoupon?.dataValues?.id, data: {...findCoupon?.dataValues}},
       new_data: {
         coupon_id: afterUpdatefindCoupon?.dataValues?.id, data: { ...afterUpdatefindCoupon?.dataValues }
@@ -210,7 +207,6 @@ export const editCoupon = async (req: Request) => {
 
 export const getCoupons = async (req: Request) => {
   try {
-    const {CouponData,AppUser} = initModels(req);
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
     };
@@ -218,8 +214,7 @@ export const getCoupons = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      pagination.is_active ? { is_active: pagination.is_active } : 
       {
         [Op.or]: [
           { name: { [Op.iLike]: "%" + pagination.search_text + "%" } },
@@ -266,7 +261,7 @@ export const getCoupons = async (req: Request) => {
         "user_limits",
         [Sequelize.literal("created_user.username"), "created_user_name"],
       ],
-      include: [{ model: AppUser, as: "created_user", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: AppUser, as: "created_user", attributes: [],required:false }],
     });
     return resSuccess({ data: noPagination ? result : { pagination, result } });
   } catch (error) {
@@ -276,9 +271,8 @@ export const getCoupons = async (req: Request) => {
 
 export const deleteCoupon = async (req: Request) => {
   try {
-    const {CouponData} = initModels(req);
     const findCoupon = await CouponData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findCoupon && findCoupon.dataValues)) {
@@ -290,9 +284,9 @@ export const deleteCoupon = async (req: Request) => {
         deleted_by: req.body.session_res.id_app_user,
         deleted_date: getLocalDate(),
       },
-      { where: { id: findCoupon.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCoupon.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { coupon_id: findCoupon?.dataValues?.id, data: {...findCoupon?.dataValues}},
       new_data: {
         coupon_id: findCoupon?.dataValues?.id, data: {
@@ -311,9 +305,8 @@ export const deleteCoupon = async (req: Request) => {
 
 export const statusUpdateForCoupon = async (req: Request) => {
   try {
-    const {CouponData} = initModels(req);
     const findCoupon = await CouponData.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
     });
 
     if (!(findCoupon && findCoupon.dataValues)) {
@@ -325,9 +318,9 @@ export const statusUpdateForCoupon = async (req: Request) => {
         updated_date: getLocalDate(),
         updated_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findCoupon.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findCoupon.dataValues.id } }
     );
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { coupon_id: findCoupon?.dataValues?.id, data: {...findCoupon?.dataValues}},
       new_data: {
         coupon_id: findCoupon?.dataValues?.id, data: {
@@ -348,20 +341,15 @@ export const applyCoupon = async (req: Request) => {
   const { coupon_code, currency } = req.body;
   // Function to apply coupon
   try {
-    const {CouponData,CartProducts} = initModels(req);
     let discount = 0;
     let discountedAmount = 0;
     let cartProductList = [];
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     if (
       req.body.session_res.id_app_user &&
       req.body.session_res.id_app_user != null
     ) {
       cartProductList = await CartProducts.findAll({
-        where: { user_id: req.body.session_res.id_app_user,company_info_id:company_info_id?.data },
+        where: { user_id: req.body.session_res.id_app_user },
         order: [["created_date", "DESC"]],
         attributes: [
           "id",
@@ -646,7 +634,6 @@ const todayUtc = new Date(Date.UTC(
     const recordsExists: any = await CouponData.findOne({
       where: {
         coupon_code: coupon_code,
-        company_info_id:company_info_id?.data,
         [Op.and]: [
     Sequelize.literal(`start_date AT TIME ZONE 'UTC' <= '${todayUtc}'`),
     Sequelize.literal(`end_date AT TIME ZONE 'UTC' >= '${todayUtc}'`)
@@ -720,8 +707,7 @@ const todayUtc = new Date(Date.UTC(
     const result: any = await checkLimitationOfCoupon(
       recordsExists.dataValues,
       req.body.session_res.id_app_user,
-      company_info_id?.data,
-      req
+      null,
     );
     if (result && result.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return result;
@@ -776,15 +762,13 @@ export const validateAmount = (amount: number) => {
 export const checkLimitationOfCoupon = async (
   couponData: any,
   user_id: any,
-  company_info_id: any, 
   req: Request
 ) => {
   try {
-    const {Orders} = initModels(req);
     // Check the total count of times this coupon has been used
     const couponUsedByUserCount: any = await Orders.count({
       where: {
-        coupon_id: couponData.id,company_info_id:company_info_id,
+        coupon_id: couponData.id,
       },
       group: ["user_id", "coupon_id"],
     });
@@ -803,7 +787,6 @@ export const checkLimitationOfCoupon = async (
         where: {
           coupon_id: couponData.id,
           user_id: user_id,
-          company_info_id:company_info_id,
         },
       });
 
@@ -819,7 +802,6 @@ export const checkLimitationOfCoupon = async (
         where: {
           coupon_id: couponData.id,
           user_id: user_id,
-          company_info_id:company_info_id?.data,
         },
       });
       if (!user_id && couponData.user_limits && couponData.usage_limit) {
@@ -845,9 +827,8 @@ export const checkLimitationOfCoupon = async (
 export const couponDetails = async (req: Request) => {
   try {
     const { id } = req.params;
-    const {CouponData,AppUser} = initModels(req);
     const findCoupon = await CouponData.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No },
       attributes: [
         "id",
         "name",
@@ -869,7 +850,7 @@ export const couponDetails = async (req: Request) => {
         "max_total_amount",
         [Sequelize.literal("created_user.username"), "created_user_name"],
       ],
-      include: [{required: false, model: AppUser, as: "created_user", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id} }],
+      include: [{required: false, model: AppUser, as: "created_user", attributes: [] }],
     });
     if (!(findCoupon && findCoupon.dataValues)) {
       return resNotFound();
@@ -882,27 +863,21 @@ export const couponDetails = async (req: Request) => {
 
 export const removeCoupon = async (req: Request) => {
   try {
-    const {CartProducts,CouponData} = initModels(req);
     const { cart_id } = req.body;
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-
     const findCartProduct = await CartProducts.findOne({
-      where: { id: cart_id, company_info_id:company_info_id?.data },
+      where: { id: cart_id },
     }) 
-    const findCoupon = await CouponData.findOne({where: { id: findCartProduct.dataValues.id_coupon, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data }});
+    const findCoupon = await CouponData.findOne({where: { id: findCartProduct.dataValues.id_coupon, is_deleted: DeletedStatus.No }});
     
     await CartProducts.update(
       {
         id_coupon: null,
       },
       {
-        where: { id: cart_id, company_info_id:company_info_id?.data },
+        where: { id: cart_id },
       }
     );
-    await addActivityLogs(req,company_info_id?.data,[{
+    await addActivityLogs([{
       old_data: { coupon_id: findCoupon?.dataValues?.id, id_coupon: findCoupon?.dataValues?.id_coupon},
       new_data: {
         coupon_id: findCoupon?.dataValues?.id, 

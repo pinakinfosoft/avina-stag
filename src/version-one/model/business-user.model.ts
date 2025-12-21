@@ -1,9 +1,9 @@
 import { DATE, INTEGER, STRING } from "sequelize";
-import {AppUser} from "./app-user.model";
-import {Image} from "./image.model";
+import dbContext from "../../config/db-context";
+import { AppUser } from "./app-user.model";
+import { Image } from "./image.model";
 
-export const BusinessUser = (dbContext: any) => {
-  let businessUser = dbContext.define("business_users", {
+export const BusinessUser = dbContext.define("business_users", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -41,19 +41,9 @@ export const BusinessUser = (dbContext: any) => {
   },
   id_image: {
     type: INTEGER,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
 
-businessUser.belongsTo(AppUser(dbContext), { foreignKey: "id_app_user", as: "app_user" });
-AppUser(dbContext).hasMany(businessUser, {
-  foreignKey: "id_app_user",
-  as: "business_users",
-});
-
-businessUser.belongsTo(Image(dbContext), { foreignKey: "id_image", as: "image" });
-Image(dbContext).hasOne(businessUser, { foreignKey: "id_image", as: "image" });
-  return businessUser;
-}
+// Associations
+BusinessUser.belongsTo(AppUser, { foreignKey: "id_app_user", as: "b_app_user" });
+BusinessUser.belongsTo(Image, { foreignKey: "id_image", as: "b_image" });

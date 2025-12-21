@@ -6,11 +6,15 @@ import {
   DeletedStatus,
   SingleProductType,
 } from "../../utils/app-enumeration";
-import { initModels } from "../model/index.model";
+import { CustomerUser } from "../model/customer-user.model";
+import { SubscriptionData } from "../model/subscription.model";
+import { ProductWish } from "../model/produc-wish-list.model";
+import { CartProducts } from "../model/cart-product.model";
+import { AppUser } from "../model/app-user.model";
+import dbContext from "../../config/db-context";
 
 export const customerReports = async (req: Request) => {
   try {
-    const {CustomerUser} = initModels(req);
     const startDate = new Date();
     startDate.setFullYear(startDate.getFullYear() - 1);
 
@@ -34,7 +38,6 @@ export const customerReports = async (req: Request) => {
         created_date: {
           [Op.between]: [startDateFilter, endDate],
         },
-        company_info_id :req?.body?.session_res?.client_id
       },
       attributes: [
         "id",
@@ -56,7 +59,6 @@ export const customerReports = async (req: Request) => {
 
 export const customerSubscriberReports = async (req: Request) => {
   try {
-    const {SubscriptionData} = initModels(req);
     const startDate = new Date();
     startDate.setFullYear(startDate.getFullYear() - 1);
 
@@ -79,7 +81,6 @@ export const customerSubscriberReports = async (req: Request) => {
         created_date: {
           [Op.between]: [startDateFilter, endDate],
         },
-        company_info_id :req?.body?.session_res?.client_id,
       },
       attributes: ["id", "email", "is_subscribe", "created_date"],
     });
@@ -92,7 +93,6 @@ export const customerSubscriberReports = async (req: Request) => {
 
 export const wishlistProductReports = async (req: Request) => {
   try {
-    const {ProductWish, CustomerUser} = initModels(req);
     const startDate = new Date();
     startDate.setFullYear(startDate.getFullYear() - 1);
 
@@ -115,7 +115,7 @@ export const wishlistProductReports = async (req: Request) => {
         created_date: {
           [Op.between]: [startDateFilter, endDate],
         },
-        company_info_id :req?.body?.session_res?.client_id,
+
       },
       attributes: [
         "id",
@@ -162,7 +162,6 @@ export const wishlistProductReports = async (req: Request) => {
           model: CustomerUser,
           as: "user",
           attributes: [],
-          where:{company_info_id :req?.body?.session_res?.client_id},
           required:false
         },
       ],
@@ -176,7 +175,6 @@ export const wishlistProductReports = async (req: Request) => {
 
 export const cartProductReports = async (req: Request) => {
   try {
-    const {CartProducts, AppUser, CustomerUser} = initModels(req);
     const startDate = new Date();
     startDate.setFullYear(startDate.getFullYear() - 1);
 
@@ -199,7 +197,7 @@ export const cartProductReports = async (req: Request) => {
         created_date: {
           [Op.between]: [startDateFilter, endDate],
         },
-        company_info_id :req?.body?.session_res?.client_id,
+
       },
       attributes: [
         "id",
@@ -472,14 +470,12 @@ WHERE CONFIG_BRACELET_PRODUCTS.ID = "product_id") ELSE null END)`),
           model: AppUser,
           as: "users",
           attributes: [],
-          where:{company_info_id :req?.body?.session_res?.client_id},
           include: [
             {
               required: false,
               model: CustomerUser,
               as: "customer_user",
               attributes: [],
-              where:{company_info_id :req?.body?.session_res?.client_id},
             },
           ],
         },
@@ -510,7 +506,7 @@ export const topSellingProductReports = async (req: Request) => {
     const endDate = new Date(endDateFilter);
     endDate.setDate(endDate.getDate() + 1);
 
-    const list = await req.body.db_connection.query(
+    const list = await dbContext.query(
       `(SELECT 
             OD.product_id,
             count(OD.product_id) as order_count,
@@ -551,8 +547,8 @@ export const topSellingProductReports = async (req: Request) => {
 
         FROM 
             order_details as OD 
-        LEFT OUTER JOIN orders ON (orders.id = OD.order_id AND OD.company_info_id = ${req?.body?.session_res?.client_id})
-        WHERE OD.company_info_id = ${req?.body?.session_res?.client_id} AND orders.created_date BETWEEN '${startDateFilter
+        LEFT OUTER JOIN orders ON (orders.id = OD.order_id)
+        WHERE orders.created_date BETWEEN '${startDateFilter
           .toISOString()
           .slice(0, 19)
           .replace("T", " ")}' AND '${endDate

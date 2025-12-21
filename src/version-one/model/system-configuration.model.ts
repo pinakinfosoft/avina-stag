@@ -1,8 +1,8 @@
 import { INTEGER, STRING } from "sequelize";
-import {MetalMaster} from "./master/attributes/metal/metal-master.model";
+import dbContext from "../../config/db-context";
+import { MetalMaster } from "./master/attributes/metal/metal-master.model";
 
-export const SystemConfiguration = (dbContext: any) => {
-let systemConfiguration = dbContext.define("system_configurations", {
+export const SystemConfiguration = dbContext.define("system_configurations", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -32,11 +32,5 @@ let systemConfiguration = dbContext.define("system_configurations", {
   },
   formula: {
     type: INTEGER,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-
-  return systemConfiguration;
-}

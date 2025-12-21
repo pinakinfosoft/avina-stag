@@ -37,7 +37,7 @@ import {
 import { NAME_LENGTH_MAX, NAME_LENGTH_MIN } from "../validation.constant";
 import { prepareMessageFromParams } from "../../utils/shared-functions";
 import { ActiveStatus, CURRENCY_RATE_EXCHANGE_TYPE, DeletedStatus } from "../../utils/app-enumeration";
-import { initModels } from "../../version-one/model/index.model";
+import { StoneData } from "../../version-one/model/master/attributes/gemstones.model";
 
 const checkOnlyAI = (onlyAI: boolean, req: Meta["req"]) => {
   if (onlyAI) {
@@ -292,7 +292,6 @@ export const diamondGroupMasterValidatorRule = [
   }),
   check('id_color')
     .custom(async(value, { req }) => {
-      const { StoneData } = initModels(req);
       const stoneDetails = await StoneData.findOne({
             where: [
           { id: req.body.id_stone },
@@ -317,7 +316,6 @@ export const diamondGroupMasterValidatorRule = [
     }),
     check('id_clarity')
     .custom(async(value, { req }) => {
-      const { StoneData } = initModels(req);
       const stoneDetails = await StoneData.findOne({
             where: [
           { id: req.body.id_stone },
@@ -337,7 +335,6 @@ export const diamondGroupMasterValidatorRule = [
     }),
     check('id_cuts')
     .custom(async(value, { req }) => {
-      const { StoneData } = initModels(req);
       const stoneDetails = await StoneData.findOne({
             where: [
           { id: req.body.id_stone },
@@ -358,7 +355,6 @@ export const diamondGroupMasterValidatorRule = [
     }),
     check('id_mm_size')
     .custom(async(value, { req }) => {
-      const { StoneData } = initModels(req);
       const stoneDetails = await StoneData.findOne({
             where: [
           { id: req.body.id_stone },

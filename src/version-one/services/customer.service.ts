@@ -30,7 +30,11 @@ import {
   resSuccess,
 } from "../../utils/shared-functions";
 import { PASSWORD_SOLT } from "../../utils/app-constants";
-import { initModels } from "../model/index.model";
+import { Image } from "../model/image.model";
+import { CustomerUser } from "../model/customer-user.model";
+import { AppUser } from "../model/app-user.model";
+import { ProductSearchHistories } from "../model/product-search-histories.model";
+import dbContext from "../../config/db-context";
 
 export const addCustomers = async (req: Request) => {
   try {
@@ -44,16 +48,13 @@ export const addCustomers = async (req: Request) => {
       country_id,
       created_by,
     } = req.body;
-    const {Image,CustomerUser,AppUser} = initModels(req)
     const pass_hash = await bcrypt.hash(password, Number(PASSWORD_SOLT));
 
     let imagePath = null;
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.customer,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -63,7 +64,7 @@ export const addCustomers = async (req: Request) => {
       imagePath = moveFileResult.data;
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
 
     try {
       let idImage = null;
@@ -73,7 +74,6 @@ export const addCustomers = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.customer,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -82,13 +82,13 @@ export const addCustomers = async (req: Request) => {
       }
 
       const emailExistes = await CustomerUser.findOne({
-        where: [columnValueLowerCase("email", email), { is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }],
+        where: [columnValueLowerCase("email", email), { is_deleted: DeletedStatus.No }],
       });
       const emailidExistes = await AppUser.findOne({
-        where: [columnValueLowerCase("username", email), { is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }],
+        where: [columnValueLowerCase("username", email), { is_deleted: DeletedStatus.No }],
       });
       const customerNumber = await CustomerUser.findOne({
-        where: { mobile: mobile, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+        where: { mobile: mobile, is_deleted: DeletedStatus.No },
         transaction: trn,
       });
 
@@ -112,7 +112,6 @@ export const addCustomers = async (req: Request) => {
             created_date: getLocalDate(),
             id_role: 0,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
           },
@@ -129,14 +128,13 @@ export const addCustomers = async (req: Request) => {
             country_id: country_id,
             created_date: getLocalDate(),
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             id_image: idImage,
             is_active: ActiveStatus.Active,
             is_deleted: DeletedStatus.No,
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             app_user_id: appUserpayload?.dataValues?.id, app_user_data: {
@@ -165,7 +163,6 @@ export const addCustomers = async (req: Request) => {
 
 export const getAllCustomer = async (req: Request) => {
   try {
-    const {Image,CustomerUser,AppUser} = initModels(req)
 
     let pagination: IQueryPagination = {
       ...getInitialPaginationFromQuery(req.query),
@@ -173,7 +170,6 @@ export const getAllCustomer = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
       {
         [Op.or]: [
           { full_name: { [Op.iLike]: "%" + pagination.search_text + "%" } },
@@ -209,7 +205,7 @@ export const getAllCustomer = async (req: Request) => {
         "created_date",
         "is_active",
       ],
-      include: [{ model: Image, as: "image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "image", attributes: [],required:false }],
     });
 
     return resSuccess({ data: { pagination, result } });
@@ -220,10 +216,9 @@ export const getAllCustomer = async (req: Request) => {
 
 export const getByIdCustomer = async (req: Request) => {
   try {
-    const {Image,CustomerUser,ProductSearchHistories} = initModels(req)
 
     const userInfo = await CustomerUser.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No },
       attributes: [
         "id",
         "full_name",
@@ -235,13 +230,13 @@ export const getByIdCustomer = async (req: Request) => {
         "created_date",
         "is_active",
       ],
-      include: [{ model: Image, as: "image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "image", attributes: [],required:false }],
     });
     if (!(userInfo && userInfo.dataValues)) {
       return resNotFound();
     }
     const userRecentSearch = await ProductSearchHistories.findAll({
-      where: { user_id: userInfo.dataValues.id_app_user,company_info_id :req?.body?.session_res?.client_id },
+      where: { user_id: userInfo.dataValues.id_app_user },
       limit: 10,
       order: [["modified_date", "DESC"]],
       attributes: ["id", "value"],
@@ -270,11 +265,10 @@ export const updateCustomers = async (req: Request) => {
     country_id,
     id,
   } = req.body;
-    const {Image,CustomerUser,AppUser} = initModels(req)
 
   try {
     const CustomerId = await CustomerUser.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No },
     });
 
     if (CustomerId == null) {
@@ -285,11 +279,9 @@ export const updateCustomers = async (req: Request) => {
     let imagePath = null;
 
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.customer,
-        req?.body?.session_res?.client_id,
-        req
       );
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -299,7 +291,7 @@ export const updateCustomers = async (req: Request) => {
       imagePath = moveFileResult.data;
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       if (imagePath) {
         const imageResult = await Image.create(
@@ -307,12 +299,11 @@ export const updateCustomers = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.customer,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
         );
-
+  
         id_image = imageResult.dataValues.id;
       }
       const customerEmailExistes = await CustomerUser.findOne({
@@ -320,7 +311,6 @@ export const updateCustomers = async (req: Request) => {
           columnValueLowerCase("email", email),
           { id: { [Op.ne]: id } },
           { is_deleted: DeletedStatus.No },
-          {company_info_id :req?.body?.session_res?.client_id}
         ],
       });
       const appUserEmailidExistes = await AppUser.findOne({
@@ -328,7 +318,6 @@ export const updateCustomers = async (req: Request) => {
           columnValueLowerCase("username", email),
           { id: { [Op.ne]: CustomerId.dataValues.id_app_user } },
           { is_deleted: DeletedStatus.No },
-          {company_info_id :req?.body?.session_res?.client_id},
         ],
       });
 
@@ -337,7 +326,6 @@ export const updateCustomers = async (req: Request) => {
           mobile: mobile,
           id: { [Op.ne]: id },
           is_deleted: DeletedStatus.No,
-          company_info_id :req?.body?.session_res?.client_id,
         },
         transaction: trn,
       });
@@ -360,7 +348,7 @@ export const updateCustomers = async (req: Request) => {
           },
 
           {
-            where: { id: CustomerId.dataValues.id_app_user, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+            where: { id: CustomerId.dataValues.id_app_user, is_deleted: DeletedStatus.No },
             transaction: trn,
           }
         );
@@ -378,26 +366,26 @@ export const updateCustomers = async (req: Request) => {
             },
 
             {
-              where: { id: CustomerId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: CustomerId.dataValues.id, is_deleted: DeletedStatus.No },
               transaction: trn,
             }
           );
 
           if (image_delete && image_delete == "1") {
             const findImage = await Image.findOne({
-              where: { id: CustomerId.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: CustomerId.dataValues.id_image },
               transaction: trn,
             });
-            await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+            await imageDeleteInDBAndS3(findImage);
           }
 
           if (CustomerInfo) {
             const CustomerInformation = await CustomerUser.findOne({
-              where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
 
-            await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+            await addActivityLogs([{
               old_data: { customer_user_id: CustomerId?.dataValues?.id, app_customer_data: CustomerId?.dataValues},
               new_data: {
                 customer_user_id: CustomerInformation?.dataValues?.id, data: { ...CustomerInformation?.dataValues }
@@ -420,16 +408,16 @@ export const updateCustomers = async (req: Request) => {
             },
 
             {
-              where: { id: CustomerId.dataValues.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: CustomerId.dataValues.id, is_deleted: DeletedStatus.No },
               transaction: trn,
             }
           );
           if (CustomerInfo) {
             const CustomerInformation = await CustomerUser.findOne({
-              where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+              where: { id: id, is_deleted: DeletedStatus.No },
               transaction: trn,
             });
-            await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+            await addActivityLogs([{
               old_data: { customer_user_id: CustomerId?.dataValues?.id, app_customer_data: {...CustomerId?.dataValues}},
               new_data: {
                 customer_user_id: CustomerInformation?.dataValues?.id, data: {  ...CustomerInformation?.dataValues }
@@ -455,18 +443,17 @@ export const updateCustomers = async (req: Request) => {
 
 export const deleteCustomers = async (req: Request) => {
   try {
-    const {Image,CustomerUser,AppUser} = initModels(req)
 
     const CustomersExists = await CustomerUser.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No },
     });
     const AppUserExists = await AppUser.findOne({
-      where: { id: CustomersExists.dataValues.id_app_user, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: CustomersExists.dataValues.id_app_user, is_deleted: DeletedStatus.No },
     });
     if (!(CustomersExists && CustomersExists.dataValues)) {
       return resNotFound();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       await AppUser.update(
         {
@@ -475,7 +462,7 @@ export const deleteCustomers = async (req: Request) => {
           modified_date: getLocalDate(),
         },
         {
-          where: { id: CustomersExists.dataValues.id_app_user,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: CustomersExists.dataValues.id_app_user },
           transaction: trn,
         }
       );
@@ -486,10 +473,10 @@ export const deleteCustomers = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
           modified_date: getLocalDate(),
         },
-        { where: { id: CustomersExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+        { where: { id: CustomersExists.dataValues.id }, transaction: trn }
       );
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{ 
         old_data: { customer_id: CustomersExists?.dataValues?.id, customer_data:{... CustomersExists?.dataValues}, app_user_id: CustomersExists?.dataValues?.id, app_user_data: {...CustomersExists?.dataValues}},
         new_data: {
           customer_id: CustomersExists?.dataValues?.id, customer_data: {
@@ -518,18 +505,17 @@ export const deleteCustomers = async (req: Request) => {
 
 export const statusUpdateCustomers = async (req: Request) => {
   try {
-    const {Image,CustomerUser,AppUser} = initModels(req)
 
     const CustomersExists = await CustomerUser.findOne({
-      where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.body.id, is_deleted: DeletedStatus.No },
     });
     const AppUserExists = await AppUser.findOne({
-      where: { id: CustomersExists.dataValues.id_app_user, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id},
+      where: { id: CustomersExists.dataValues.id_app_user, is_deleted: DeletedStatus.No },
     });
     if (!(CustomersExists && CustomersExists.dataValues)) {
       return resNotFound();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       await AppUser.update(
         {
@@ -538,7 +524,7 @@ export const statusUpdateCustomers = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
         },
         {
-          where: { id: CustomersExists.dataValues.id_app_user,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: CustomersExists.dataValues.id_app_user },
           transaction: trn,
         }
       );
@@ -549,10 +535,10 @@ export const statusUpdateCustomers = async (req: Request) => {
           modified_date: getLocalDate(),
           modified_by: req.body.session_res.id_app_user,
         },
-        { where: { id: CustomersExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id }, transaction: trn }
+        { where: { id: CustomersExists.dataValues.id }, transaction: trn }
       );
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { customer_id: CustomersExists?.dataValues?.id, customer_data: {...CustomersExists?.dataValues}, app_user_id: CustomersExists?.dataValues?.id, app_user_data: {...CustomersExists?.dataValues}},
         new_data: {
           customer_id: CustomersExists?.dataValues?.id, customer_data: {

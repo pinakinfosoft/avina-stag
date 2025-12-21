@@ -27,14 +27,13 @@ import {
 } from "../../utils/app-enumeration";
 import { TResponseReturn } from "../../data/interfaces/common/common.interface";
 import { s3UploadObject } from "../../helpers/s3-client.helper";
-import { initModels } from "../model/index.model";
+import { ProductBulkUploadFile } from "../model/product-bulk-upload-file.model";
 const readXlsxFile = require("read-excel-file/node");
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 export const addProductImageCSVFile = async (req: Request) => {
   try {
-    const {ProductBulkUploadFile} = initModels(req);
     if (!req.file) {
       return resUnprocessableEntity({
         message: FILE_NOT_FOUND,
@@ -57,8 +56,7 @@ export const addProductImageCSVFile = async (req: Request) => {
       req.file.filename,
       req.file.destination,
       PRODUCT_CSV_FOLDER_PATH,
-      req.file.originalname,
-      req
+      req.file.originalname
     );
 
     if (resMFTL.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -70,7 +68,6 @@ export const addProductImageCSVFile = async (req: Request) => {
       status: FILE_STATUS.Uploaded,
       file_type: FILE_BULK_UPLOAD_TYPE.DiamondGroupUpload,
       created_by: req.body.session_res.id_app_user,
-      company_info_id :req?.body?.session_res?.client_id,
       created_date: getLocalDate(),
     });
 
@@ -78,7 +75,7 @@ export const addProductImageCSVFile = async (req: Request) => {
       resPBUF.dataValues.id,
       resMFTL.data,
       req.body.session_res.id_app_user,
-      req?.body?.session_res?.client_id,
+null,
       req
     );
 
@@ -95,7 +92,6 @@ const processProductImageBulkUploadFile = async (
   clientId: any, 
   req: Request
 ) => {
-  const {ProductBulkUploadFile} = initModels(req);
   try {
 
     const data = await processCSVFile(path, idAppUser,clientId, req);
@@ -168,7 +164,7 @@ const processCSVFile = async (path: string, idAppUser: number,clientId:any, req:
     //     });
     //   }
 
-    const resProducts = await getImageUploadRows(resRows.data.results,idAppUser,clientId, req);
+    const resProducts = await getImageUploadRows(resRows.data.results,idAppUser);
     if (resProducts.code !== DEFAULT_STATUS_CODE_SUCCESS) {
       return resProducts;
     }
@@ -264,7 +260,7 @@ const validateHeaders = async (headers: string[]) => {
   return resSuccess();
 };
 
-const getImageUploadRows = async (rows: any,idAppUser:any,client_id:any, req: Request) => {
+const getImageUploadRows = async (rows: any,idAppUser:any) => {
   let currentGroupIndex = -1;
   let diamondGroupList = [];
 
@@ -295,12 +291,11 @@ const getImageUploadRows = async (rows: any,idAppUser:any,client_id:any, req: Re
 
         const value = await sharp(fileStream).webp({ quality: 50 }).toBuffer();
 
-        const data = await s3UploadObject(
-          req.body.db_connection,
+        const data:any = await s3UploadObject(
           value,
           `products/${row.product_sku}/${row.image}.webp`,
           "image/webp",
-          client_id
+null
         );
         if (data.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           errors.push({
@@ -315,7 +310,7 @@ const getImageUploadRows = async (rows: any,idAppUser:any,client_id:any, req: Re
     if (errors.length > 0) {
       return resUnprocessableEntity({ data: errors });
     }
-  await addActivityLogs(req,client_id,[{
+  await addActivityLogs([{
           old_data: null,
           new_data: activitylogs}], null, LogsActivityType.Add, LogsType.ProductImageBulkUpload, idAppUser)
         

@@ -1,7 +1,7 @@
 import { BIGINT, DATE, INTEGER, STRING } from "sequelize";
+import dbContext from "../../config/db-context";
 
-export const PageData = (dbContext: any) => {
-  let pageData = dbContext.define("pages", {
+export const PageData = dbContext.define("pages", {
   id: {
     type: BIGINT,
     primaryKey: true,
@@ -36,10 +36,5 @@ export const PageData = (dbContext: any) => {
   },
   modified_date: {
     type: DATE,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return pageData
-};

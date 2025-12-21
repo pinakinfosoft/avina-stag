@@ -8,22 +8,27 @@ import {
   TemplateFiveSectionType,
   TemplateThreeSectionType,
 } from "../../../utils/app-enumeration";
-import { getCompanyIdBasedOnTheCompanyKey, resSuccess } from "../../../utils/shared-functions";
+import { resSuccess } from "../../../utils/shared-functions";
 import { DEFAULT_STATUS_CODE_SUCCESS } from "../../../utils/app-messages";
-import { initModels } from "../../model/index.model";
+import { Banner } from "../../model/banner.model";
+import { Image } from "../../model/image.model";
+import { HomeAboutMain } from "../../model/home-about/home-about-main.model";
+import { HomeAboutSub } from "../../model/home-about/home-about-sub.model";
+import { OurStory } from "../../model/our-stories.model";
+import { TemplateTwoBanner } from "../../model/template-2-banner.model";
+import { TemplateFiveData } from "../../model/template-five.model";
+import { CategoryData } from "../../model/category.model";
+import { Collection } from "../../model/master/attributes/collection.model";
+import { TemplateThreeData } from "../../model/template-three.model";
+import dbContext from "../../../config/db-context";
 
 export const getAllBanners = async (req: Request) => {
   try {
-    const { Banner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+   
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: BANNER_TYPE.banner },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await Banner.count({
       where,
@@ -57,16 +62,11 @@ export const getAllBanners = async (req: Request) => {
 
 export const getAll3MarketingBanners = async (req: Request) => {
   try {
-    const { Banner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+   
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: BANNER_TYPE.marketing_banner },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await Banner.count({
       where,
@@ -104,15 +104,12 @@ export const getAll3MarketingBanners = async (req: Request) => {
 
 export const getAllHomeAndAboutSection = async (req: Request) => {
   try {
-    const { HomeAboutMain, HomeAboutSub, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, {company_info_id:company_info_id?.data}];
+   
+    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }];
     const mainContentData = await HomeAboutMain.findAll({
       attributes: ["id", "sort_title", "title", "content", "created_date"],
-      where:{company_info_id:company_info_id?.data}});
+      where,
+    });
     const totalItems = await HomeAboutSub.count({
       where,
     });
@@ -141,16 +138,10 @@ export const getAllHomeAndAboutSection = async (req: Request) => {
 
 export const getAllFeaturesSections = async (req: Request) => {
   try {
-    const { Banner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    } 
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: BANNER_TYPE.features_sections },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await Banner.count({
       where,
@@ -183,7 +174,7 @@ export const getAllFeaturesSections = async (req: Request) => {
         [Sequelize.literal("banner_bg_image.image_path"), "bg_image_path"],
 
       ],
-      include: [{ model: Image, as: "banner_image", attributes: [] },{ model: Image, as: "banner_bg_image", attributes: [], where : { company_info_id :company_info_id?.data },required:false }],
+      include: [{ model: Image, as: "banner_image", attributes: [] },{ model: Image, as: "banner_bg_image", attributes: [], required:false }],
     });
     return resSuccess({ data: { totalItems, result } });
   } catch (error) {
@@ -193,21 +184,15 @@ export const getAllFeaturesSections = async (req: Request) => {
 
 export const getMarketingPopup = async (req: Request) => {
   try {
-    const { Banner, Image } = initModels(req);
     const currentDate = `${`${new Date().getFullYear()}-${String(
       new Date().getMonth() + 1
     ).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`}`;
     
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: BANNER_TYPE.marketing_popup },
       { expiry_date: { [Op.gte]: currentDate } },      
-      {company_info_id:company_info_id?.data},
 
     ];
     const totalItems = await Banner.count({
@@ -237,12 +222,7 @@ export const getMarketingPopup = async (req: Request) => {
 
 export const getAllOurStoryList = async (req: Request) => {
   try {
-    const { OurStory, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
-    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }, {company_info_id:company_info_id?.data}];
+    let where = [{ is_deleted: DeletedStatus.No }, { is_active: ActiveStatus.Active }];
     const totalItems = await OurStory.count({
       where,
     });
@@ -267,16 +247,10 @@ export const getAllOurStoryList = async (req: Request) => {
 
 export const getAllTemplateTwoBannersUser = async (req: Request) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: TEMPLATE_2_BANNER_TYPE.banner },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await TemplateTwoBanner.count({
       where,
@@ -312,16 +286,10 @@ export const getAllTemplateTwoBannersUser = async (req: Request) => {
 
 export const getAllTemplateTwoMarketingBannerUser = async (req: Request) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: TEMPLATE_2_BANNER_TYPE.marketing_banner },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await TemplateTwoBanner.count({
       where,
@@ -359,16 +327,10 @@ export const getAllTemplateTwoMarketingBannerUser = async (req: Request) => {
 
 export const getAllTemplateTwoFeaturesSectionsUser = async (req: Request) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: TEMPLATE_2_BANNER_TYPE.features_sections },
-      {company_info_id:company_info_id?.data},
 
     ];
     const totalItems = await TemplateTwoBanner.count({
@@ -399,16 +361,10 @@ export const getAllTemplateTwoFeaturesSectionsUser = async (req: Request) => {
 
 export const getTemplateTwoMarketingPopupUser = async (req: Request) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: TEMPLATE_2_BANNER_TYPE.marketing_popup },
-      {company_info_id:company_info_id?.data},
 
     ];
     const totalItems = await TemplateTwoBanner.count({
@@ -441,16 +397,10 @@ export const getTemplateTwoMarketingPopupUser = async (req: Request) => {
 
 export const getAllTemplateTwoHomeAboutBannersUser = async (req: Request) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: TEMPLATE_2_BANNER_TYPE.home_about_banner },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await TemplateTwoBanner.count({
       where,
@@ -486,16 +436,10 @@ export const getAllTemplateTwoHomeAboutFeatureSectionUser = async (
   req: Request
 ) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: TEMPLATE_2_BANNER_TYPE.home_about_features_section },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await TemplateTwoBanner.count({
       where,
@@ -528,16 +472,10 @@ export const getAllTemplateTwoHomeAboutMarketingSectionUser = async (
   req: Request
 ) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: TEMPLATE_2_BANNER_TYPE.home_about_marketing_section },      
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await TemplateTwoBanner.count({
       where,
@@ -574,17 +512,10 @@ export const getAllTemplateTwoProductSectionUser = async (
   req: any
 ) => {
   try {
-    const { TemplateTwoBanner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: [TEMPLATE_2_BANNER_TYPE.BestSellerProduct, TEMPLATE_2_BANNER_TYPE.NewCollectionProduct] },
-      {company_info_id:company_info_id?.data}
-
     ];
 
     const result = await TemplateTwoBanner.findAll({
@@ -612,7 +543,7 @@ export const getAllTemplateTwoProductSectionUser = async (
         const data = result[index];
         if ((result) && (data.dataValues) && (data.dataValues.product_ids)) {
           if (data.dataValues.banner_type == TEMPLATE_2_BANNER_TYPE.BestSellerProduct) {
-            let productsData:any = await req.body.db_connection.query(`(WITH filtered_pmo AS (
+            let productsData:any = await dbContext.query(`(WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
             pmo.id_metal_group,
@@ -638,7 +569,6 @@ export const getAllTemplateTwoProductSectionUser = async (
             pmo.center_diamond_price,
             karats.name,
             karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -650,9 +580,9 @@ export const getAllTemplateTwoProductSectionUser = async (
             product_images.id_metal_tone,
             product_images.image_type
            FROM product_images
-             LEFT JOIN web_config_setting ON web_config_setting.company_info_id = product_images.company_info_id
+             LEFT JOIN web_config_setting ON true
           WHERE product_images.is_deleted = '0'::"bit" AND (product_images.image_type = ANY (ARRAY[1, 4]))
-        ), sum_price AS (
+        ), sum_price AS ( 
          SELECT pdo_1.id_product,
             sum(
                 CASE
@@ -741,7 +671,7 @@ export const getAllTemplateTwoProductSectionUser = async (
 
             BestSellerProductProducts = { ...data.dataValues, products }
           } else if (data.dataValues.banner_type == TEMPLATE_2_BANNER_TYPE.NewCollectionProduct) {
-            let productsData:any = await req.body.db_connection.query(`(WITH filtered_pmo AS (
+            let productsData:any = await dbContext.query(`(WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
             pmo.id_metal_group,
@@ -766,8 +696,7 @@ export const getAllTemplateTwoProductSectionUser = async (
             pmo.id_m_tone,
             pmo.center_diamond_price,
             karats.name,
-            karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
+            karats.calculate_rate AS karat_calculate_rate
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -779,7 +708,7 @@ export const getAllTemplateTwoProductSectionUser = async (
             product_images.id_metal_tone,
             product_images.image_type
            FROM product_images
-             LEFT JOIN web_config_setting ON web_config_setting.company_info_id = product_images.company_info_id
+             LEFT JOIN web_config_setting ON true
           WHERE product_images.is_deleted = '0'::"bit" AND (product_images.image_type = ANY (ARRAY[1, 4]))
         ), sum_price AS (
          SELECT pdo_1.id_product,
@@ -882,16 +811,10 @@ export const getAllTemplateTwoProductSectionUser = async (
 
 export const getTemplateThreeBanner = async (req: Request) => {
   try {
-    const { TemplateFiveData, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { section_type: TemplateFiveSectionType.Banner },
-      {company_info_id:company_info_id?.data},
     ];
     const result = await TemplateFiveData.findAll({
       where,
@@ -917,16 +840,10 @@ export const getTemplateThreeBanner = async (req: Request) => {
 };
 export const getTemplateThreeCategorySection = async (req: Request) => {
   try {
-    const { TemplateFiveData, Image, CategoryData } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { section_type: TemplateFiveSectionType.CategorySection },
-      {company_info_id:company_info_id?.data},
     ];
     const result = await TemplateFiveData.findAll({
       where,
@@ -957,16 +874,10 @@ export const getTemplateThreeCategorySection = async (req: Request) => {
 };
 export const getTemplateThreeJewelrySection = async (req: Request) => {
   try {
-    const { TemplateFiveData, Image, Collection } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { section_type: TemplateFiveSectionType.JewelrySection },
-      {company_info_id:company_info_id?.data},
 
     ];
     const result = await TemplateFiveData.findAll({
@@ -1003,16 +914,10 @@ export const getTemplateThreeJewelrySection = async (req: Request) => {
 };
 export const getTemplateThreeDiamondSection = async (req: Request) => {
   try {
-    const { TemplateFiveData, Image, Collection } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { section_type: TemplateFiveSectionType.DiamondSection },
-      {company_info_id:company_info_id?.data},
 
     ];
     const result = await TemplateFiveData.findAll({
@@ -1048,16 +953,10 @@ export const getTemplateThreeDiamondSection = async (req: Request) => {
 
 export const getTemplateFiveProductModelForUser = async (req: Request) => {
   try {
-    const { TemplateFiveData, Image, CategoryData,Collection } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { section_type: TemplateFiveSectionType.ProductModel },
-      {company_info_id:company_info_id?.data},
 
     ];
     const result = await TemplateFiveData.findAll({
@@ -1089,16 +988,10 @@ export const getTemplateFiveProductModelForUser = async (req: Request) => {
 
 export const getTemplateThreeProductModelForUser = async (req: Request) => {
   try {
-    const { TemplateThreeData, Image, CategoryData,Collection } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { section_type: TemplateThreeSectionType.ProductModel },
-      {company_info_id:company_info_id?.data},
 
     ];
     const result = await TemplateThreeData.findAll({
@@ -1132,16 +1025,10 @@ export const getTemplateThreeProductModelForUser = async (req: Request) => {
 
 export const getTheProcess = async (req: Request) => {
   try {
-    const { Banner, Image } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
     let where = [
       { is_deleted: DeletedStatus.No },
       { is_active: ActiveStatus.Active },
       { banner_type: BANNER_TYPE.The_process },
-      {company_info_id:company_info_id?.data},
     ];
     const totalItems = await Banner.count({
       where,
@@ -1168,14 +1055,9 @@ export const getTheProcess = async (req: Request) => {
 export const getALlNewArriveProduct = async (req: Request) => {
     try {
         const { banner_type = BANNER_TYPE.new_arriive } = req.params
-        const { Banner } = initModels(req);
-         const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
         const data = await Banner.findOne(
             {
-                where: { is_deleted: DeletedStatus.No, banner_type: banner_type,company_info_id :company_info_id?.data },
+                where: { is_deleted: DeletedStatus.No, banner_type: banner_type },
 
                 attributes: [
                     "id",
@@ -1190,7 +1072,7 @@ export const getALlNewArriveProduct = async (req: Request) => {
         if ((data) && (data.dataValues) && (data.dataValues.product_ids)) {
         for (let index = 0; index < data.dataValues.product_ids.length; index++) {
             const element = data.dataValues.product_ids[index];
-           const productData = await (req.body.db_connection).query(`(WITH filtered_pmo AS (
+           const productData = await dbContext.query(`(WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
             pmo.id_metal_group,
@@ -1216,7 +1098,6 @@ export const getALlNewArriveProduct = async (req: Request) => {
             pmo.center_diamond_price,
             karats.name,
             karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -1228,7 +1109,7 @@ export const getALlNewArriveProduct = async (req: Request) => {
             product_images.id_metal_tone,
             product_images.image_type
            FROM product_images
-             LEFT JOIN web_config_setting ON web_config_setting.company_info_id = product_images.company_info_id
+              LEFT JOIN web_config_setting ON true
           WHERE product_images.is_deleted = '0'::"bit" AND (product_images.image_type = ANY (ARRAY[1, 4]))
         ), sum_price AS (
          SELECT pdo_1.id_product,
@@ -1310,14 +1191,9 @@ export const getALlNewArriveProduct = async (req: Request) => {
 export const getBestSellProduct = async (req: Request) => {
     try {
         const { banner_type = BANNER_TYPE.best_seller } = req.params
-        const { Banner } = initModels(req);
-         const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
         const data = await Banner.findOne(
             {
-                where: { is_deleted: DeletedStatus.No, banner_type: banner_type,company_info_id :company_info_id?.data },
+                where: { is_deleted: DeletedStatus.No, banner_type: banner_type },
 
                 attributes: [
                     "id",
@@ -1332,7 +1208,7 @@ export const getBestSellProduct = async (req: Request) => {
         if ((data) && (data.dataValues) && (data.dataValues.product_ids)) {
         for (let index = 0; index < data.dataValues.product_ids.length; index++) {
             const element = data.dataValues.product_ids[index];
-           const productData = await (req.body.db_connection).query(`(WITH filtered_pmo AS (
+           const productData = await dbContext.query(`(WITH filtered_pmo AS (
          SELECT DISTINCT ON (pmo.id_product) pmo.id,
             pmo.id_product,
             pmo.id_metal_group,
@@ -1358,7 +1234,6 @@ export const getBestSellProduct = async (req: Request) => {
             pmo.center_diamond_price,
             karats.name,
             karats.calculate_rate AS karat_calculate_rate,
-            pmo.company_info_id
            FROM product_metal_options pmo
              LEFT JOIN gold_kts karats ON karats.id = pmo.id_karat AND karats.is_deleted = '0'::"bit" AND karats.is_active = '1'::"bit"
           WHERE pmo.is_deleted = '0'::"bit"
@@ -1370,7 +1245,7 @@ export const getBestSellProduct = async (req: Request) => {
             product_images.id_metal_tone,
             product_images.image_type
            FROM product_images
-             LEFT JOIN web_config_setting ON web_config_setting.company_info_id = product_images.company_info_id
+          LEFT JOIN web_config_setting ON true
           WHERE product_images.is_deleted = '0'::"bit" AND (product_images.image_type = ANY (ARRAY[1, 4]))
         ), sum_price AS (
          SELECT pdo_1.id_product,

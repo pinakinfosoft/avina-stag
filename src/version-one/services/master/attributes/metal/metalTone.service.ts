@@ -27,18 +27,19 @@ import {
   resSuccess,
   statusUpdateValue,
 } from "../../../../../utils/shared-functions";
-import { initModels } from "../../../../model/index.model";
+import { MetalTone } from "../../../../model/master/attributes/metal/metalTone.model";
+import { Image } from "../../../../model/image.model";
+import dbContext from "../../../../../config/db-context";
 
 export const addMetalTone = async (req: Request) => {
   try {
-    const { MetalTone } = initModels(req);
     const { name, sort_code, metal_master_id } = req.body;
     const slug = createSlug(name);
     const findName = await MetalTone.findOne({
       where: [
         columnValueLowerCase("name", name),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -46,7 +47,7 @@ export const addMetalTone = async (req: Request) => {
       where: [
         columnValueLowerCase("sort_code", sort_code),
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -59,7 +60,7 @@ export const addMetalTone = async (req: Request) => {
       return resErrorDataExit();
     }
 
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let idImage = null;
       if (req.file) {
@@ -68,7 +69,6 @@ export const addMetalTone = async (req: Request) => {
           IMAGE_TYPE.goldKT,
           req.body.session_res.id_app_user,
           "",
-          req?.body?.session_res?.client_id
         );
         if (addImage.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           trn.rollback();
@@ -82,7 +82,7 @@ export const addMetalTone = async (req: Request) => {
         sort_code: sort_code,
         created_date: getLocalDate(),
         created_by: req.body.session_res.id_app_user,
-        company_info_id :req?.body?.session_res?.client_id,
+        
         id_metal: metal_master_id,
         id_image: idImage,
         is_active: ActiveStatus.Active,
@@ -90,7 +90,7 @@ export const addMetalTone = async (req: Request) => {
       };
       const metalToneData = await MetalTone.create(payload, { transaction: trn });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
               old_data: null,
               new_data: {
                 metal_tone_id: metalToneData?.dataValues?.id, data: {
@@ -101,7 +101,7 @@ export const addMetalTone = async (req: Request) => {
             
 
       await trn.commit();
-      await refreshAllMaterializedView(req.body.db_connection);
+      await refreshAllMaterializedView(dbContext);
       return resSuccess({ data: payload });
     } catch (e) {
       await trn.rollback();
@@ -114,7 +114,6 @@ export const addMetalTone = async (req: Request) => {
 
 export const getMetalTones = async (req: Request) => {
   try {
-    const { MetalTone, Image } = initModels(req);
     let paginationProps = {};
 
     let pagination = {
@@ -125,8 +124,8 @@ export const getMetalTones = async (req: Request) => {
 
     let where = [
       { is_deleted: DeletedStatus.No },
-      {company_info_id :req?.body?.session_res?.client_id},
-      pagination.is_active ? { is_active: pagination.is_active } : {},
+      
+      pagination.is_active ? { is_active: pagination.is_active } : 
       pagination.search_text
         ? {
             [Op.or]: [
@@ -175,7 +174,7 @@ export const getMetalTones = async (req: Request) => {
         "is_pendant",
         "is_earring",
       ],
-      include: [{ model: Image, as: "metal_tone_image", attributes: [], where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "metal_tone_image", attributes: [], required:false }],
     });
 
     return resSuccess({ data: noPagination ? result : { pagination, result } });
@@ -186,9 +185,8 @@ export const getMetalTones = async (req: Request) => {
 
 export const getByIdMetalTone = async (req: Request) => {
   try {
-    const { MetalTone, Image } = initModels(req);
     const findMetalTone = await MetalTone.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
       attributes: [
         "id",
         "name",
@@ -206,7 +204,7 @@ export const getByIdMetalTone = async (req: Request) => {
         "is_pendant",
         "is_earring",
       ],
-      include: [{ model: Image, as: "metal_tone_image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id},required:false }],
+      include: [{ model: Image, as: "metal_tone_image", attributes: [],required:false }],
     });
 
     if (!(findMetalTone && findMetalTone.dataValues)) {
@@ -221,12 +219,11 @@ export const getByIdMetalTone = async (req: Request) => {
 
 export const updateMetalTone = async (req: Request) => {
   try {
-    const { MetalTone,Image } = initModels(req);
     const { name, sort_code, metal_master_id, image_delete = "0" } = req.body;
     const id = req.params.id;
     const slug = createSlug(name);
     const findMetalTone = await MetalTone.findOne({
-      where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: id, is_deleted: DeletedStatus.No, },
     });
     if (!(findMetalTone && findMetalTone.dataValues)) {
       return resNotFound();
@@ -236,7 +233,7 @@ export const updateMetalTone = async (req: Request) => {
         columnValueLowerCase("name", name),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -245,7 +242,7 @@ export const updateMetalTone = async (req: Request) => {
         columnValueLowerCase("sort_code", sort_code),
         { id: { [Op.ne]: id } },
         { is_deleted: DeletedStatus.No },
-        {company_info_id :req?.body?.session_res?.client_id},
+        
       ],
     });
 
@@ -257,13 +254,13 @@ export const updateMetalTone = async (req: Request) => {
     ) {
       return resErrorDataExit();
     }
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       let imageId = null;
       let findImage = null;
       if (findMetalTone.dataValues.id_image) {
         findImage = await Image.findOne({
-          where: { id: findMetalTone.dataValues.id_image,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: findMetalTone.dataValues.id_image, },
           transaction: trn,
         });
       }
@@ -273,7 +270,6 @@ export const updateMetalTone = async (req: Request) => {
           IMAGE_TYPE.metalTone,
           req.body.session_res.id_app_user,
           findImage,
-          req?.body?.session_res?.client_id
         );
 
         if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -296,19 +292,19 @@ export const updateMetalTone = async (req: Request) => {
           modified_by: req.body.session_res.id_app_user,
         },
         {
-          where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+          where: { id: id, is_deleted: DeletedStatus.No, },
           transaction: trn,
         }
       );
       if (image_delete && image_delete === "1" && findImage.dataValues) {
-        await imageDeleteInDBAndS3(req,findImage,req.body.session_res.client_id);
+        await imageDeleteInDBAndS3(findImage);
       }
 
       const afterUpdatefindMetalTone = await MetalTone.findOne({
         where: { id: id, is_deleted: DeletedStatus.No  },transaction: trn
       });
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { metal_tone_id: findMetalTone?.dataValues?.id, data: {...findMetalTone?.dataValues} },
         new_data: {
           metal_tone_id: afterUpdatefindMetalTone?.dataValues?.id, data: { ...afterUpdatefindMetalTone?.dataValues }
@@ -316,7 +312,7 @@ export const updateMetalTone = async (req: Request) => {
       }], findMetalTone?.dataValues?.id, LogsActivityType.Edit, LogsType.MetalTone, req?.body?.session_res?.id_app_user,trn)
       
       await trn.commit();
-      await refreshAllMaterializedView(req.body.db_connection);
+      await refreshAllMaterializedView(dbContext);
       return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
     } catch (e) {
       await trn.rollback();
@@ -330,9 +326,8 @@ export const updateMetalTone = async (req: Request) => {
 
 export const deleteMetalTone = async (req: Request) => {
   try {
-    const { MetalTone } = initModels(req);
     const findMetalTone = await MetalTone.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No ,company_info_id :req?.body?.session_res?.client_id},
+      where: { id: req.params.id, is_deleted: DeletedStatus.No ,},
     });
 
     if (!(findMetalTone && findMetalTone.dataValues)) {
@@ -344,10 +339,10 @@ export const deleteMetalTone = async (req: Request) => {
         modified_by: req.body.session_res.id_app_user,
         modified_date: getLocalDate(),
       },
-      { where: { id: findMetalTone.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findMetalTone.dataValues.id, } }
     );
-    await refreshAllMaterializedView(req.body.db_connection);
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await refreshAllMaterializedView(dbContext);
+    await addActivityLogs([{
       old_data: { metal_tone_id: findMetalTone?.dataValues?.id, data: {...findMetalTone?.dataValues} },
       new_data: {
         metal_tone_id: findMetalTone?.dataValues?.id, data: {
@@ -366,9 +361,8 @@ export const deleteMetalTone = async (req: Request) => {
 
 export const statusUpdateForMetalTone = async (req: Request) => {
   try {
-    const { MetalTone } = initModels(req);
     const findMetalTone = await MetalTone.findOne({
-      where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },
+      where: { id: req.params.id, is_deleted: DeletedStatus.No, },
     });
     if (!(findMetalTone && findMetalTone.dataValues)) {
       return resNotFound();
@@ -379,10 +373,10 @@ export const statusUpdateForMetalTone = async (req: Request) => {
         modified_date: getLocalDate(),
         modified_by: req.body.session_res.id_app_user,
       },
-      { where: { id: findMetalTone.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+      { where: { id: findMetalTone.dataValues.id, } }
     );
 
-    await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+    await addActivityLogs([{
       old_data: { metal_tone_id: findMetalTone?.dataValues?.id, data: {...findMetalTone?.dataValues} },
       new_data: {
         metal_tone_id: findMetalTone?.dataValues?.id, data: {
@@ -394,7 +388,7 @@ export const statusUpdateForMetalTone = async (req: Request) => {
     }], findMetalTone?.dataValues?.id, LogsActivityType.StatusUpdate, LogsType.MetalTone, req?.body?.session_res?.id_app_user)
 
 
-    await refreshAllMaterializedView(req.body.db_connection);
+    await refreshAllMaterializedView(dbContext);
     return resSuccess({ message: RECORD_UPDATE_SUCCESSFULLY });
   } catch (error) {
     throw error;
@@ -403,17 +397,12 @@ export const statusUpdateForMetalTone = async (req: Request) => {
 
 export const metalToneActiveList = async (req: Request) => {
   try {
-    const { MetalTone } = initModels(req);
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+   
     const metalData = await MetalTone.findAll({
       where: {
         id_metal: req.params.metal_id,
         is_deleted: DeletedStatus.No,
         is_active: ActiveStatus.Active,
-        company_info_id:company_info_id?.data
       },
       attributes: ["id", "name", "slug", "created_date"],
     });

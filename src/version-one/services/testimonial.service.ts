@@ -5,20 +5,19 @@ import { moveFileToS3ByType } from "../../helpers/file.helper";
 import { ActiveStatus, DeletedStatus, IMAGE_TYPE, LogsActivityType, LogsType } from "../../utils/app-enumeration";
 import { DEFAULT_STATUS_CODE_SUCCESS, DEFAULT_STATUS_SUCCESS, RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
 import { addActivityLogs, getInitialPaginationFromQuery, getLocalDate, resErrorDataExit, resNotFound, resSuccess } from "../../utils/shared-functions";
-import { initModels } from "../model/index.model";
+import { TestimonialData } from "../model/testimonial.model";
+import { Image } from "../model/image.model";
+import dbContext from "../../config/db-context";
 
 export const addtestimonial = async (req: Request) => {
     try {
     const {designation ,name, text, created_by } = req.body
-      const {TestimonialData, Image} = initModels(req)
   
       let imagePath = null;
       if (req.file) {
-        const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+        const moveFileResult = await moveFileToS3ByType(
           req.file,
           IMAGE_TYPE.testimonial,
-          req?.body?.session_res?.client_id,
-          req
         );
   
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -28,7 +27,7 @@ export const addtestimonial = async (req: Request) => {
         imagePath = moveFileResult.data;
       }
   
-      const trn = await (req.body.db_connection).transaction();
+      const trn = await dbContext.transaction();
   
       try {
         let idImage = null;
@@ -38,7 +37,6 @@ export const addtestimonial = async (req: Request) => {
               image_path: imagePath,
               image_type: IMAGE_TYPE.testimonial,
               created_by: req.body.session_res.id_app_user,
-              company_info_id :req?.body?.session_res?.client_id,
               created_date: getLocalDate(),
             },
             { transaction: trn }
@@ -51,7 +49,6 @@ export const addtestimonial = async (req: Request) => {
           text: text,
           created_date: getLocalDate(),
           created_by: req.body.session_res.id_app_user,
-          company_info_id :req?.body?.session_res?.client_id,
           id_image: idImage,
           is_active: ActiveStatus.Active,
           is_deleted: DeletedStatus.No
@@ -61,7 +58,7 @@ export const addtestimonial = async (req: Request) => {
           payload,
           { transaction: trn }
         );
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             testimonial_id: testimonial?.dataValues?.id, data: {
@@ -85,14 +82,12 @@ export const addtestimonial = async (req: Request) => {
 
   export const getAllTestimonial = async (req: Request) => {
     try {
-        const {TestimonialData, Image} = initModels(req)
         let pagination: IQueryPagination = {
             ...getInitialPaginationFromQuery(req.query),
           };
       
           let where = [
             { is_deleted: DeletedStatus.No },
-            {company_info_id :req?.body?.session_res?.client_id},
             {
               [Op.or]: [
                   { person_name: { [Op.iLike]: "%" + pagination.search_text  + "%" } },
@@ -128,7 +123,7 @@ export const addtestimonial = async (req: Request) => {
               "is_active",
               "created_by"
             ],
-            include: [{ model: Image, as: "image", attributes: [],where:{company_info_id :req?.body?.session_res?.client_id}, required:false }],
+            include: [{ model: Image, as: "image", attributes: [], required:false }],
           });
 
         return resSuccess({ data: { pagination, result } })
@@ -141,8 +136,7 @@ export const addtestimonial = async (req: Request) => {
 
 export const getByIdTestimonial = async (req: Request) => {
   try {
-    const {TestimonialData, Image} = initModels(req)
-    const testimonialInfo = await TestimonialData.findOne({ where: { id: req.params.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id },  attributes: [
+    const testimonialInfo = await TestimonialData.findOne({ where: { id: req.params.id, is_deleted: DeletedStatus.No },  attributes: [
         "id",
         "person_name",
         "designation",
@@ -152,7 +146,7 @@ export const getByIdTestimonial = async (req: Request) => {
         "is_active",
         "created_by"
       ],
-      include: [{ model: Image, as: "image", attributes: [], where:{company_info_id :req?.body?.session_res?.client_id}, required:false}], });
+      include: [{ model: Image, as: "image", attributes: [], required:false}], });
 
     if (!(testimonialInfo && testimonialInfo.dataValues)) {
         return resNotFound();
@@ -170,8 +164,7 @@ export const updateTestimonial = async (req: Request) => {
     const {id, name, designation, text, updated_by} = req.body
   
   try {
-    const {TestimonialData, Image} = initModels(req)
-      const TestimonialId = await TestimonialData.findOne({ where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } })
+      const TestimonialId = await TestimonialData.findOne({ where: { id: id, is_deleted: DeletedStatus.No } })
   
     if (TestimonialId == null) {
       return resErrorDataExit() 
@@ -181,11 +174,9 @@ export const updateTestimonial = async (req: Request) => {
     let imagePath = null;
   
     if (req.file) {
-      const moveFileResult = await moveFileToS3ByType(req.body.db_connection,
+      const moveFileResult = await moveFileToS3ByType(
         req.file,
         IMAGE_TYPE.testimonial,
-        req?.body?.session_res?.client_id,
-        req
       );
   
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -195,7 +186,7 @@ export const updateTestimonial = async (req: Request) => {
       imagePath = moveFileResult.data;
     }
   
-    const trn = await (req.body.db_connection).transaction();
+    const trn = await dbContext.transaction();
     try {
       if (imagePath) {
         const imageResult = await Image.create(
@@ -203,7 +194,6 @@ export const updateTestimonial = async (req: Request) => {
             image_path: imagePath,
             image_type: IMAGE_TYPE.testimonial,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
           },
           { transaction: trn }
@@ -221,12 +211,12 @@ export const updateTestimonial = async (req: Request) => {
             modified_date: getLocalDate(),
             modified_by: req.body.session_res.id_app_user
           },
-          { where: { id: id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id }, transaction: trn  }
+          { where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn  }
         ));
 
-          const TestimonialInformation = await TestimonialData.findOne({ where: { id: id, is_deleted: DeletedStatus.No, company_info_id :req?.body?.session_res?.client_id }, transaction: trn })
+          const TestimonialInformation = await TestimonialData.findOne({ where: { id: id, is_deleted: DeletedStatus.No }, transaction: trn })
 
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{
             old_data: { testimonial_id: TestimonialId?.dataValues?.id, data: {...TestimonialId?.dataValues}},
             new_data: {
               testimonial_id: TestimonialInformation?.dataValues?.id, data: { ...TestimonialInformation?.dataValues }
@@ -249,8 +239,7 @@ export const updateTestimonial = async (req: Request) => {
 export const deletetestimonial = async (req: Request) => {
 
   try {
-    const {TestimonialData} = initModels(req)
-        const testimonialExists = await TestimonialData.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } });
+        const testimonialExists = await TestimonialData.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No } });
     
           if (!(testimonialExists && testimonialExists.dataValues)) {
             return resNotFound();
@@ -261,9 +250,9 @@ export const deletetestimonial = async (req: Request) => {
               modified_by: req.body.session_res.id_app_user,
               modified_date: getLocalDate(),
             },
-            { where: { id: testimonialExists.dataValues.id,company_info_id :req?.body?.session_res?.client_id } }
+            { where: { id: testimonialExists.dataValues.id } }
           );
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{
             old_data: { testimonial_id: testimonialExists?.dataValues?.id, data: {...testimonialExists?.dataValues}},
             new_data: {
               testimonial_id: testimonialExists?.dataValues?.id, data: {
@@ -282,8 +271,7 @@ export const deletetestimonial = async (req: Request) => {
   
   export const statusUpdateTestimonial = async (req: Request) => {
     try {
-    const {TestimonialData} = initModels(req)
-    const testimonialExists = await TestimonialData.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No,company_info_id :req?.body?.session_res?.client_id } });
+    const testimonialExists = await TestimonialData.findOne({ where: { id: req.body.id, is_deleted: DeletedStatus.No } });
     if (testimonialExists) {
         const testimonialActionInfo = await (TestimonialData.update(
             {
@@ -291,10 +279,10 @@ export const deletetestimonial = async (req: Request) => {
                 modified_date: getLocalDate(),
                 modified_by: req.body.session_res.id_app_user
             },
-            { where: { id: testimonialExists.dataValues.id ,company_info_id :req?.body?.session_res?.client_id} }
+            { where: { id: testimonialExists.dataValues.id } }
         ));
         if (testimonialActionInfo) {
-          await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+          await addActivityLogs([{
             old_data: { testimonial_id: testimonialExists?.dataValues?.id, data: {...testimonialExists?.dataValues}},
             new_data: {
               testimonial_id: testimonialExists?.dataValues?.id, data: {

@@ -1,7 +1,7 @@
 import { DATE, INTEGER, JSON, STRING } from "sequelize";
+import dbContext from "../../config/db-context";
 
-export const ProductBulkUploadFile = (dbContext: any) => {
-  let productBulkUploadFile = dbContext.define("product_bulk_upload_files", {
+export const ProductBulkUploadFile = dbContext.define("product_bulk_upload_files", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -27,10 +27,5 @@ export const ProductBulkUploadFile = (dbContext: any) => {
   },
   modified_date: {
     type: DATE,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return productBulkUploadFile;
-}

@@ -1,7 +1,7 @@
 import { BIGINT, DATE, INTEGER, STRING, TEXT } from "sequelize";
+import dbContext from "../../config/db-context";
 
-export const InfoSection = (dbContext: any) => {
-  let infoSection = dbContext.define("info_sections", {
+export const InfoSection = dbContext.define("info_sections", {
   id: {
     type: BIGINT,
     primaryKey: true,
@@ -27,10 +27,5 @@ export const InfoSection = (dbContext: any) => {
   },
   modified_by: {
     type: BIGINT
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-  return infoSection;
-};

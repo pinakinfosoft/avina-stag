@@ -1,9 +1,11 @@
 import { Request } from "express";
-import { addActivityLogs, getCompanyIdBasedOnTheCompanyKey, getInitialPaginationFromQuery, getLocalDate, imageAddAndEditInDBAndS3, imageDeleteInDBAndS3, resNotFound, resSuccess, statusUpdateValue } from "../../utils/shared-functions";
+import { addActivityLogs, getInitialPaginationFromQuery, getLocalDate, imageAddAndEditInDBAndS3, imageDeleteInDBAndS3, resNotFound, resSuccess, statusUpdateValue } from "../../utils/shared-functions";
 import { ActiveStatus, DeletedStatus, IMAGE_TYPE, LogsActivityType, LogsType } from "../../utils/app-enumeration";
 import { DEFAULT_STATUS_CODE_SUCCESS, NOT_FOUND_MESSAGE, RECORD_DELETE_SUCCESSFULLY, RECORD_UPDATE_SUCCESSFULLY } from "../../utils/app-messages";
 import { Op, Sequelize } from "sequelize";
-import { initModels } from "../model/index.model";
+import { AboutUsData } from "../model/about-us.model";
+import { Image } from "../model/image.model";
+import dbContext from "../../config/db-context";
 
 export const addAboutUsSection = async (req: Request) => {
     try {
@@ -21,18 +23,16 @@ export const addAboutUsSection = async (req: Request) => {
         button_text_hover_color,
         content,
       } = req.body;
-      const trn = await (req.body.db_connection).transaction();
+      const trn = await dbContext.transaction();
       try {
-        const { AboutUsData } = initModels(req);
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         let idImage = null;
         if (files["image"]) {
-          const imageData = await imageAddAndEditInDBAndS3(req,
+          const imageData = await imageAddAndEditInDBAndS3(
             files["image"][0],
             IMAGE_TYPE.aboutUs,
             req.body.session_res.id_app_user,
-            "",
-            req?.body?.session_res?.client_id
+            ""
           );
           if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
             trn.rollback();
@@ -64,13 +64,12 @@ export const addAboutUsSection = async (req: Request) => {
             sub_title: sub_title,
             title: title,
             created_by: req.body.session_res.id_app_user,
-            company_info_id :req?.body?.session_res?.client_id,
             created_date: getLocalDate(),
             content: content,
           },
           { transaction: trn }
         );
-        await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+        await addActivityLogs([{
           old_data: null,
           new_data: {
             about_us_id: Aboutus?.dataValues?.id, data: {
@@ -107,7 +106,6 @@ export const addAboutUsSection = async (req: Request) => {
         content,
         image_delete = "0",
       } = req.body;
-      const { AboutUsData, Image } = initModels(req);
       const findAboutUsSection = await AboutUsData.findOne({
         where: { id: req.params.id, is_deleted: DeletedStatus.No },
       });
@@ -115,24 +113,23 @@ export const addAboutUsSection = async (req: Request) => {
       if (!(findAboutUsSection && findAboutUsSection.dataValues)) {
         return resNotFound({ message: NOT_FOUND_MESSAGE });
       }
-      const trn = await (req.body.db_connection).transaction();
+      const trn = await dbContext.transaction();
       try {
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         let imageId = null;
         let findImage = null;
         if (findAboutUsSection.dataValues.id_image) {
           findImage = await Image.findOne({
-            where: { id: findAboutUsSection.dataValues.id_image,company_id: req?.body?.session_res?.client_id, },
+            where: { id: findAboutUsSection.dataValues.id_image },
             transaction: trn,
           });
         }
         if (files["image"] !== undefined) {
-          const imageData = await imageAddAndEditInDBAndS3(req,
+          const imageData = await imageAddAndEditInDBAndS3(
             files["image"][0],
             IMAGE_TYPE.aboutUs,
             req.body.session_res.id_app_user,
             findImage,
-            req?.body?.session_res?.client_id
           );
   
           if (imageData.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -179,12 +176,12 @@ export const addAboutUsSection = async (req: Request) => {
           );
         }
         if (image_delete && image_delete === "1" && findImage.dataValues) {
-          await imageDeleteInDBAndS3(req,findImage, req.body.session_res.client_id);
+          await imageDeleteInDBAndS3(findImage);
         }
         const AfterUpdatefindAboutUsSection = await AboutUsData.findOne({
           where: { id: req.params.id, is_deleted: DeletedStatus.No},transaction:trn 
         });
-        await addActivityLogs(req,req.body.session_res.client_id,[{
+        await addActivityLogs([{
           old_data: { about_us_id: findAboutUsSection?.dataValues?.id, data: {...findAboutUsSection?.dataValues}},
           new_data: {
             about_us_id: AfterUpdatefindAboutUsSection?.dataValues?.id, data: {...AfterUpdatefindAboutUsSection?.dataValues }
@@ -204,7 +201,6 @@ export const addAboutUsSection = async (req: Request) => {
   
   export const deleteAboutUsSection = async (req: Request) => {
     try {
-      const { AboutUsData } = initModels(req);
       const findAboutUsSection = await AboutUsData.findOne({
         where: { id: req.params.id, is_deleted: DeletedStatus.No },
       });
@@ -222,7 +218,7 @@ export const addAboutUsSection = async (req: Request) => {
         { where: { id: findAboutUsSection.dataValues.id } }
       );
 
-      await addActivityLogs(req,req?.body?.session_res?.client_id,[{
+      await addActivityLogs([{
         old_data: { about_us_id: findAboutUsSection?.dataValues?.id, data: {...findAboutUsSection?.dataValues}},
         new_data: {
           about_us_id: findAboutUsSection?.dataValues?.id, data: {
@@ -241,7 +237,6 @@ export const addAboutUsSection = async (req: Request) => {
   
   export const getAboutUsSection = async (req: Request) => {
     try {
-      const { AboutUsData,Image } = initModels(req);
       let paginationProps = {};
   
       let pagination = {
@@ -252,13 +247,12 @@ export const addAboutUsSection = async (req: Request) => {
   
       let where = [
         { is_deleted: DeletedStatus.No },
-        { company_info_id :req?.body?.session_res?.client_id},
         req.query.section_type && req.query.section_type != ""
           ? {
               section_type: req.query.section_type,
             }
-          : {},
-        pagination.is_active ? { is_active: pagination.is_active } : {},
+          : 
+        pagination.is_active ? { is_active: pagination.is_active } : 
         pagination.search_text
           ? {
               [Op.or]: [
@@ -271,7 +265,7 @@ export const addAboutUsSection = async (req: Request) => {
                 },
               ],
             }
-          : {},
+          : {}
       ];
   
       if (!noPagination) {
@@ -328,7 +322,6 @@ export const addAboutUsSection = async (req: Request) => {
   
   export const statusUpdateForAboutUsSection = async (req: Request) => {
     try {
-      const { AboutUsData } = initModels(req);
       const findAboutUsSection = await AboutUsData.findOne({
         where: {
           id: req.params.id,
@@ -348,7 +341,7 @@ export const addAboutUsSection = async (req: Request) => {
         { where: { id: findAboutUsSection.dataValues.id } }
       );
 
-       await addActivityLogs(req,req.body.session_res.client_id,[{
+       await addActivityLogs([{
             old_data: { about_us_id: findAboutUsSection?.dataValues?.id, data: {...findAboutUsSection?.dataValues}},
             new_data: {
               about_us_id: findAboutUsSection?.dataValues?.id, data: {
@@ -368,13 +361,8 @@ export const addAboutUsSection = async (req: Request) => {
   
   export const aboutUsSectionListForUser = async (req: Request) => {
     try {
-      const { AboutUsData,Image } = initModels(req);
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
       const result = await AboutUsData.findAll({
-        where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No,company_info_id:company_info_id?.data, },
+        where: { is_active: ActiveStatus.Active, is_deleted: DeletedStatus.No },
         order: [["sort_order", "ASC"]],
         attributes: [
             "id",
@@ -408,17 +396,11 @@ export const addAboutUsSection = async (req: Request) => {
   
   export const aboutUsSectionDetailForUser = async (req: Request) => {
     try {
-      const { AboutUsData, Image } = initModels(req);
-      const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-      if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-        return company_info_id;
-      }
       const result = await AboutUsData.findOne({
         where: {
           id: req.params.id,
           is_active: ActiveStatus.Active,
-          is_deleted: DeletedStatus.No,
-          company_info_id:company_info_id?.data,
+          is_deleted: DeletedStatus.No
         },
         attributes: [
           "id",

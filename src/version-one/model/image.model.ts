@@ -1,6 +1,7 @@
 import { DATE, INTEGER, SMALLINT, STRING } from "sequelize";
-export const Image = (dbContext: any) => {
-  let image = dbContext.define("images", {
+import dbContext from "../../config/db-context";
+
+export const Image = dbContext.define("images", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -26,10 +27,5 @@ export const Image = (dbContext: any) => {
   },
   modified_date: {
     type: DATE,
-  },
-  company_info_id :{ 
-      type:INTEGER
-    }
+  }
 });
-  return image;
-}

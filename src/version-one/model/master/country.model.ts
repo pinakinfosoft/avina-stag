@@ -1,6 +1,7 @@
 import { INTEGER, STRING, DATE } from "sequelize";
-export const CountryData = (dbContext: any) => {
-let countryData = dbContext.define("contries", {
+import dbContext from "../../../config/db-context";
+
+export const CountryData = dbContext.define("contries", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -14,7 +15,6 @@ let countryData = dbContext.define("contries", {
     type: STRING,
     allowNull: false,
   },
-
   created_date: {
     type: DATE,
     allowNull: false,
@@ -35,11 +35,5 @@ let countryData = dbContext.define("contries", {
   },
   is_deleted: {
     type: STRING,
-  },
-  company_info_id :{ 
-    type:INTEGER
   }
 });
-
-  return countryData;
- }

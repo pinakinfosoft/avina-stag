@@ -7,10 +7,20 @@ import {
   NUMBER,
   STRING,
 } from "sequelize";
-import {BrandData} from "./master/attributes/brands.model";
+import dbContext from "../../config/db-context";
+import { BrandData } from "./master/attributes/brands.model";
+import { ProductCategory } from "./product-category.model";
+import { ProductImage } from "./product-image.model";
+import { ProductVideo } from "./product-video.model";
+import { ProductReview } from "./product-review.model";
+import { ProductEnquiries } from "./product-enquiry.model";
+import { ProductMetalOption } from "./product-metal-option.model";
+import { ProductDiamondOption } from "./product-diamond-option.model";
+import { ProductAttributeValue } from "./product-attribute-value.model";
+import { OrdersDetails } from "./order-details.model";
+import { CartProducts } from "./cart-product.model";
 
-export const Product = (dbContext: any) => {
-let product = dbContext.define("products", {
+export const Product = dbContext.define("products", {
   id: {
     type: INTEGER,
     primaryKey: true,
@@ -139,9 +149,6 @@ let product = dbContext.define("products", {
   meta_tag: {
     type: STRING,
   },
-  company_info_id :{ 
-    type:INTEGER
-  },
   setting_diamond_sizes: {
     type: 'character varying',
   },
@@ -164,10 +171,47 @@ let product = dbContext.define("products", {
     type: 'character varying'
   }
 });
-// product.belongsTo(product, {
-//   foreignKey: "parent_id",
-//   as: "parent_product",
-// });
-// product.belongsTo(BrandData(dbContext), { foreignKey: "id_brand", as: "brands" });
-  return product;
-}
+
+// Associations
+Product.belongsTo(Product, {
+  foreignKey: "parent_id",
+  as: "parent_product",
+});
+Product.belongsTo(BrandData, { foreignKey: "id_brand", as: "brands" });
+Product.hasMany(ProductCategory, {
+  foreignKey: "id_product",
+  as: "product_categories",
+});
+Product.hasMany(ProductImage, {
+  foreignKey: "id_product",
+  as: "product_images",
+});
+Product.hasMany(ProductVideo, {
+  foreignKey: "id_product",
+  as: "product_videos",
+});
+Product.hasMany(ProductReview, {
+  foreignKey: "product_id",
+  as: "product_Review",
+});
+Product.hasMany(ProductEnquiries, {
+  foreignKey: "product_id",
+  as: "product_enquiry",
+});
+Product.hasMany(ProductMetalOption, {
+  foreignKey: "id_product",
+  as: "PMO",
+});
+Product.hasMany(ProductDiamondOption, {
+  foreignKey: "id_product",
+  as: "PDO",
+});
+Product.hasMany(ProductAttributeValue, { foreignKey: "id_product", as: 'PAV' });
+Product.hasMany(OrdersDetails, {
+  foreignKey: "product_id",
+  as: "product_image",
+});
+Product.hasMany(CartProducts, {
+  foreignKey: "product_id",
+  as: "product_cart",
+});

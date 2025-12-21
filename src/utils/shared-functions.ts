@@ -66,8 +66,15 @@ import puppeteer from "puppeteer";
 import handlebars from "handlebars";
 import path from "path";
 import dbContext from "../config/db-context";
-import { initModels } from "../version-one/model/index.model";
+import { Image } from "../version-one/model/image.model";
+import { CurrencyData } from "../version-one/model/master/currency.model";
+import { ActivityLogs } from "../version-one/model/activity-logs.model";
+import { EmailTemplate } from "../version-one/model/email-template.model";
+import { Invoices } from "../version-one/model/invoices.model";
+import { FontStyleFiles } from "../version-one/model/theme/font-style-files.model";
 import { CompanyInfo } from "../version-one/model/companyinfo.model";
+import { WebConfigSetting } from "../version-one/model/theme/web-config-setting.model";
+import { PriceCorrection } from "../version-one/model/price-correction.model";
 const { Client } = require('pg');
 const FormData = require("form-data"); // Required for Node.js
 
@@ -339,22 +346,16 @@ export const decryptRequestData = (text: any) => {
 
 
 export const imageAddAndEditInDBAndS3 = async (
-  req: any,
   file: any,
   folder: any,
   created_by: any,
-  imageData: any,
-  client_id: number = null,
+  imageData: any
 ) => {
   try {
-    const db_connection = req?.body?.db_connection ? req?.body?.db_connection : dbContext;
-    const { Image } = initModels(req)
-    const model = client_id && client_id != null ? Image : null
 
-    const dataBaseConnection = client_id && client_id != null ? db_connection : dbContext
 
     if (imageData && imageData.dataValues && imageData.dataValues.id === 0) {
-      const moveFileResult = await moveFileToS3ByType(dataBaseConnection,file, folder, client_id, req);
+      const moveFileResult = await moveFileToS3ByType(file, folder);
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return moveFileResult;
@@ -363,29 +364,25 @@ export const imageAddAndEditInDBAndS3 = async (
         image_path: moveFileResult.data,
         image_type: folder,
         created_by: created_by,
-        company_info_id :client_id,
         created_date: getLocalDate(),
       }
-      client_id && client_id != null ? null : delete payload.company_info_id
 
 
-      const imageResult = await model.create(payload);
+      const imageResult = await Image.create(payload);
       return resSuccess({ data: imageResult.dataValues.id });
     } else {
       if (imageData && imageData.dataValues) {
-        await s3RemoveObject(dataBaseConnection,imageData.dataValues.image_path, client_id);
-        const moveFileResult = await moveFileToS3ByType(dataBaseConnection,file, folder, client_id, req);
+        await s3RemoveObject(imageData.dataValues.image_path);
+        const moveFileResult = await moveFileToS3ByType(file, folder);
 
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           return moveFileResult;
         }
         const payload = {
             image_path: moveFileResult.data,
-            company_info_id :client_id
         }
-        client_id && client_id != null ? null : delete payload.company_info_id
         
-        await model.update(
+        await Image.update(
           payload,
           {
             where: { id: imageData.dataValues.id },
@@ -393,7 +390,7 @@ export const imageAddAndEditInDBAndS3 = async (
         );
         return resSuccess({ data: imageData.dataValues.id });
       } else {
-        const moveFileResult = await moveFileToS3ByType(dataBaseConnection,file, folder, client_id, req);
+        const moveFileResult = await moveFileToS3ByType(file, folder);
 
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
           return moveFileResult;
@@ -402,12 +399,10 @@ export const imageAddAndEditInDBAndS3 = async (
           image_path: moveFileResult.data,
           image_type: folder,
           created_by: created_by,
-          company_info_id :client_id,
           created_date: getLocalDate(),
         }
-        client_id && client_id != null ? null : delete payload.company_info_id
 
-        const imageResult = await model.create(payload);
+        const imageResult = await Image.create(payload);
         return resSuccess({ data: imageResult.dataValues.id });
       }
     }
@@ -423,14 +418,12 @@ export const imageAddAndEditInDBAndS3ForOriginalFileName = async (
   folder: any,
   created_by: any,
   imageData: any,
-  client_id: number = null,
 ) => {
   try {
-    const db_connection = req?.body?.db_connection ? req?.body?.db_connection : dbContext;
-        const { Image } = initModels(req)
+    const db_connection = dbContext ? dbContext : dbContext;
 
     if (imageData && imageData.dataValues && imageData.dataValues.id === 0) {
-      const moveFileResult = await moveFileToS3ByTypeAndLocation(db_connection,file, IMAGE_TYPE_LOCATION[folder],client_id, req);
+      const moveFileResult = await moveFileToS3ByTypeAndLocation(file, IMAGE_TYPE_LOCATION[folder]);
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return moveFileResult;
@@ -440,20 +433,16 @@ export const imageAddAndEditInDBAndS3ForOriginalFileName = async (
         image_path: moveFileResult.data,
         image_type: folder,
         created_by: created_by,
-        company_info_id :client_id,
         created_date: getLocalDate(),
       });
       return resSuccess({ data: imageResult.dataValues.id });
     } else {
       
       if (imageData && imageData.dataValues) {
-        await s3RemoveObject(db_connection,imageData.dataValues.image_path ,client_id);
+        await s3RemoveObject(imageData.dataValues.image_path );
         const moveFileResult = await moveFileToS3ByTypeAndLocation(
-          db_connection,
           file,
-          IMAGE_TYPE_LOCATION[folder],
-          client_id,
-          req
+          IMAGE_TYPE_LOCATION[folder]
         );
 
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -471,11 +460,8 @@ export const imageAddAndEditInDBAndS3ForOriginalFileName = async (
         return resSuccess({ data: imageData.dataValues.id });
       } else {
         const moveFileResult = await moveFileToS3ByTypeAndLocation(
-          db_connection,
           file,
           IMAGE_TYPE_LOCATION[folder],
-          client_id,
-          req
         );
 
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -485,7 +471,6 @@ export const imageAddAndEditInDBAndS3ForOriginalFileName = async (
         const imageResult = await Image.create({
           image_path: moveFileResult.data,
           image_type: folder,
-          company_info_id :client_id,
           created_by: created_by,
           created_date: getLocalDate(),
         });
@@ -497,13 +482,10 @@ export const imageAddAndEditInDBAndS3ForOriginalFileName = async (
   }
 };
 
-export const imageDeleteInDBAndS3 = async (req:any, imageData: any, client_id: any) => {
+export const imageDeleteInDBAndS3 = async (imageData:any) => {
   try {
-    const db_connection = req?.body?.db_connection ? req?.body?.db_connection : dbContext;
-    
-    const { Image } = initModels(req)
 
-    await s3RemoveObject(db_connection,imageData.dataValues.image_path, client_id);
+    await s3RemoveObject(imageData.dataValues.image_path);
     await Image.destroy({ where: { id: imageData.dataValues.id } });
     return resSuccess({ data: imageData.dataValues.id });
   } catch (error) {
@@ -682,23 +664,12 @@ export const taxCalculationBasedOnPrice = async (price: any, taxList: any) => {
   return sumTotal.toFixed(2);
 };
 
-export const applyShippingCharge = async (db_connection: any,amount: any,query?:any) => {
+export const applyShippingCharge = async (amount: any,query?:any) => {
   try {
-    let company_info_id: any;
-    let where_company_info_id: string = '';
-
-    // Check if the query has company info
-    if (query) {
-      company_info_id = await getCompanyIdBasedOnTheCompanyKey(query,db_connection);
-      if (company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS) {
-        return company_info_id; // Return early if decryption fails
-      }
-      // Set the condition for company_info_id
-      where_company_info_id = `AND shipping_charges.company_info_id = :company_info_id`;
-    }
+   
 
     // Construct SQL query with parameterization
-    const shippingChargeData: any = await db_connection.query(
+    const shippingChargeData: any = await dbContext.query(
       `
         SELECT *
         FROM SHIPPING_CHARGES
@@ -707,14 +678,13 @@ export const applyShippingCharge = async (db_connection: any,amount: any,query?:
             (SHIPPING_CHARGES.MAX_AMOUNT >= :amount OR SHIPPING_CHARGES.MAX_AMOUNT IS NULL)
             AND (SHIPPING_CHARGES.MIN_AMOUNT <= :amount OR SHIPPING_CHARGES.MIN_AMOUNT IS NULL)
           )
-          ${where_company_info_id}
+          
           AND shipping_charges.is_deleted = :is_deleted
           AND shipping_charges.is_active = :is_active
       `,
       {
         replacements: {
           amount,
-          company_info_id: company_info_id?.data, // Only passed if available
           is_deleted: DeletedStatus.No,
           is_active: ActiveStatus.Active,
         },
@@ -739,9 +709,8 @@ export const applyShippingCharge = async (db_connection: any,amount: any,query?:
   }
 };
 
-export const findDefaultCurrency = async (req: any) => {
+export const findDefaultCurrency = async () => {
   try {
-    const {CurrencyData} = initModels(req);
     const findDefaultCurrency = await CurrencyData.findOne({
       where: {
         is_default: "1",
@@ -757,8 +726,7 @@ export const findDefaultCurrency = async (req: any) => {
 };
 
 //Need to work on this - VD
-export const updateCurrencyRatesViaCronJob = async (db_connection) => {
-  const {CurrencyData} = initModels(db_connection);
+export const updateCurrencyRatesViaCronJob = async () => {
   const findFreeAPIList = await CurrencyData.findAll({
     where: {
       exchange_rate_type: CURRENCY_RATE_EXCHANGE_TYPE.FreeApi,
@@ -766,7 +734,7 @@ export const updateCurrencyRatesViaCronJob = async (db_connection) => {
     },
   });
 
-  const findDefaultCurrencyValue = await findDefaultCurrency(db_connection);
+  const findDefaultCurrencyValue = await findDefaultCurrency();
   const todayDate = new Date().toISOString().slice(0, 10);
   let freeApiCurrencyData: any;
   if (findFreeAPIList.length >= 1 && findDefaultCurrencyValue.code) {
@@ -789,7 +757,7 @@ export const updateCurrencyRatesViaCronJob = async (db_connection) => {
         const rateValue =
           freeApiCurrencyData[currencyData.dataValues.code.toLowerCase()];
 
-        await CurrencyData(db_connection).update(
+        await CurrencyData.update(
           {
             rate:
               rateValue && rateValue !== null && rateValue !== undefined
@@ -813,7 +781,7 @@ export const getFreeAPICurrencyPrice = async (code: string, req:any) => {
 
     let defaultCode;
 
-    const findDefaultCurrencyValue = await findDefaultCurrency(req);
+    const findDefaultCurrencyValue = await findDefaultCurrency();
 
     defaultCode = findDefaultCurrencyValue?.code;
 
@@ -846,12 +814,8 @@ export const getFreeAPICurrencyPrice = async (code: string, req:any) => {
 
 export const getExchangeCurrencyRate = async (code: any, req:any) => {
   try {
-    const company_info_id = await getCompanyIdBasedOnTheCompanyKey(req?.query,req.body.db_connection);
-    if(company_info_id.code !== DEFAULT_STATUS_CODE_SUCCESS){
-      return company_info_id;
-    }
+   
     let currency: any;
-    const { CurrencyData } = initModels(req);
     if (
       code &&
       code !== "" &&
@@ -864,30 +828,29 @@ export const getExchangeCurrencyRate = async (code: any, req:any) => {
           columnValueLowerCase("code", code),
           { is_deleted: DeletedStatus.No },
           { is_active: ActiveStatus.Active },
-          {company_info_id :company_info_id?.data},
         ],
       });
       currency = currency?.dataValues;
     } else {
       {
-        currency = await findDefaultCurrency(req);
+        currency = await findDefaultCurrency();
         currency = currency;
       }
     }
 
-    return {currency, company_info_id: company_info_id?.data};
+    return {currency};
   } catch (error) {
     throw error;
   }
 };
 
-export const formatPrice = async(price: any, separator: any, company_info_id: any, product_type: any, req:any, correctionValue?: any) => {
+export const formatPrice = async(price: any, separator: any, product_type: any, correctionValue?: any) => {
   const sep = separator || " ";
   const priceValue = Math.ceil(price);
   // Get the price correction value based on the product type and company info id
   
   if (product_type !== null) {
-    const roundingValue = correctionValue ? correctionValue : await getPriceCorrectionBasedOnProduct(product_type, company_info_id, req);
+    const roundingValue = correctionValue ? correctionValue : await getPriceCorrectionBasedOnProduct(product_type);
   if (roundingValue.flag) {
     return roundToEnding(priceValue, roundingValue.value).toString()
     .replace(/\B(?=(\d{3})+(?!\d))/g, sep);
@@ -898,12 +861,12 @@ export const formatPrice = async(price: any, separator: any, company_info_id: an
     .replace(/\B(?=(\d{3})+(?!\d))/g, sep);
 };
 
-export const formatPriceWithoutSeparator = async(price: any, company_info_id: any, product_type: any, req:any) => {
+export const formatPriceWithoutSeparator = async(price: any, product_type: any) => {
   const priceValue = Math.ceil(price);
   // Get the price correction value based on the product type and company info id
   
   if (product_type !== null) {
-    const correctionValue = await getPriceCorrectionBasedOnProduct(product_type, company_info_id, req);
+    const correctionValue = await getPriceCorrectionBasedOnProduct(product_type);
   if (correctionValue.flag) {
     return roundToEnding(priceValue, correctionValue.value)
   }
@@ -975,10 +938,8 @@ export const sendMessageInWhatsApp = async (otp: any, phone: any, config_data?: 
     });
 };
 
-export const addActivityLogs = async (req:any,company_info_id:any,logs: any, ref_id: any, activityType: any, logType: any, id_app_user: any,trn:any = null) => {
+export const addActivityLogs = async (logs: any, ref_id: any, activityType: any, logType: any, id_app_user: any,trn:any = null) => {
   try {
-    const {ActivityLogs} = initModels(req);
-    const model = req.body.db_connection ? ActivityLogs : null
 
     const options = trn ? { transaction:trn } : {};
     const logsList = []
@@ -993,11 +954,10 @@ export const addActivityLogs = async (req:any,company_info_id:any,logs: any, ref
         created_by: id_app_user,
         created_date: getLocalDate(),
         modified_by: id_app_user,
-        modified_date: getLocalDate(),
-        company_info_id:company_info_id
+        modified_date: getLocalDate()
       })
     }
-   const activeity = await model.bulkCreate(logsList,options)
+   const activeity = await ActivityLogs.bulkCreate(logsList,options)
     console.log(activeity);
   } catch (error) {
     return resUnknownError({ data: error })
@@ -1008,10 +968,9 @@ export const addActivityLogs = async (req:any,company_info_id:any,logs: any, ref
  * Get email template content based on dynamic sending condition.
  * @returns {string|null} - Returns the email template body or null if no template is found.
  */
-export const getEmailTemplateContent = async(req:any, is_invoice?:any) =>  {
+export const getEmailTemplateContent = async( is_invoice?:any) =>  {
   
   try {
-    const {EmailTemplate} = initModels(req);
     let attachmentContent = null;
     // If we want to send the email dynamically and have the appropriate conditions
       const existingTemplate = await EmailTemplate.findOne({
@@ -1045,9 +1004,8 @@ export const getEmailTemplateContent = async(req:any, is_invoice?:any) =>  {
  * @param {Object} replacements - The data to be used in handlebars template for replacing placeholders.
  * @returns {BinaryType} The file of the uploaded PDF in S3.
  */
-export const generateInvoicePDF = async(data:any, template:any, replacements:any, client_id:any, req:any) => {
+export const generateInvoicePDF = async(data:any, template:any, replacements:any) => {
   try {
-    const {Invoices} = initModels(req);
     // Compile the handlebars template
     const templateFile = handlebars.compile(template);
     const htmlToSendFile = templateFile(replacements);
@@ -1068,14 +1026,14 @@ export const generateInvoicePDF = async(data:any, template:any, replacements:any
     await browser.close();
 
     // Prepare file object for S3 upload
-    const file = {
+    const file:any = {
       buffer: pdfBuffer,  // The PDF buffer generated by Puppeteer
       originalname: `Invoice-${data.invoice_number}.pdf`,  // Dynamic file name
       mimetype: 'application/pdf',  // MIME type for PDF
     };
 
     // Upload PDF to S3 and get the S3 file path
-    const resMFTL = await moveFileToS3ByTypeAndLocation(req.body.db_connection,file, `${INVOICE_FILE_LOCATION}`, client_id,req);
+    const resMFTL = await moveFileToS3ByTypeAndLocation(file, `${INVOICE_FILE_LOCATION}`);
     let filePath = resMFTL?.data;
 
     // Clean the file path to remove any single quotes
@@ -1100,14 +1058,10 @@ export const fontFileAddAndEditInDBAndS3ForOriginalFileName = async (
   folder: any,
   created_by: any,
   fileData: any,
-  client_id: number,
-  req: any
 ) => {
   try {
-    const {FontStyleFiles} = initModels(req);
-    const db_connection = req.body.db_connection
     if (!fileData) {
-      const moveFileResult = await moveFileToS3ByTypeAndLocation(req,file, folder, client_id, req);
+      const moveFileResult = await moveFileToS3ByTypeAndLocation(file, folder);
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return moveFileResult;
@@ -1118,17 +1072,16 @@ export const fontFileAddAndEditInDBAndS3ForOriginalFileName = async (
         created_by: created_by,
         created_date: getLocalDate(),
         is_deleted: DeletedStatus.No,
-        company_info_id:client_id
       });
       return resSuccess({ data: { id: fileResult.dataValues.id, file_path: fileResult.dataValues.file_path } });
     } else {
       if (fileData && fileData.dataValues && fileData.dataValues.id !== 0) {
-        await s3RemoveObject(db_connection,fileData.dataValues.file_path, client_id);
-        await FontStyleFiles(db_connection).update({
+        await s3RemoveObject(fileData.dataValues.file_path);
+        await FontStyleFiles.update({
           is_deleted: DeletedStatus.yes,
           deleted_by: created_by,
           deleted_date: getLocalDate()
-        }, { where: { id: fileData.dataValues.id,company_info_id:client_id
+        }, { where: { id: fileData.dataValues.id
         } });
       }
 
@@ -1161,7 +1114,6 @@ export const getCompanyIdBasedOnTheCompanyKey = async(query:any,db_connection: a
         company_key : query?.company_key
       }
     }
-    const {CompanyInfo} = initModels(req);
     
     const companyInfoExistes = await CompanyInfo.findOne({
       where:  { key: req.body.company_key },
@@ -1177,7 +1129,6 @@ export const getCompanyIdBasedOnTheCompanyKey = async(query:any,db_connection: a
 }
 
 export const fileAddAndEditInDBAndS3ForOriginalFileName = async(
-  db_connection:any,
   model: any,
   id_config_setting,
   file: any,
@@ -1185,12 +1136,10 @@ export const fileAddAndEditInDBAndS3ForOriginalFileName = async(
   created_by: any,
   fileData: any,
   trn: any,
-  client_id: any,
-  req: any
 ) => {
   try {
     if (fileData && fileData.dataValues && fileData.dataValues.id === 0) {
-      const moveFileResult = await moveFileToS3ByTypeAndLocation(db_connection,file, folder, client_id,req);
+      const moveFileResult = await moveFileToS3ByTypeAndLocation(file, folder);
 
       if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
         return moveFileResult;
@@ -1206,16 +1155,13 @@ export const fileAddAndEditInDBAndS3ForOriginalFileName = async(
     } else {
       if (fileData && fileData.dataValues) {
         if(fileData.dataValues?.file_path){
-          await s3RemoveObject(db_connection,fileData.dataValues.file_path, client_id);
+          await s3RemoveObject(fileData.dataValues.file_path);
         }else{
-          await s3RemoveObject(db_connection,fileData.dataValues.image_path, client_id);
+          await s3RemoveObject(fileData.dataValues.image_path);
         }        
         const moveFileResult = await moveFileToS3ByTypeAndLocation(
-          db_connection,
           file,
-          folder,
-          client_id,
-          req
+          folder
         );
 
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -1238,11 +1184,8 @@ export const fileAddAndEditInDBAndS3ForOriginalFileName = async(
           modified_date: getLocalDate() }} });
       } else {
         const moveFileResult = await moveFileToS3ByTypeAndLocation(
-          db_connection,
           file,
-          folder,
-          client_id,
-          req
+          folder
         );
 
         if (moveFileResult.code !== DEFAULT_STATUS_CODE_SUCCESS) {
@@ -1329,33 +1272,18 @@ export const getExtensionFromMimeType = (file:any) => {
   return extension || null;
 }
 
-export const superAdminWhere = (company_info_id: any) => {
-  return {
-    [Op.and]: [
-          { company_info_id: {[Op.in]: [company_info_id,0]} },
-          { is_deleted: DeletedStatus.No }
-    ]
-  };
-};
 
-
-export const getWebSettingData = async (db_connection: any, company_info_id: any) => {
+export const getWebSettingData = async () => {
    
   //We are reading company info from Main Secure database
-   const companyInfoExistes = await CompanyInfo(dbContext).findOne({
-      where:  { id: company_info_id },
+   const companyInfoExistes = await CompanyInfo.findOne({
+      where:  { id: 1 },
    });
   
-    const req = {
-      body :{
-        db_connection : db_connection,
-        company_key : companyInfoExistes?.dataValues?.key
-      }
-    }
-  const {WebConfigSetting} = await initModels(req);
-  const webSettingData = await WebConfigSetting.findOne({ where: { company_info_id: company_info_id } })
-  
-  return {...webSettingData.dataValues, company_key: companyInfoExistes?.dataValues?.key};
+
+  const webSettingData = await WebConfigSetting.findOne()
+   
+  return {...webSettingData.dataValues};
 }
 
 export const convertCurrencySymbolIntoHTMLFormate = (currencySymbol: string) => {
@@ -1550,8 +1478,8 @@ export const ensureArray = <T>(value: T | T[]): T[] => {
 };
 
 
-export const getRingConfigProductPriceForCart = async (req: any, product_id, is_band) => {
-  const configProduct: any = await req.body.db_connection.query(
+export const getRingConfigProductPriceForCart = async (product_id, is_band) => {
+  const configProduct: any = await dbContext.query(
           `(
  SELECT cp.id,
  
@@ -1614,17 +1542,12 @@ export const getRingConfigProductPriceForCart = async (req: any, product_id, is_
    FROM config_products cp
    
 	 LEFT JOIN diamond_group_masters dgm ON cp.center_diamond_group_id = dgm.id  AND dgm.is_deleted = '0' AND dgm.is_Active = '1'
-	 	AND dgm.company_info_id = cp.company_info_id
+	 	
      INNER JOIN carat_sizes cz ON cz.id::double precision = cp.center_dia_cts 
-	 	AND cz.company_info_id = cp.company_info_id
      INNER JOIN gemstones stone ON stone.id = dgm.id_stone AND stone.is_deleted = '0' 
-	 	AND stone.company_info_id = cp.company_info_id
 	 INNER JOIN config_product_metals as cpmo ON cpmo.config_product_id = cp.id 
-	 	AND cpmo.company_info_id = cp.company_info_id
 	 INNER JOIN metal_masters metal_master ON metal_master.id = cpmo.metal_id
-	 	AND metal_master.company_info_id = cp.company_info_id
      LEFT JOIN gold_kts ON gold_kts.id = cpmo.karat_id  
-	 	AND gold_kts.company_info_id = cp.company_info_id
     
     WHERE 
         cp.id = ${product_id}
@@ -1633,7 +1556,7 @@ export const getRingConfigProductPriceForCart = async (req: any, product_id, is_
     )`,
           { type: QueryTypes.SELECT }
         );
-    const productDiamondPrice:any = await req.body.db_connection.query(`(SELECT cpdo.config_product_id,
+    const productDiamondPrice:any = await dbContext.query(`(SELECT cpdo.config_product_id,
               
               CASE WHEN ${is_band} != 1 THEN COALESCE(sum(
                   CASE
@@ -1662,9 +1585,9 @@ export const getRingConfigProductPriceForCart = async (req: any, product_id, is_
   return (configProduct[0]?.product_total_price + (productDiamondPrice[0]?.diamond_rate || 0))
 }
 
-export const getThreeStoneConfigProductPriceForCart = async (req: any, product_id: any, is_band: any) => {
+export const getThreeStoneConfigProductPriceForCart = async (product_id: any, is_band: any) => {
   
-  const configProduct: any = await req.body.db_connection.query(
+  const configProduct: any = await dbContext.query(
           `(
  SELECT cp.id,
    
@@ -1727,17 +1650,11 @@ export const getThreeStoneConfigProductPriceForCart = async (req: any, product_i
    FROM config_products cp
    
 	 LEFT JOIN diamond_group_masters dgm ON cp.center_diamond_group_id = dgm.id  AND dgm.is_deleted = '0' AND dgm.is_Active = '1'
-	 	AND dgm.company_info_id = cp.company_info_id
      INNER JOIN carat_sizes cz ON cz.id::double precision = cp.center_dia_cts 
-	 	AND cz.company_info_id = cp.company_info_id
      INNER JOIN gemstones stone ON stone.id = dgm.id_stone AND stone.is_deleted = '0' 
-	 	AND stone.company_info_id = cp.company_info_id
 	 INNER JOIN config_product_metals as cpmo ON cpmo.config_product_id = cp.id 
-	 	AND cpmo.company_info_id = cp.company_info_id
 	 INNER JOIN metal_masters metal_master ON metal_master.id = cpmo.metal_id
-	 	AND metal_master.company_info_id = cp.company_info_id
      LEFT JOIN gold_kts ON gold_kts.id = cpmo.karat_id  
-	 	AND gold_kts.company_info_id = cp.company_info_id
     LEFT JOIN config_product_diamonds as cpdo ON cpdo.config_product_id = cp.id
     WHERE 
     cp.id = ${product_id} 
@@ -1750,7 +1667,7 @@ export const getThreeStoneConfigProductPriceForCart = async (req: any, product_i
         if(configProduct && configProduct.length == 0){
           return resNotFound({ message: "PRODUCT_NOT_FOUND" });
   }
-    const productDiamondPrice:any = await req.body.db_connection.query(`(SELECT cpdo.config_product_id,
+    const productDiamondPrice:any = await dbContext.query(`(SELECT cpdo.config_product_id,
               
               CASE WHEN ${is_band} != 1 THEN COALESCE(sum(
                   CASE
@@ -1779,8 +1696,8 @@ export const getThreeStoneConfigProductPriceForCart = async (req: any, product_i
   return ( configProduct[0]?.product_total_price + productDiamondPrice[0].diamond_rate)
 }
 
-export const getEternityConfigProductPrice = async (req: any, product_id: any) => {
-  const productPrice = await req.body.db_connection.query(`SELECT cebp.id,
+export const getEternityConfigProductPrice = async ( product_id: any) => {
+  const productPrice:any = await dbContext.query(`SELECT cebp.id,
          CASE
              WHEN cebpdo.dia_stone IS NOT NULL THEN json_build_object('id', cebpdo.id, 'config_eternity_product_id', cebpdo.config_eternity_product_id, 'dia_clarity', cebpdo.dia_clarity, 'dia_color', cebpdo.dia_color, 'dia_count', cebpdo.dia_count, 'dia_cts', cebpdo.dia_cts, 'dia_cuts', cebpdo.dia_cuts, 'dia_mm_size', cebpdo.dia_mm_size, 'dia_shape', cebpdo.dia_shape, 'dia_stone', cebpdo.dia_stone, 'dia_weight', cebpdo.dia_weight, 'diamond_type', cebpdo.diamond_type, 'id_diamond_group', cebpdo.id_diamond_group, 'rate', dgmp.rate)
              ELSE NULL::json
@@ -1881,12 +1798,12 @@ export const getEternityConfigProductPrice = async (req: any, product_id: any) =
       LEFT JOIN carat_sizes carat_size_sd ON dgmp.id_carat = carat_size_sd.id
       WHERE cebp.is_deleted = '0'::"bit"
            AND cebp.id = ${product_id}`, { type: QueryTypes.SELECT });
-    return productPrice[0]?.product_price || 0;
+    return productPrice[0]?.product_price ? productPrice[0]?.product_price : 0;
   
 }
 
-export const getBraceletConfigProductPrice = async (req: any, product_id: any) => {
-  const productPrice = await req.body.db_connection.query(`SELECT  
+export const getBraceletConfigProductPrice = async ( product_id: any) => {
+  const productPrice:any = await dbContext.query(`SELECT  
 		CASE
             WHEN cbpm.id_karat IS NULL THEN metal_masters.metal_rate * cbpm.metal_wt
             ELSE metal_masters.metal_rate / metal_masters.calculate_rate * gold_kts.calculate_rate::double precision * cbpm.metal_wt 
@@ -2005,11 +1922,10 @@ export const LoginWithCadcoPanelUsingAPI = async (email:any, password:any) => {
 } 
 
 
-export const getPriceCorrectionBasedOnProduct = async (product_type:any,company_id:any, req: any) => {
+export const getPriceCorrectionBasedOnProduct = async (product_type:any) => {
   try {
-    const {PriceCorrection} = initModels(req);
     const findRoudOfferValue = await PriceCorrection.findOne({
-      where : {company_info_id: company_id, product_type: product_type}
+      where : { product_type: product_type}
     })
 
     if(findRoudOfferValue && findRoudOfferValue.dataValues){
