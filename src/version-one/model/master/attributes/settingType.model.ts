@@ -1,7 +1,6 @@
 import { DATE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { Image } from "../../image.model";
-import { ProductDiamondOption } from "../../product-diamond-option.model";
+
 
 export const SettingTypeData = dbContext.define("setting_styles", {
   id: {
@@ -44,13 +43,4 @@ export const SettingTypeData = dbContext.define("setting_styles", {
   }
 });
 
-// Associations
-SettingTypeData.hasOne(Image, {
-  as: "setting_type_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-SettingTypeData.hasMany(ProductDiamondOption, {
-  foreignKey: "id_setting",
-  as: "PDO",
-});
+

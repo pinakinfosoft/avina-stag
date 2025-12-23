@@ -75,10 +75,3 @@ export const SideSettingStyles = dbContext.define("side_setting_styles", {
     type: JSON
   }
 });
-
-// Associations
-SideSettingStyles.hasOne(Image, {
-  as: "side_setting_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});

@@ -53,8 +53,3 @@ export const UserAddress = dbContext.define("addresses", {
     type: DATE,
   }
 });
-
-// Associations
-UserAddress.belongsTo(CityData, { foreignKey: "city_id", as: "city" });
-UserAddress.belongsTo(StateData, { foreignKey: "state_id", as: "state" });
-UserAddress.belongsTo(CountryData, { foreignKey: "country_id", as: "country" });

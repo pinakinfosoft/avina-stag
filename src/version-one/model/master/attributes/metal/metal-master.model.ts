@@ -1,7 +1,6 @@
 import { DATE, INTEGER, STRING, FLOAT } from "sequelize";
 import dbContext from "../../../../../config/db-context";
-import { ProductMetalOption } from "../../../product-metal-option.model";
-import { MetalGroupMaster } from "./metal-group-master.model";
+
 
 export const MetalMaster = dbContext.define("metal_masters", {
   id: {
@@ -59,12 +58,4 @@ export const MetalMaster = dbContext.define("metal_masters", {
   }
 });
 
-// Associations
-MetalMaster.hasMany(ProductMetalOption, {
-  foreignKey: "id_metal",
-  as: "PMO",
-});
-MetalMaster.hasMany(MetalGroupMaster, {
-  foreignKey: "id_metal",
-  as: "Metal_masters",
-});
+

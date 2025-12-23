@@ -1,8 +1,6 @@
 import { DATE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../../../../config/db-context";
-import { Image } from "../../../image.model";
-import { ProductMetalOption } from "../../../product-metal-option.model";
-import { ProductImage } from "../../../product-image.model";
+
 
 export const MetalTone = dbContext.define("metal_tones", {
   id: {
@@ -66,17 +64,4 @@ export const MetalTone = dbContext.define("metal_tones", {
   }
 });
 
-// Associations
-MetalTone.hasOne(Image, {
-  as: "metal_tone_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-MetalTone.hasMany(ProductMetalOption, {
-  foreignKey: "id_m_tone",
-  as: "PMO",
-});
-MetalTone.hasMany(ProductImage, {
-  foreignKey: "id_metal_tone",
-  as: "product_images",
-});
+

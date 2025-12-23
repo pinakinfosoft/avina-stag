@@ -1,7 +1,6 @@
 import { DATE, INTEGER, STRING, DOUBLE } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Product } from "./product.model";
-import { ReviewImages } from "./review-images.model";
+
 
 export const ProductReview = dbContext.define("product_reviews", {
   id: {
@@ -35,12 +34,4 @@ export const ProductReview = dbContext.define("product_reviews", {
   }
 });
 
-// Associations
-ProductReview.belongsTo(Product, {
-  foreignKey: "product_id",
-  as: "product",
-});
-ProductReview.hasMany(ReviewImages, {
-  foreignKey: "review_id",
-  as: "product_images",
-});
+

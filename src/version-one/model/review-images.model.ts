@@ -1,6 +1,6 @@
 import { DATE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { ProductReview } from "./product-review.model";
+
 
 export const ReviewImages = dbContext.define("review_images", {
   review_id: {
@@ -19,5 +19,4 @@ export const ReviewImages = dbContext.define("review_images", {
   }
 });
 
-// Associations
-ReviewImages.belongsTo(ProductReview, { foreignKey: "review_id", as: "product" });
+

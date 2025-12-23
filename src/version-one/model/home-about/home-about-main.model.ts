@@ -31,9 +31,3 @@ export const HomeAboutMain = dbContext.define("home_about_mains", {
     type: INTEGER,
   }
 });
-
-// Associations
-HomeAboutMain.hasMany(HomeAboutSub, {
-  foreignKey: "id_home_main",
-  as: "home_about_subs",
-});

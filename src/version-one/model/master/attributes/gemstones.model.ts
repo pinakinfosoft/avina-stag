@@ -1,7 +1,6 @@
 import { DATE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { Image } from "../../image.model";
-import { ProductDiamondOption } from "../../product-diamond-option.model";
+
 
 export const StoneData = dbContext.define("gemstones", {
   id: {
@@ -68,13 +67,4 @@ export const StoneData = dbContext.define("gemstones", {
   }
 });
 
-// Associations
-StoneData.hasOne(Image, {
-  as: "stone_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-StoneData.hasMany(ProductDiamondOption, {
-  foreignKey: "id_stone",
-  as: "PDO",
-});
+

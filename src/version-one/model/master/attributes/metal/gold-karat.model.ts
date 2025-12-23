@@ -1,8 +1,6 @@
 import { DATE, DOUBLE, INTEGER, JSONB, STRING } from "sequelize";
 import dbContext from "../../../../../config/db-context";
-import { Image } from "../../../image.model";
-import { MetalMaster } from "./metal-master.model";
-import { ProductMetalOption } from "../../../product-metal-option.model";
+
 
 export const GoldKarat = dbContext.define("gold_kts", {
   id: {
@@ -69,17 +67,3 @@ export const GoldKarat = dbContext.define("gold_kts", {
   }
 });
 
-// Associations
-GoldKarat.hasOne(Image, {
-  as: "karat_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-GoldKarat.belongsTo(MetalMaster, {
-  as: "metals",
-  foreignKey: "id",
-});
-GoldKarat.hasMany(ProductMetalOption, {
-  foreignKey: "id_karat",
-  as: "PMO",
-});

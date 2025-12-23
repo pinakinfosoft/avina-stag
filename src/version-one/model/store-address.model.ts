@@ -1,6 +1,6 @@
 import { DATE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Orders } from "./order.model";
+
 
 export const StoreAddress = dbContext.define("store_address", {
   id: {
@@ -43,5 +43,4 @@ export const StoreAddress = dbContext.define("store_address", {
   },
 });
 
-// Associations
-StoreAddress.hasMany(Orders, { foreignKey: "pickup_store_id", as: "store_address" });
+

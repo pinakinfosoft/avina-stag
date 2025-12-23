@@ -1,15 +1,6 @@
 import { DATE, DOUBLE, FLOAT, INTEGER, JSON, STRING } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { Image } from "../../image.model";
-import { DiamondShape } from "./diamondShape.model";
-import { StoneData } from "./gemstones.model";
-import { MMSizeData } from "./mmSize.model";
-import { ClarityData } from "./clarity.model";
-import { Colors } from "./colors.model";
-import { CutsData } from "./cuts.model";
-import { SieveSizeData } from "./seiveSize.model";
-import { DiamondCaratSize } from "./caratSize.model";
-import { ProductDiamondOption } from "../../product-diamond-option.model";
+
 
 export const DiamondGroupMaster = dbContext.define("diamond_group_masters", {
   id: {
@@ -103,52 +94,4 @@ export const DiamondGroupMaster = dbContext.define("diamond_group_masters", {
   }
 });
 
-// Associations
-DiamondGroupMaster.hasOne(Image, {
-  as: "image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-DiamondGroupMaster.hasOne(StoneData, {
-  as: "stones",
-  foreignKey: "id",
-  sourceKey: "id_stone",
-});
-DiamondGroupMaster.hasOne(MMSizeData, {
-  as: "mm_size",
-  foreignKey: "id",
-  sourceKey: "id_mm_size",
-});
-DiamondGroupMaster.hasOne(ClarityData, {
-  as: "clarity",
-  foreignKey: "id",
-  sourceKey: "id_clarity",
-});
-DiamondGroupMaster.hasOne(Colors, {
-  as: "colors",
-  foreignKey: "id",
-  sourceKey: "id_color",
-});
-DiamondGroupMaster.hasOne(CutsData, {
-  as: "cuts",
-  foreignKey: "id",
-  sourceKey: "id_cuts",
-});
-DiamondGroupMaster.hasOne(DiamondCaratSize, {
-  as: "carats",
-  foreignKey: "id",
-  sourceKey: "id_carat",
-});
-DiamondGroupMaster.hasOne(SieveSizeData, {
-  as: "seive_size",
-  foreignKey: "id",
-  sourceKey: "id_seive_size",
-});
-DiamondGroupMaster.belongsTo(DiamondShape, {
-  foreignKey: "id_shape",
-  as: "shapes",
-});
-DiamondGroupMaster.hasMany(ProductDiamondOption, {
-  foreignKey: "id_diamond_group",
-  as: "PDO",
-});
+

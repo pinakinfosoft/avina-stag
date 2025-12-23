@@ -1,6 +1,6 @@
 import { INTEGER, STRING, DATE } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { ProductDiamondOption } from "../../product-diamond-option.model";
+
 
 export const Colors = dbContext.define("colors", {
   id: {
@@ -43,8 +43,4 @@ export const Colors = dbContext.define("colors", {
   }
 });
 
-// Associations
-Colors.hasMany(ProductDiamondOption, {
-  foreignKey: "id_color",
-  as: "PDO",
-});
+

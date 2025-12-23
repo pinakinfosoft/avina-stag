@@ -1,6 +1,6 @@
 import { DATE, DOUBLE, INTEGER, JSON, STRING, TEXT } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Image } from "./image.model";
+
 
 export const TemplateEightData = dbContext.define("template_eight", {
   id: {
@@ -92,8 +92,4 @@ export const TemplateEightData = dbContext.define("template_eight", {
 });
 
 // Associations
-TemplateEightData.hasOne(Image, {
-  as: "eight_title_image",
-  foreignKey: "id",
-  sourceKey: "id_title_image",
-});
+

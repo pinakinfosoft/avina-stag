@@ -36,9 +36,3 @@ export const ActivityLogs = dbContext.define("activity_logs", {
     type: INTEGER
   }
 });
-
-// Associations
-ActivityLogs.belongsTo(AppUser, {
-  foreignKey: 'created_by',
-  as: 'User'
-});

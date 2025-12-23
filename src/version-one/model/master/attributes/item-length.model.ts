@@ -40,7 +40,7 @@ export const LengthData = dbContext.define("items_lengths", {
 });
 
 // Associations
-LengthData.hasMany(ProductMetalOption, {
-  foreignKey: "id_length",
-  as: "PMO",
-});
+// LengthData.hasMany(ProductMetalOption, {
+//   foreignKey: "id_length",
+//   as: "PMO",
+// });

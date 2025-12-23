@@ -66,8 +66,3 @@ export const CategoryData = dbContext.define("categories", {
     type: STRING
   }
 });
-
-// Associations
-CategoryData.hasOne(Image, { as: "image", foreignKey: "id", sourceKey: "id_image" });
-CategoryData.belongsTo(CategoryData, { as: "parent_category", foreignKey: "parent_id" });
-CategoryData.hasMany(CategoryData, { as: "sub_category", foreignKey: "parent_id" });

@@ -1,6 +1,6 @@
 import { INTEGER, STRING, DATE, JSON } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { Image } from "../../image.model";
+
 
 export const DiamondCaratSize = dbContext.define("carat_sizes", {
   id: {
@@ -69,9 +69,4 @@ export const DiamondCaratSize = dbContext.define("carat_sizes", {
   }
 });
 
-// Associations
-DiamondCaratSize.hasOne(Image, {
-  as: "diamond_carat_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
+

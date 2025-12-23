@@ -1,7 +1,6 @@
 import { BIGINT, DOUBLE, INTEGER, JSON, SMALLINT } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Product } from "./product.model";
-import { Orders } from "./order.model";
+
 
 export const OrdersDetails = dbContext.define("order_details", {
   id: {
@@ -77,9 +76,4 @@ export const OrdersDetails = dbContext.define("order_details", {
   }
 });
 
-// Associations
-OrdersDetails.belongsTo(Product, { foreignKey: "product_id", as: "product" });
-OrdersDetails.belongsTo(Orders, {
-  foreignKey: "order_id",
-  as: "product_order",
-});
+

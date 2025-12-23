@@ -67,9 +67,3 @@ export const ShanksData = dbContext.define("shanks", {
   }
 });
 
-// Associations
-ShanksData.hasOne(Image, {
-  as: "shank_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});

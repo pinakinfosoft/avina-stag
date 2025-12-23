@@ -1,7 +1,6 @@
 import { DATE, DOUBLE, INTEGER, JSON, SMALLINT, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Orders } from "./order.model";
-import { OrderTransaction } from "./order-transaction.model";
+
 
 export const Invoices = dbContext.define("invoices", {
   id: {
@@ -41,6 +40,4 @@ export const Invoices = dbContext.define("invoices", {
   }
 });
 
-// Associations
-Invoices.hasOne(Orders, { as: "order_invoice", foreignKey: "id", sourceKey: "order_id" });
-Invoices.hasOne(OrderTransaction, { as: "order_transaction", foreignKey: "id", sourceKey: "transaction_id" });
+

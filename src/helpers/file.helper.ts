@@ -115,14 +115,12 @@ const shouldConvertToWebP = (mimetype: string): boolean => {
  * @param folderPath - Path to create (can be nested)
  */
 export const createFolderIfNot = (folderPath: string): void => {
-  const expectedFolderList = folderPath.split("/");
-  expectedFolderList.reduce((prevPath, currentPath) => {
-    const fullPath = `${prevPath}${currentPath}/`;
-    if (!fs.existsSync(fullPath)) {
-      fs.mkdirSync(fullPath, { recursive: true });
-    }
-    return fullPath;
-  }, "/");
+  if (!folderPath) {
+    throw new Error("folderPath is required");
+  }
+  if (!fs.existsSync(folderPath)) {
+    fs.mkdirSync(folderPath, { recursive: true });
+  }
 };
 
 // ============================================================================

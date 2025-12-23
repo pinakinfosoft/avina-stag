@@ -1,11 +1,6 @@
 import { BIGINT, DATE, DECIMAL, DOUBLE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Product } from "./product.model";
-import { MetalMaster } from "./master/attributes/metal/metal-master.model";
-import { GoldKarat } from "./master/attributes/metal/gold-karat.model";
-import { MetalTone } from "./master/attributes/metal/metalTone.model";
-import { SizeData } from "./master/attributes/item-size.model";
-import { LengthData } from "./master/attributes/item-length.model";
+
 
 export const ProductMetalOption = dbContext.define("product_metal_options", {
   id: {
@@ -87,28 +82,4 @@ export const ProductMetalOption = dbContext.define("product_metal_options", {
   }
 });
 
-// Associations
-ProductMetalOption.belongsTo(Product, {
-  foreignKey: "id_product",
-  as: "product",
-});
-ProductMetalOption.belongsTo(MetalMaster, {
-  foreignKey: "id_metal",
-  as: "metal_master",
-});
-ProductMetalOption.belongsTo(GoldKarat, {
-  foreignKey: "id_karat",
-  as: "metal_karat",
-});
-ProductMetalOption.belongsTo(SizeData, {
-  foreignKey: "id_size",
-  as: "item_size",
-});
-ProductMetalOption.belongsTo(LengthData, {
-  foreignKey: "id_length",
-  as: "item_length",
-});
-ProductMetalOption.belongsTo(MetalTone, {
-  foreignKey: "id_m_tone",
-  as: "metal_tone",
-});
+

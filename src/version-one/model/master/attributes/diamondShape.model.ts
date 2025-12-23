@@ -1,8 +1,6 @@
 import { DATE, INTEGER, JSON, STRING } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { Image } from "../../image.model";
-import { ProductDiamondOption } from "../../product-diamond-option.model";
-import { DiamondGroupMaster } from "./diamond-group-master.model";
+
 
 export const DiamondShape = dbContext.define("diamond_shapes", {
   id: {
@@ -72,17 +70,4 @@ export const DiamondShape = dbContext.define("diamond_shapes", {
   }
 });
 
-// Associations
-DiamondShape.hasOne(Image, {
-  as: "diamond_shape_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-DiamondShape.hasMany(ProductDiamondOption, {
-  foreignKey: "id_shape",
-  as: "PDO",
-});
-DiamondShape.hasMany(DiamondGroupMaster, {
-  foreignKey: "id_shape",
-  as: "diamond_shapes",
-});
+

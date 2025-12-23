@@ -1,8 +1,6 @@
 import { DATE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { MenuItem } from "./menu-items.model";
-import { RolePermissionAccess } from "./role-permission-access.model";
-import { Role } from "./role.model";
+
 
 export const RolePermission = dbContext.define("role_permissions", {
   id: {
@@ -33,16 +31,3 @@ export const RolePermission = dbContext.define("role_permissions", {
   }
 });
 
-// Associations
-RolePermission.belongsTo(Role, {
-  foreignKey: "id_role",
-  as: "role",
-});
-RolePermission.belongsTo(MenuItem, {
-  foreignKey: "id_menu_item",
-  as: "menu_item",
-});
-RolePermission.hasMany(RolePermissionAccess, {
-  foreignKey: "id_role_permission",
-  as: "RPA",
-});

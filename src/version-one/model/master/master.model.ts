@@ -1,6 +1,6 @@
 import { INTEGER, STRING, DATE, BIGINT } from "sequelize";
 import dbContext from "../../../config/db-context";
-import { Image } from "../image.model";
+
 
 export const Master = dbContext.define("masters", {
   id: {
@@ -65,4 +65,4 @@ export const Master = dbContext.define("masters", {
 });
 
 // Associations
-Master.belongsTo(Image, { foreignKey: "id_image", as: "image" });
+

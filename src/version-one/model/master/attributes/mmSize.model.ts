@@ -1,6 +1,6 @@
 import { INTEGER, STRING, DATE } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { ProductDiamondOption } from "../../product-diamond-option.model";
+
 
 export const MMSizeData = dbContext.define("mm_sizes", {
   id: {
@@ -39,8 +39,4 @@ export const MMSizeData = dbContext.define("mm_sizes", {
   }
 });
 
-// Associations
-MMSizeData.hasMany(ProductDiamondOption, {
-  foreignKey: "id_mm_size",
-  as: "PDO",
-});
+

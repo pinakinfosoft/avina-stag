@@ -8,12 +8,7 @@ import {
   STRING,
 } from "sequelize";
 import dbContext from "../../config/db-context";
-import { CouponData } from "./coupon.model";
-import { CurrencyData } from "./master/currency.model";
-import { StoreAddress } from "./store-address.model";
-import { OrdersDetails } from "./order-details.model";
-import { ConfigOrdersDetails } from "./config-order-details.model";
-import { Invoices } from "./invoices.model";
+
 
 export const Orders = dbContext.define("orders", {
   id: {
@@ -121,25 +116,4 @@ export const Orders = dbContext.define("orders", {
   }
 });
 
-// Associations
-Orders.belongsTo(CouponData, {
-  foreignKey: "coupon_id",
-  as: "coupon",
-});
-Orders.belongsTo(CurrencyData, {
-  foreignKey: "currency_id",
-  as: "currency",
-});
-Orders.belongsTo(StoreAddress, {
-  foreignKey: "pickup_store_id",
-  as: "store_address",
-});
-Orders.hasMany(OrdersDetails, {
-  foreignKey: "order_id",
-  as: "order",
-});
-Orders.hasMany(ConfigOrdersDetails, {
-  foreignKey: "order_id",
-  as: "config_order",
-});
-Orders.hasOne(Invoices, { as: "invoice", foreignKey: "order_id" });
+

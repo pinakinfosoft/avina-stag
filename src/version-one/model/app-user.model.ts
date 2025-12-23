@@ -83,7 +83,3 @@ export const AppUser = dbContext.define("app_users", {
 });
 
 // Associations
-AppUser.belongsTo(Role, { foreignKey: "id_role", as: "role" });
-AppUser.hasMany(CartProducts, { foreignKey: "user_id", as: "users_details" });
-AppUser.hasOne(CustomerUser, { foreignKey: "id_app_user", as: "customer_user" });
-AppUser.hasOne(BusinessUser, { foreignKey: "id_app_user", as: "business_users" });

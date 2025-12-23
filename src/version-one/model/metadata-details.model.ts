@@ -1,6 +1,6 @@
 import { BIGINT, DATE, INTEGER, STRING, TEXT } from "sequelize";
 import dbContext from "../../config/db-context";
-import { PageData } from "./pages.model";
+
 
 export const MetaDataDetails = dbContext.define("metadata_details", {
   id: {
@@ -44,4 +44,4 @@ export const MetaDataDetails = dbContext.define("metadata_details", {
 });
 
 // Associations
-MetaDataDetails.belongsTo(PageData, { foreignKey: "id_page", as: "page" });
+

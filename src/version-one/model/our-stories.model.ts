@@ -1,6 +1,6 @@
 import { DATE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Image } from "./image.model";
+
 
 export const OurStory = dbContext.define("our_stories", {
   id: {
@@ -38,4 +38,4 @@ export const OurStory = dbContext.define("our_stories", {
 });
 
 // Associations
-OurStory.hasOne(Image, { as: "image", foreignKey: "id", sourceKey: "id_image" });
+

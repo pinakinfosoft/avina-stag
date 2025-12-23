@@ -1,7 +1,6 @@
 import { BIGINT, DATE, INTEGER, JSON, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Product } from "./product.model";
-import { AppUser } from "./app-user.model";
+
 
 export const CartProducts = dbContext.define("cart_products", {
   id: {
@@ -73,12 +72,4 @@ export const CartProducts = dbContext.define("cart_products", {
   }
 });
 
-// Associations
-CartProducts.belongsTo(Product, {
-  foreignKey: "product_id",
-  as: "product",
-});
-CartProducts.belongsTo(AppUser, {
-  foreignKey: "user_id",
-  as: "users",
-});
+

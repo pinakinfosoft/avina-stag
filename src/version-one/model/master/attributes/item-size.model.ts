@@ -40,13 +40,3 @@ export const SizeData = dbContext.define("items_sizes", {
   }
 });
 
-// Associations
-SizeData.hasMany(ProductMetalOption, {
-  foreignKey: "id_size",
-  as: "PMO",
-});
-SizeData.hasOne(ProductWish, {
-  as: "size",
-  foreignKey: "id",
-  sourceKey: "id_size",
-});

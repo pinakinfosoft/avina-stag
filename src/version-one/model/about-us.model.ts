@@ -66,10 +66,3 @@ export const AboutUsData = dbContext.define("about_us", {
     type: DATE,
   }
 });
-
-// Associations
-AboutUsData.hasOne(Image, {
-  as: "image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});

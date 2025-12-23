@@ -1,10 +1,6 @@
 import { BIGINT, DATE, DOUBLE, INTEGER, STRING, TEXT } from "sequelize";
 import dbContext from "../../config/db-context";
-import { MMSizeData } from "./master/attributes/mmSize.model";
-import { DiamondShape } from "./master/attributes/diamondShape.model";
-import { DiamondCaratSize } from "./master/attributes/caratSize.model";
-import { HeadsData } from "./master/attributes/heads.model";
-import { SideSettingStyles } from "./master/attributes/side-setting-styles.model";
+
 
 export const StudConfigProduct = dbContext.define("stud_config_products", {
   id: {
@@ -92,9 +88,4 @@ export const StudConfigProduct = dbContext.define("stud_config_products", {
   }
 });
 
-// Associations
-StudConfigProduct.belongsTo(MMSizeData, { as: "mm_size", foreignKey: "center_dia_mm_size" });
-StudConfigProduct.belongsTo(DiamondShape, { as: "dia_shape", foreignKey: "center_dia_shape" });
-StudConfigProduct.belongsTo(DiamondCaratSize, { as: "dia_wt", foreignKey: "center_dia_wt" });
-StudConfigProduct.belongsTo(HeadsData, { as: "setting", foreignKey: "setting_type" });
-StudConfigProduct.belongsTo(SideSettingStyles, { as: "huggies", foreignKey: "huggies_setting_type" });
+

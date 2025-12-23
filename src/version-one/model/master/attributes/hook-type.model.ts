@@ -43,9 +43,3 @@ export const HookTypeData = dbContext.define("hook_types", {
   }
 });
 
-// Associations
-HookTypeData.hasOne(Image, {
-  as: "hook_type_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});

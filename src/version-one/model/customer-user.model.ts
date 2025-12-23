@@ -1,8 +1,6 @@
 import { ARRAY, DATE, INTEGER, JSON, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { AppUser } from "./app-user.model";
-import { Image } from "./image.model";
-import { CountryData } from "./master/country.model";
+
 
 export const CustomerUser = dbContext.define("customer_users", {
   id: {
@@ -59,17 +57,4 @@ export const CustomerUser = dbContext.define("customer_users", {
 });
 
 // Associations
-CustomerUser.hasOne(Image, {
-  as: "image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-CustomerUser.hasOne(CountryData, {
-  as: "country",
-  foreignKey: "id",
-  sourceKey: "country_id",
-});
-CustomerUser.belongsTo(AppUser, {
-  as: "app_user",
-  foreignKey: "id_app_user",
-});
+

@@ -1,7 +1,6 @@
 import { DATE, INTEGER, SMALLINT, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Product } from "./product.model";
-import { MetalTone } from "./master/attributes/metal/metalTone.model";
+
 
 export const ProductImage = dbContext.define("product_images", {
   id: {
@@ -38,6 +37,4 @@ export const ProductImage = dbContext.define("product_images", {
   }
 });
 
-// Associations
-ProductImage.belongsTo(Product, { foreignKey: "id_product", as: "product" });
-ProductImage.belongsTo(MetalTone, { foreignKey: "id_metal_tone", as: "metal_tones" });
+

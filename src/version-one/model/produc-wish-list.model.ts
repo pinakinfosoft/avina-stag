@@ -1,11 +1,6 @@
 import { BIGINT, DATE, INTEGER, JSON, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { SizeData } from "./master/attributes/item-size.model";
-import { LengthData } from "./master/attributes/item-length.model";
-import { MetalMaster } from "./master/attributes/metal/metal-master.model";
-import { GoldKarat } from "./master/attributes/metal/gold-karat.model";
-import { MetalTone } from "./master/attributes/metal/metalTone.model";
-import { CustomerUser } from "./customer-user.model";
+
 
 export const ProductWish = dbContext.define("wishlist_products", {
   id: {
@@ -73,48 +68,5 @@ export const ProductWish = dbContext.define("wishlist_products", {
 });
 
 // Associations
-ProductWish.hasOne(SizeData, {
-  as: "size",
-  foreignKey: "id",
-  sourceKey: "id_size",
-});
-ProductWish.hasOne(LengthData, {
-  as: "length",
-  foreignKey: "id",
-  sourceKey: "id_length",
-});
-ProductWish.hasOne(MetalMaster, {
-  as: "metal",
-  foreignKey: "id",
-  sourceKey: "id_metal",
-});
-ProductWish.hasOne(GoldKarat, {
-  as: "karat",
-  foreignKey: "id",
-  sourceKey: "id_karat",
-});
-ProductWish.hasOne(MetalTone, {
-  as: "metal_tone",
-  foreignKey: "id",
-  sourceKey: "id_metal_tone",
-});
-ProductWish.hasOne(MetalTone, {
-  as: "head_metal_tone",
-  foreignKey: "id",
-  sourceKey: "id_head_metal_tone",
-});
-ProductWish.hasOne(MetalTone, {
-  as: "shank_metal_tone",
-  foreignKey: "id",
-  sourceKey: "id_shank_metal_tone",
-});
-ProductWish.hasOne(MetalTone, {
-  as: "band_metal_tone",
-  foreignKey: "id",
-  sourceKey: "id_band_metal_tone",
-});
-ProductWish.hasOne(CustomerUser, {
-  as: "user",
-  foreignKey: "id_app_user",
-  sourceKey: "user_id",
-});
+
+

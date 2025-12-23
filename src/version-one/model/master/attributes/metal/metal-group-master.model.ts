@@ -43,8 +43,8 @@ export const MetalGroupMaster = dbContext.define("metal_group_masters", {
 });
 
 // Associations
-MetalGroupMaster.belongsTo(MetalMaster, {
-  foreignKey: "id_metal",
-  as: "metal_group_metal",
-});
-MetalGroupMaster.belongsTo(GoldKarat, { foreignKey: "id_kt", as: "KT" });
+// MetalGroupMaster.belongsTo(MetalMaster, {
+//   foreignKey: "id_metal",
+//   as: "metal_group_metal",
+// });
+// MetalGroupMaster.belongsTo(GoldKarat, { foreignKey: "id_kt", as: "KT" });

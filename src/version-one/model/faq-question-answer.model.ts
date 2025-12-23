@@ -45,10 +45,3 @@ export const FAQData = dbContext.define("faq_que_ans", {
     type: INTEGER,
   }
 });
-
-// Associations
-FAQData.hasOne(FAQData, {
-  as: "FAQ_category",
-  foreignKey: "id",
-  sourceKey: "id_parent",
-});

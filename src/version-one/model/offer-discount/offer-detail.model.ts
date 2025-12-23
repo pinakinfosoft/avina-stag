@@ -1,6 +1,6 @@
 import { ARRAY, DATE, DECIMAL, INTEGER, NOW, STRING, TEXT, TIME } from "sequelize";
 import dbContext from "../../../config/db-context";
-import { Offers } from "./offer.model";
+
 
 export const OfferDetails = dbContext.define('offer_details', {
   id: {
@@ -69,7 +69,4 @@ export const OfferDetails = dbContext.define('offer_details', {
 });
 
 // Associations
-OfferDetails.belongsTo(Offers, {
-  foreignKey: "offer_id",
-  as: "offer",
-});
+

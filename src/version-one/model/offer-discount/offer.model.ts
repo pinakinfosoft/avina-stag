@@ -1,7 +1,6 @@
 import { ARRAY, DATE, DECIMAL, INTEGER, STRING, TEXT, TIME } from "sequelize";
 import dbContext from "../../../config/db-context";
-import { OfferDetails } from "./offer-detail.model";
-import { OfferEligibleCustomers } from "./offers-eligible-customer.model";
+
 
 export const Offers = dbContext.define('offers', {
   id: {
@@ -153,12 +152,4 @@ export const Offers = dbContext.define('offers', {
   }
 });
 
-// Associations
-Offers.hasMany(OfferDetails, {
-  foreignKey: "offer_id",
-  as: "offer_details",
-});
-Offers.hasMany(OfferEligibleCustomers, {
-  foreignKey: "offer_id",
-  as: "offer_eligible_customers",
-});
+

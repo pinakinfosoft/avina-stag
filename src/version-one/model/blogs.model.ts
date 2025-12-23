@@ -67,20 +67,3 @@ export const BlogsData = dbContext.define("blogs", {
     type: STRING,
   }
 });
-
-// Associations
-BlogsData.hasOne(Image, {
-  as: "banner_image",
-  foreignKey: "id",
-  sourceKey: "id_banner_image",
-});
-BlogsData.hasOne(Image, {
-  as: "blog_image",
-  foreignKey: "id",
-  sourceKey: "id_image",
-});
-BlogsData.hasOne(BlogCategoryData, {
-  as: "category",
-  foreignKey: "id",
-  sourceKey: "id_category",
-});

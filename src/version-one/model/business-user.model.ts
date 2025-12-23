@@ -43,7 +43,3 @@ export const BusinessUser = dbContext.define("business_users", {
     type: INTEGER,
   }
 });
-
-// Associations
-BusinessUser.belongsTo(AppUser, { foreignKey: "id_app_user", as: "b_app_user" });
-BusinessUser.belongsTo(Image, { foreignKey: "id_image", as: "b_image" });

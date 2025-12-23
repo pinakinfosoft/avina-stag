@@ -1,6 +1,6 @@
 import { DATE, INTEGER, NOW, STRING } from "sequelize";
 import dbContext from "../../../config/db-context";
-import { Offers } from "./offer.model";
+
 
 export const OfferEligibleCustomers = dbContext.define('offer_eligible_customers', {
   id: {
@@ -43,7 +43,4 @@ export const OfferEligibleCustomers = dbContext.define('offer_eligible_customers
 });
 
 // Associations
-OfferEligibleCustomers.belongsTo(Offers, {
-  foreignKey: "offer_id",
-  as: "offer",
-});
+

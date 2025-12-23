@@ -1,7 +1,6 @@
 import { INTEGER, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { MenuItem } from "./menu-items.model";
-import { Action } from "./action.model";
+
 
 export const RoleApiPermission = dbContext.define("role_api_permissions", {
   id: {
@@ -29,6 +28,3 @@ export const RoleApiPermission = dbContext.define("role_api_permissions", {
   }
 });
 
-// Associations
-RoleApiPermission.belongsTo(MenuItem, { as: "rap", foreignKey: "id_menu_item" });
-RoleApiPermission.belongsTo(Action, { as: "action", foreignKey: "id_action" });

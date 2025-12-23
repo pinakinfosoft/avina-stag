@@ -1,6 +1,6 @@
 import { DATE, INTEGER, JSON, STRING, SMALLINT, TIME } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Product } from "./product.model";
+
 
 export const ProductEnquiries = dbContext.define("product_enquiries", {
   id: {
@@ -53,8 +53,4 @@ export const ProductEnquiries = dbContext.define("product_enquiries", {
   }
 });
 
-// Associations
-ProductEnquiries.belongsTo(Product, {
-  foreignKey: "product_id",
-  as: "product",
-});
+

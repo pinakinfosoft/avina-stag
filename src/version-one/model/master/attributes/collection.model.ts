@@ -1,6 +1,6 @@
 import { INTEGER, STRING, DATE } from "sequelize";
 import dbContext from "../../../../config/db-context";
-import { CategoryData } from "../../category.model";
+
 
 export const Collection = dbContext.define("collections", {
   id: {
@@ -42,8 +42,4 @@ export const Collection = dbContext.define("collections", {
   }
 });
 
-// Associations
-Collection.belongsTo(CategoryData, {
-  foreignKey: "id_category",
-  as: "category",
-});
+

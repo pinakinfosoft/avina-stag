@@ -1,6 +1,6 @@
 import { INTEGER, STRING, DATE, TEXT } from "sequelize";
 import dbContext from "../../../config/db-context";
-import { Orders } from "../order.model";
+
 
 export const CurrencyData = dbContext.define("currency_rates", {
   id: {
@@ -66,5 +66,4 @@ export const CurrencyData = dbContext.define("currency_rates", {
   }
 });
 
-// Associations
-CurrencyData.hasMany(Orders, { foreignKey: "currency_id", as: "currency" });
+

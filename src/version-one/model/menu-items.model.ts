@@ -1,7 +1,5 @@
 import { BOOLEAN, DATE, DECIMAL, INTEGER, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { RolePermission } from "./role-permission.model";
-import { RoleApiPermission } from "./role-api-permission.model";
 
 export const MenuItem = dbContext.define("menu_items", {
   id: {
@@ -51,9 +49,4 @@ export const MenuItem = dbContext.define("menu_items", {
 });
 
 // Associations
-MenuItem.belongsTo(MenuItem, {
-  as: 'parent_menu',
-  foreignKey: 'id_parent_menu',
-});
-MenuItem.hasMany(RolePermission, { foreignKey: "id_menu_item", as: "RP" });
-MenuItem.hasMany(RoleApiPermission, { as: "rap", foreignKey: "id_menu_item" });
+

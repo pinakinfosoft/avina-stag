@@ -1,6 +1,6 @@
 import { DATE, DOUBLE, INTEGER, STRING } from "sequelize";
 import dbContext from "../../../config/db-context";
-import { MegaMenuAttributes } from "./mega_menu_attributes.model";
+
 
 export const MegaMenus = dbContext.define("mega_menus", {
   id: {
@@ -34,8 +34,4 @@ export const MegaMenus = dbContext.define("mega_menus", {
   }
 });
 
-// Associations
-MegaMenus.hasMany(MegaMenuAttributes, {
-  foreignKey: "id_menu",
-  as: "mega_menu_attributes",
-});
+

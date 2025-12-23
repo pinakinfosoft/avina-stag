@@ -97,11 +97,11 @@ export const DEV_DEFAULT_RECIPIENT = process.env.DEV_DEFAULT_RECIPIENT;
 // FILE STORAGE PATHS
 // ============================================================================
 
-export const STORE_TEMP_IMAGE_PATH = process.env.STORE_TEMP_IMAGE_PATH;
-export const STORE_TEMP_FILE_PATH = process.env.STORE_TEMP_FILE_PATH;
-export const STORE_TEMP_VIDEO_PATH = process.env.STORE_TEMP_VIDEO_PATH;
-export const PRODUCT_CSV_FOLDER_PATH = process.env.PRODUCT_CSV_FOLDER_PATH;
-export const IMAGE_PATH = process.env.IMAGE_PATH;
+export const STORE_TEMP_IMAGE_PATH = process.env.STORE_TEMP_IMAGE_PATH || "./temp/images";
+export const STORE_TEMP_FILE_PATH = process.env.STORE_TEMP_FILE_PATH || "./temp/files";
+export const STORE_TEMP_VIDEO_PATH = process.env.STORE_TEMP_VIDEO_PATH || "./temp/videos";
+export const PRODUCT_CSV_FOLDER_PATH = process.env.PRODUCT_CSV_FOLDER_PATH || "./temp/csv";
+export const IMAGE_PATH = process.env.IMAGE_PATH || "./images";
 
 // ============================================================================
 // FRONTEND & URLS

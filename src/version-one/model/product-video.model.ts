@@ -1,6 +1,6 @@
 import { DATE, INTEGER, SMALLINT, STRING } from "sequelize";
 import dbContext from "../../config/db-context";
-import { Product } from "./product.model";
+
 
 export const ProductVideo = dbContext.define("product_videos", {
   id: {
@@ -37,5 +37,4 @@ export const ProductVideo = dbContext.define("product_videos", {
   }
 });
 
-// Associations
-ProductVideo.belongsTo(Product, { foreignKey: "id_product", as: "product" });
+
